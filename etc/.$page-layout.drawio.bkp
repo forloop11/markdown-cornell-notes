@@ -10,10 +10,10 @@
         <mxCell id="86zRo6-nObqIunTZmFlp-2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Header with Meeting Details and Metadata" vertex="1">
           <mxGeometry height="60" width="340" x="100" y="110" as="geometry" />
         </mxCell>
-        <mxCell id="86zRo6-nObqIunTZmFlp-3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="ruled in two columns&amp;nbsp; for hand writing" vertex="1">
+        <mxCell id="86zRo6-nObqIunTZmFlp-3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Summary: ruled for hand writing" vertex="1">
           <mxGeometry height="60" width="340" x="100" y="430" as="geometry" />
         </mxCell>
-        <mxCell id="86zRo6-nObqIunTZmFlp-4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Ruled for hand writing" vertex="1">
+        <mxCell id="86zRo6-nObqIunTZmFlp-4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;Cue:&lt;/div&gt;Ruled for hand writing" vertex="1">
           <mxGeometry height="260" width="80" x="360" y="170" as="geometry" />
         </mxCell>
       </root>

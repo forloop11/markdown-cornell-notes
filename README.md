@@ -5,9 +5,10 @@ A Cornell-style meeting notes template for LaTeX. Each page has a header
 cue column beside it, and a ruled footer, all for handwriting on a
 printout.
 
-Header details and notes content aren't edited in the `.tex` file directly —
-they're generated from a YAML file and a Markdown file, so day-to-day use is
-just editing `meeting.yaml` / `notes.md` and running `make`.
+Header details, notes content, and the page layout itself aren't edited in
+the `.tex` file directly — they're generated from YAML and Markdown files,
+so day-to-day use is just editing `meeting.yaml` / `notes.md` /
+`settings/page.yaml` and running `make`.
 
 ## Requirements
 
@@ -25,8 +26,9 @@ below instead.
 make build
 ```
 
-This regenerates the header and content from `meeting.yaml` / `notes.md`,
-compiles `cornell-notes.tex`, and cleans up pdflatex's intermediate files
+This regenerates the header, content, and page settings from
+`meeting.yaml` / `notes.md` / `settings/page.yaml`, compiles
+`cornell-notes.tex`, and cleans up pdflatex's intermediate files
 afterward. The result is `cornell-notes.pdf`.
 
 ## Docker
@@ -103,23 +105,28 @@ cornell-notes.tex   Template + \cornellpage / \cornellFlow macros; \input's
                      the generated files below and compiles to a PDF.
 meeting.yaml        Header fields (source of truth).
 notes.md            Notes panel content, in Markdown (source of truth).
+settings/
+  page.yaml            Page geometry & layout proportions (source of truth).
 scripts/
-  yaml_to_header.py    meeting.yaml       -> build/cornell-header.tex
-  markdown_to_pages.py notes.md (+pandoc) -> build/cornell-content.tex
+  simple_yaml.py        Shared minimal YAML parser used by the three below.
+  yaml_to_header.py      meeting.yaml       -> build/cornell-header.tex
+  markdown_to_pages.py   notes.md (+pandoc) -> build/cornell-content.tex
+  yaml_to_settings.py    settings/page.yaml -> build/cornell-page-settings.tex
 build/              Generated .tex fragments (gitignored, rebuilt by make).
 Makefile            `make build` / `make docker` / `make clean` / `make distclean`.
 Dockerfile          Container image with the build toolchain; see Docker above.
 .dockerignore       Keeps .git and build/ out of the Docker build context.
 ```
 
-`build/cornell-header.tex` and `build/cornell-content.tex` are generated,
-not source — don't hand-edit them, and don't commit them (already
-gitignored). `scripts/yaml_to_header.py` and `scripts/markdown_to_pages.py`
-can also be run directly if you want to regenerate one without the other:
+Everything under `build/` is generated, not source — don't hand-edit those
+files, and don't commit them (already gitignored). Each generator script
+can also be run directly if you want to regenerate one file without the
+others:
 
 ```sh
 python3 scripts/yaml_to_header.py meeting.yaml build/cornell-header.tex
 python3 scripts/markdown_to_pages.py notes.md build/cornell-content.tex
+python3 scripts/yaml_to_settings.py settings/page.yaml build/cornell-page-settings.tex
 ```
 
 ## Other Makefile targets
@@ -130,10 +137,35 @@ python3 scripts/markdown_to_pages.py notes.md build/cornell-content.tex
 
 ## Customizing the layout
 
-`cornell-notes.tex` has a "TEMPLATE CONFIGURATION" block near the top with
-the adjustable knobs: header/footer band heights, ruled-line spacing,
-column widths, and padding, all expressed as fractions of the page so they
-scale with paper size and margins.
+`settings/page.yaml` controls the page geometry and layout proportions —
+no need to touch `cornell-notes.tex` itself:
+
+```yaml
+paper: letterpaper
+margin: 0.5in
+
+header_height: 0.12
+footer_height: 0.18
+cue_width: 0.25
+
+rule_spacing: 0.30in
+padding: 0.12in
+border_inset: 2pt
+```
+
+- **`paper`, `margin`** — passed straight to the LaTeX `geometry` package,
+  so any value it accepts works (e.g. `paper: a4paper`, `margin: 20mm`).
+- **`header_height`, `footer_height`, `cue_width`** — sizing for the
+  header band, footer band, and right-hand ruled cue column, each as a
+  plain decimal fraction of the drawable page height/width.
+- **`rule_spacing`, `padding`, `border_inset`** — ruled-line spacing,
+  inner text padding, and the safety margin that keeps thick strokes
+  inside the printable area, each a LaTeX length.
+
+Edit the file and run `make build` (or `make docker`) again; every page
+picks up the change automatically. Under the hood this generates
+`build/cornell-page-settings.tex`, the same pattern as the header and
+content files above.
 
 ## License
 

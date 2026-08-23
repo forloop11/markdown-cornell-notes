@@ -8,8 +8,9 @@ always this simple.
 
 Usage (from the repo root): python3 scripts/yaml_to_header.py [input.yaml] [output.tex]
 """
-import os
 import sys
+
+from simple_yaml import parse_yaml, write_generated
 
 FIELD_MACROS = {
     "topic": "cnHdrTopic",
@@ -37,26 +38,6 @@ def escape_latex(value):
     return "".join(LATEX_SPECIALS.get(ch, ch) for ch in value)
 
 
-def strip_quotes(value):
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-        return value[1:-1]
-    return value
-
-
-def parse_yaml(path):
-    fields = {}
-    with open(path, encoding="utf-8") as f:
-        for lineno, raw_line in enumerate(f, start=1):
-            line = raw_line.split("#", 1)[0].strip()
-            if not line:
-                continue
-            if ":" not in line:
-                raise ValueError(f"{path}:{lineno}: expected 'key: value', got: {raw_line!r}")
-            key, _, value = line.partition(":")
-            fields[key.strip()] = strip_quotes(value.strip())
-    return fields
-
-
 def main():
     in_path = sys.argv[1] if len(sys.argv) > 1 else "meeting.yaml"
     out_path = sys.argv[2] if len(sys.argv) > 2 else "build/cornell-header.tex"
@@ -74,11 +55,7 @@ def main():
         value = escape_latex(fields.get(key, ""))
         lines.append(f"\\renewcommand{{\\{macro}}}{{{value}}}")
 
-    out_dir = os.path.dirname(out_path)
-    if out_dir:
-        os.makedirs(out_dir, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
+    write_generated(out_path, lines)
 
 
 if __name__ == "__main__":

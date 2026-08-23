@@ -1,5 +1,6 @@
 .git
 build/
+__pycache__/
 *.aux
 *.log
 *.fls

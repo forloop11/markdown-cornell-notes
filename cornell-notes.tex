@@ -80,9 +80,23 @@
 \newlength{\cnBorderInset} % safety margin so thick-stroke ink stays inside \textwidth/\textheight
 \newlength{\cnNotesPanelH} % usable height of the main notes panel, for \vsplit pagination
 
+% Header/footer/cue-column sizing, as fractions of the drawable page.
+\newcommand{\cnHeaderHeightFrac}{0.12}
+\newcommand{\cnFooterHeightFrac}{0.18}
+\newcommand{\cnCueWidthFrac}{0.25}
+
 \setlength{\cnRuleSpacing}{0.30in}           % ruled-line spacing
 \setlength{\cnPad}{0.12in}                   % inner padding for text
 \setlength{\cnBorderInset}{2pt}
+
+% ------------------------------------------------------------------
+% Page geometry, header/footer/cue-column fractions, and spacing
+% sourced from settings/page.yaml. Run `python3 scripts/yaml_to_settings.py`
+% to (re)generate build/cornell-page-settings.tex from it before
+% compiling; the defaults just above keep the build working even if
+% that hasn't been done yet.
+% ------------------------------------------------------------------
+\IfFileExists{build/cornell-page-settings.tex}{\input{build/cornell-page-settings.tex}}{}
 
 % \textwidth/\textheight are only finalized by geometry at
 % \begin{document}, so the fractional lengths above must be computed
@@ -91,12 +105,12 @@
   \setlength{\cnPageW}{\textwidth}\addtolength{\cnPageW}{-\cnBorderInset}
   \setlength{\cnPageH}{\textheight}\addtolength{\cnPageH}{-\cnBorderInset}
 
-  \setlength{\cnHeaderHeight}{0.12\cnPageH}    % header band
-  \setlength{\cnFooterHeight}{0.18\cnPageH}    % footer band
+  \setlength{\cnHeaderHeight}{\cnHeaderHeightFrac\cnPageH}    % header band
+  \setlength{\cnFooterHeight}{\cnFooterHeightFrac\cnPageH}    % footer band
   \setlength{\cnBodyTop}{\cnPageH}
   \addtolength{\cnBodyTop}{-\cnHeaderHeight}
 
-  \setlength{\cnCueWidth}{0.25\cnPageW}        % right-hand ruled column
+  \setlength{\cnCueWidth}{\cnCueWidthFrac\cnPageW}        % right-hand ruled column
   \setlength{\cnNotesWidth}{\cnPageW}
   \addtolength{\cnNotesWidth}{-\cnCueWidth}
 

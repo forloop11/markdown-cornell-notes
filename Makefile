@@ -5,6 +5,8 @@ BUILDDIR := build
 HEADER   := $(BUILDDIR)/cornell-header.tex
 MD       := notes.md
 CONTENT  := $(BUILDDIR)/cornell-content.tex
+SETTINGS_YAML := settings/page.yaml
+SETTINGS := $(BUILDDIR)/cornell-page-settings.tex
 LATEXMK  := latexmk
 LATEXOPTS := -pdf -interaction=nonstopmode -halt-on-error
 DOCKER_IMAGE := cornell-notes
@@ -21,13 +23,16 @@ docker:
 	docker build -t $(DOCKER_IMAGE) .
 	docker run --rm -v "$(CURDIR)":/workspace -u "$$(id -u):$$(id -g)" $(DOCKER_IMAGE)
 
-$(HEADER): $(YAML) scripts/yaml_to_header.py
+$(HEADER): $(YAML) scripts/yaml_to_header.py scripts/simple_yaml.py
 	python3 scripts/yaml_to_header.py $(YAML) $(HEADER)
 
 $(CONTENT): $(MD) scripts/markdown_to_pages.py
 	python3 scripts/markdown_to_pages.py $(MD) $(CONTENT)
 
-$(PDF): $(TEX) $(HEADER) $(CONTENT)
+$(SETTINGS): $(SETTINGS_YAML) scripts/yaml_to_settings.py scripts/simple_yaml.py
+	python3 scripts/yaml_to_settings.py $(SETTINGS_YAML) $(SETTINGS)
+
+$(PDF): $(TEX) $(HEADER) $(CONTENT) $(SETTINGS)
 	$(LATEXMK) $(LATEXOPTS) $(TEX)
 
 clean:
@@ -35,4 +40,4 @@ clean:
 
 distclean:
 	$(LATEXMK) -C $(TEX)
-	rm -f $(HEADER) $(CONTENT)
+	rm -f $(HEADER) $(CONTENT) $(SETTINGS)

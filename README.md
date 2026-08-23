@@ -13,7 +13,7 @@ so day-to-day use is just editing `meeting.yaml` / `notes.md` /
 ## Requirements
 
 - A TeX Live (or similar) install with `pdflatex` and `latexmk`, plus the
-  `tikz`, `xcolor`, and `geometry` packages
+  `tikz`, `xcolor`, `geometry`, and `hyperref` packages
 - Python 3 (standard library only, no pip packages required)
 - [pandoc](https://pandoc.org/), for converting `notes.md` to LaTeX
 
@@ -98,6 +98,24 @@ holds one `\cornellFlow{...}` call per `notes.md` section. Every resulting
 page shares the same header from `meeting.yaml` and numbers itself
 automatically (top-right corner of the header box).
 
+### Images and linked documents
+
+Put images and any other files `notes.md` references in `assets/`, then
+reference them with paths relative to the repo root:
+
+```markdown
+![](assets/diagram.png)
+
+See the [reference notes](assets/reference-notes.txt) for background.
+```
+
+Images are auto-scaled to fit the notes panel width, so a full-resolution
+screenshot won't overflow the page. Links are real, clickable PDF links
+(via `hyperref`) — for a local file like the example above, a PDF viewer
+resolves it relative to `cornell-notes.pdf`'s own location on disk. This
+also works with `make docker`: the whole project directory, `assets/`
+included, is mounted into the container at build time.
+
 ## Project structure
 
 ```
@@ -105,6 +123,7 @@ cornell-notes.tex   Template + \cornellpage / \cornellFlow macros; \input's
                      the generated files below and compiles to a PDF.
 meeting.yaml        Header fields (source of truth).
 notes.md            Notes panel content, in Markdown (source of truth).
+assets/             Images & other files notes.md links to (source of truth).
 settings/
   page.yaml            Page geometry & layout proportions (source of truth).
 scripts/

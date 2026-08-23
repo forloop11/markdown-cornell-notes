@@ -35,17 +35,23 @@
 \usepackage{tikz}
 \usepackage{xcolor}
 \usetikzlibrary{calc}
+% Real clickable links/bookmarks for notes.md images and linked documents
+% (see assets/); loaded last, as is customary for hyperref. hidelinks
+% keeps the printed page free of colored/boxed link decoration.
+\usepackage[hidelinks]{hyperref}
 
 \pagestyle{empty}
 \setlength{\parindent}{0pt}
 
-% pandoc's LaTeX output uses \tightlist in itemize/enumerate bodies, and
-% \hypertarget for headings; both are normally defined by pandoc's own
-% document template (the latter via hyperref), which we bypass since we
-% only take fragment output (see scripts/markdown_to_pages.py).
+% pandoc's LaTeX output uses \tightlist in itemize/enumerate bodies; it's
+% normally defined by pandoc's own document template, which we bypass
+% since we only take fragment output (see scripts/markdown_to_pages.py).
 \providecommand{\tightlist}{%
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
-\providecommand{\hypertarget}[2]{#2}
+
+% Images from notes.md (e.g. ![](assets/foo.png)) default-fit to the
+% notes panel width instead of overflowing it.
+\setkeys{Gin}{width=\linewidth}
 
 \newbox\cnFlowBox
 \newbox\cnFlowSplit

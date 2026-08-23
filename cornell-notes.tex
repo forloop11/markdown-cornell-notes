@@ -11,8 +11,8 @@
 %   |                                        |  (hand-    |
 %   |                                        |  writing)  |
 %   +----------------------------------------+-----------+
-%   |     Footer ruled in two columns (for hand writing)  |
-%   +----------------------------------------+-----------+
+%   |           Footer, ruled (for hand writing)          |
+%   +----------------------------------------------------+
 %
 % Usage: call \cornellpage{notes} once per page (see example at bottom).
 % Header fields come from meeting.yaml and apply to every page; page
@@ -39,11 +39,13 @@
 \pagestyle{empty}
 \setlength{\parindent}{0pt}
 
-% pandoc's LaTeX output uses \tightlist in itemize/enumerate bodies; it's
-% normally defined by pandoc's own document template, which we bypass
-% since we only take fragment output (see scripts/markdown_to_pages.py).
+% pandoc's LaTeX output uses \tightlist in itemize/enumerate bodies, and
+% \hypertarget for headings; both are normally defined by pandoc's own
+% document template (the latter via hyperref), which we bypass since we
+% only take fragment output (see scripts/markdown_to_pages.py).
 \providecommand{\tightlist}{%
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\providecommand{\hypertarget}[2]{#2}
 
 \newbox\cnFlowBox
 \newbox\cnFlowSplit

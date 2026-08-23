@@ -2,7 +2,8 @@
 
 A Cornell-style meeting notes template for LaTeX. Each page has a header
 (topic, date, attendees, time, project), a large notes panel with a ruled
-cue column beside it, and a two-column ruled footer.
+cue column beside it, and a ruled footer, all for handwriting on a
+printout.
 
 Header details and notes content aren't edited in the `.tex` file directly —
 they're generated from a YAML file and a Markdown file, so day-to-day use is
@@ -15,6 +16,9 @@ just editing `meeting.yaml` / `notes.md` and running `make`.
 - Python 3 (standard library only, no pip packages required)
 - [pandoc](https://pandoc.org/), for converting `notes.md` to LaTeX
 
+Don't want to install any of that locally? Use the [Docker image](#docker)
+below instead.
+
 ## Quick start
 
 ```sh
@@ -24,6 +28,28 @@ make build
 This regenerates the header and content from `meeting.yaml` / `notes.md`,
 compiles `cornell-notes.tex`, and cleans up pdflatex's intermediate files
 afterward. The result is `cornell-notes.pdf`.
+
+## Docker
+
+The `Dockerfile` packages just the pieces this project's build actually
+uses (not a full `texlive-full` install, which runs several GB) — around
+1GB total, mostly `pandoc` and the TeX Live packages themselves.
+
+```sh
+make docker
+```
+
+which is equivalent to:
+
+```sh
+docker build -t cornell-notes .
+docker run --rm -v "$(pwd)":/workspace -u "$(id -u):$(id -g)" cornell-notes
+```
+
+The `-u "$(id -u):$(id -g)"` runs the container as your own user instead
+of root, so `cornell-notes.pdf` and `build/` come out owned by you rather
+than root. The image's entrypoint is `make`, so you can run any target,
+e.g. `... cornell-notes clean`.
 
 ## Editing a page
 
@@ -75,13 +101,15 @@ automatically (top-right corner of the header box).
 ```
 cornell-notes.tex   Template + \cornellpage / \cornellFlow macros; \input's
                      the generated files below and compiles to a PDF.
-meeting.yaml         Header fields (source of truth).
-notes.md             Notes panel content, in Markdown (source of truth).
+meeting.yaml        Header fields (source of truth).
+notes.md            Notes panel content, in Markdown (source of truth).
 scripts/
   yaml_to_header.py    meeting.yaml       -> build/cornell-header.tex
   markdown_to_pages.py notes.md (+pandoc) -> build/cornell-content.tex
-build/               Generated .tex fragments (gitignored, rebuilt by make).
-Makefile             `make build` / `make clean` / `make distclean`.
+build/              Generated .tex fragments (gitignored, rebuilt by make).
+Makefile            `make build` / `make docker` / `make clean` / `make distclean`.
+Dockerfile          Container image with the build toolchain; see Docker above.
+.dockerignore       Keeps .git and build/ out of the Docker build context.
 ```
 
 `build/cornell-header.tex` and `build/cornell-content.tex` are generated,
@@ -96,6 +124,7 @@ python3 scripts/markdown_to_pages.py notes.md build/cornell-content.tex
 
 ## Other Makefile targets
 
+- `make docker` — runs the same build inside Docker; see [Docker](#docker) above.
 - `make clean` — removes pdflatex's intermediate files, keeps the PDF.
 - `make distclean` — also removes the generated `build/` files and the PDF.
 

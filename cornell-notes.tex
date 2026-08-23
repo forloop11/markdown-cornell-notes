@@ -1,0 +1,212 @@
+% !TEX program = pdflatex
+%
+% Cornell-style meeting notes template.
+%
+% Layout (per page):
+%   +----------------------------------------------------+
+%   |            Header: meeting details & metadata      |
+%   +----------------------------------------+-----------+
+%   |                                        |  Ruled     |
+%   |           Main panel for notes         |  column    |
+%   |                                        |  (hand-    |
+%   |                                        |  writing)  |
+%   +----------------------------------------+-----------+
+%   |     Footer ruled in two columns (for hand writing)  |
+%   +----------------------------------------+-----------+
+%
+% Usage: call \cornellpage{...} once per page (see examples at bottom).
+% Adjustable knobs are in the "TEMPLATE CONFIGURATION" block below.
+
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[letterpaper,margin=0.5in]{geometry}
+\usepackage{tikz}
+\usepackage{xcolor}
+\usetikzlibrary{calc}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+
+% ------------------------------------------------------------------
+% TEMPLATE CONFIGURATION
+% ------------------------------------------------------------------
+\newlength{\cnPageW}       % drawable width  (slightly under \textwidth)
+\newlength{\cnPageH}       % drawable height (slightly under \textheight)
+\newlength{\cnHeaderHeight}
+\newlength{\cnFooterHeight}
+\newlength{\cnBodyTop}     % y-coordinate of the body/header boundary
+\newlength{\cnCueWidth}
+\newlength{\cnNotesWidth}
+\newlength{\cnHalfWidth}
+\newlength{\cnRuleSpacing}
+\newlength{\cnPad}
+\newlength{\cnBorderInset} % safety margin so thick-stroke ink stays inside \textwidth/\textheight
+
+\setlength{\cnRuleSpacing}{0.30in}           % ruled-line spacing
+\setlength{\cnPad}{0.12in}                   % inner padding for text
+\setlength{\cnBorderInset}{2pt}
+
+% \textwidth/\textheight are only finalized by geometry at
+% \begin{document}, so the fractional lengths above must be computed
+% then, not in the preamble (where they'd still hold article's defaults).
+\AtBeginDocument{%
+  \setlength{\cnPageW}{\textwidth}\addtolength{\cnPageW}{-\cnBorderInset}
+  \setlength{\cnPageH}{\textheight}\addtolength{\cnPageH}{-\cnBorderInset}
+
+  \setlength{\cnHeaderHeight}{0.12\cnPageH}    % header band
+  \setlength{\cnFooterHeight}{0.18\cnPageH}    % footer band
+  \setlength{\cnBodyTop}{\cnPageH}
+  \addtolength{\cnBodyTop}{-\cnHeaderHeight}
+
+  \setlength{\cnCueWidth}{0.25\cnPageW}        % right-hand ruled column
+  \setlength{\cnNotesWidth}{\cnPageW}
+  \addtolength{\cnNotesWidth}{-\cnCueWidth}
+
+  \setlength{\cnHalfWidth}{0.5\cnPageW}        % footer column width
+}
+
+% scratch registers used while laying out each page
+\newlength{\cnRowAY}
+\newlength{\cnRowBY}
+\newlength{\cnMeetW}
+\newlength{\cnDateX}
+\newlength{\cnDateW}
+\newlength{\cnAttW}
+\newlength{\cnTLX}
+\newlength{\cnTLW}
+\newlength{\cnProjX}
+\newlength{\cnProjW}
+\newlength{\cnCapMidX}
+\newlength{\cnCapRightX}
+\newlength{\cnNotesTextW}
+\newlength{\cnNotesTextY}
+\newlength{\cnRegionH}
+
+% ------------------------------------------------------------------
+% Draw evenly spaced horizontal ruled lines inside the rectangle whose
+% corners are (x0,y0)--(x1,y1). All four args must be bare dimensions
+% (a "\the<length>" token, with no arithmetic).
+% ------------------------------------------------------------------
+\newcommand{\cnRuledLines}[4]{%
+  \setlength{\cnRegionH}{#4}%
+  \addtolength{\cnRegionH}{-#2}%
+  \pgfmathsetmacro{\cnNLines}{floor(\the\cnRegionH/\the\cnRuleSpacing)}%
+  \foreach \i in {1,...,\cnNLines}{%
+    \draw[gray!55,thin]
+      (#1,#2+\i*\the\cnRuleSpacing) -- (#3,#2+\i*\the\cnRuleSpacing);
+  }%
+}
+
+% A labelled fill-in blank: label at top-left (x,y); an optional typed
+% value on the line below it, wrapped to width w so it can never spill
+% into a neighboring field; and a rule underneath for writing by hand.
+% x, y, w must be bare dimensions (no arithmetic).
+\newcommand{\cnField}[5]{% x, y (top-left), width, label, value
+  \node[anchor=north west,font=\bfseries\footnotesize,inner sep=0pt]
+    at (#1,#2) {#4};
+  \node[anchor=north west,align=left,font=\footnotesize,inner sep=0pt,
+        text width=#3] at ($(#1,#2)+(0pt,-11pt)$) {#5};
+  \draw[gray!70] ($(#1,#2)+(0pt,-34pt)$) -- ($(#1,#2)+(#3,-34pt)$);
+}
+
+% ------------------------------------------------------------------
+% \cornellpage{Meeting title}{Date}{Attendees}{Time / Location}%
+%             {Project/Course \& Page}{Notes content}
+%
+% Call once per page. Pass an empty group ({}) for "Notes content"
+% to leave the main panel blank for handwriting instead of typed text.
+% ------------------------------------------------------------------
+\newif\ifcnfirstpage
+\cnfirstpagetrue
+
+\newcommand{\cornellpage}[6]{%
+  \ifcnfirstpage\cnfirstpagefalse\else\newpage\fi
+  % --- precompute header field geometry -------------------------------
+  \setlength{\cnRowAY}{\cnPageH}\addtolength{\cnRowAY}{-8pt}
+  \setlength{\cnRowBY}{\cnRowAY}\addtolength{\cnRowBY}{-0.5\cnHeaderHeight}
+
+  \setlength{\cnMeetW}{0.62\cnPageW}\addtolength{\cnMeetW}{-2\cnPad}
+  \setlength{\cnDateX}{0.64\cnPageW}
+  \setlength{\cnDateW}{0.36\cnPageW}\addtolength{\cnDateW}{-\cnPad}
+
+  \setlength{\cnAttW}{0.42\cnPageW}\addtolength{\cnAttW}{-2\cnPad}
+  \setlength{\cnTLX}{0.44\cnPageW}
+  \setlength{\cnTLW}{0.26\cnPageW}
+  \setlength{\cnProjX}{0.72\cnPageW}
+  \setlength{\cnProjW}{0.28\cnPageW}\addtolength{\cnProjW}{-\cnPad}
+
+  \setlength{\cnCapMidX}{\cnHalfWidth}\addtolength{\cnCapMidX}{\cnPad}
+  \setlength{\cnCapRightX}{\cnPageW}\addtolength{\cnCapRightX}{-\cnPad}
+
+  \setlength{\cnNotesTextW}{\cnNotesWidth}\addtolength{\cnNotesTextW}{-2\cnPad}
+  \setlength{\cnNotesTextY}{\cnBodyTop}\addtolength{\cnNotesTextY}{-\cnPad}
+
+  \noindent
+  \begin{tikzpicture}
+    % --- outer border + row/column dividers (table skeleton) ---
+    \draw[black,thick] (0,0) rectangle (\the\cnPageW,\the\cnPageH);
+    \draw[black,thick] (0,\the\cnFooterHeight) -- (\the\cnPageW,\the\cnFooterHeight); % footer / body
+    \draw[black,thick] (0,\the\cnBodyTop) -- (\the\cnPageW,\the\cnBodyTop);           % body / header
+    \draw[black,thick] (\the\cnNotesWidth,\the\cnFooterHeight) -- (\the\cnNotesWidth,\the\cnBodyTop); % notes / cue
+    \draw[black,thick] (\the\cnHalfWidth,0) -- (\the\cnHalfWidth,\the\cnFooterHeight);   % footer columns
+
+    % --- ruled lines: right-hand cue column and both footer columns ---
+    \cnRuledLines{\the\cnNotesWidth}{\the\cnFooterHeight}{\the\cnPageW}{\the\cnBodyTop}
+    \cnRuledLines{0pt}{0pt}{\the\cnHalfWidth}{\the\cnFooterHeight}
+    \cnRuledLines{\the\cnHalfWidth}{0pt}{\the\cnPageW}{\the\cnFooterHeight}
+
+    % --- header fields (label + optional typed value) --------------------
+    \cnField{\the\cnPad}{\the\cnRowAY}{\the\cnMeetW}{Meeting / Topic:}{#1}
+    \cnField{\the\cnDateX}{\the\cnRowAY}{\the\cnDateW}{Date:}{#2}
+
+    \cnField{\the\cnPad}{\the\cnRowBY}{\the\cnAttW}{Attendees:}{#3}
+    \cnField{\the\cnTLX}{\the\cnRowBY}{\the\cnTLW}{Time / Location:}{#4}
+    \cnField{\the\cnProjX}{\the\cnRowBY}{\the\cnProjW}{Project/Course \& Page:}{#5}
+
+    % --- region captions --------------------------------------------------
+    \node[anchor=south west,font=\itshape\scriptsize,gray,inner sep=2pt]
+      at (\the\cnPad,0pt) {};
+    \node[anchor=south west,font=\itshape\scriptsize,gray,inner sep=2pt]
+      at (\the\cnCapMidX,0pt) {};
+    \node[anchor=south east,font=\itshape\scriptsize,gray,inner sep=2pt]
+      at (\the\cnCapRightX,\the\cnFooterHeight) {};
+
+    % --- main notes panel (typed content, or blank for handwriting) -----
+    \node[anchor=north west,align=left,
+          text width=\the\cnNotesTextW,
+          inner sep=0pt] at (\the\cnPad,\the\cnNotesTextY) {#6};
+  \end{tikzpicture}%
+  \par
+}
+
+\begin{document}
+
+% ------------------------------------------------------------------
+% Example pages -- delete or duplicate \cornellpage{...} as needed.
+% ------------------------------------------------------------------
+
+\cornellpage
+  {Weekly Sync}
+  {2026-08-23}
+  {Alice, Bob, Priya}
+  {10:00\,--\,10:30, Zoom}
+  {Project Atlas, p.\,1}
+  {\footnotesize
+   \textbf{Agenda}
+   \begin{itemize}
+     \item Status update on milestone 2
+     \item Blockers from last sprint
+     \item Next steps
+   \end{itemize}
+  }
+
+\cornellpage
+  {}
+  {}
+  {}
+  {}
+  {}
+  {}
+
+\end{document}

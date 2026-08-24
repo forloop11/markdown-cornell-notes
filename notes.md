@@ -47,10 +47,10 @@ def hello():
 
 # Table
 
-| Name | Value |
-|------|-------|
-| a    | 1     |
-| b    | 2     |
+| Name   | Value  |
+|:------:|-------:|
+| a      | 1      |
+| b      | 2      |
 
 # Math
 

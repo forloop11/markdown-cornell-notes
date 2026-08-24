@@ -2,8 +2,8 @@
 """Convert meeting.yaml into build/cornell-header.tex.
 
 Supports the flat "key: value" subset of YAML used for the Cornell notes
-header fields (topic, date, attendees, time, project) -- no nesting, lists,
-or multi-line values. Avoids a PyYAML dependency since the header data is
+header fields (topic, date, attendees, time) -- no nesting, lists, or
+multi-line values. Avoids a PyYAML dependency since the header data is
 always this simple.
 
 Usage (from the repo root): python3 scripts/yaml_to_header.py [input.yaml] [output.tex]
@@ -17,7 +17,6 @@ FIELD_MACROS = {
     "date": "cnHdrDate",
     "attendees": "cnHdrAttendees",
     "time": "cnHdrTime",
-    "project": "cnHdrProject",
 }
 
 LATEX_SPECIALS = {

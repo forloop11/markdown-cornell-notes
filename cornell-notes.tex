@@ -98,7 +98,6 @@
 \newcommand{\cnHdrDate}{}
 \newcommand{\cnHdrAttendees}{}
 \newcommand{\cnHdrTime}{}
-\newcommand{\cnHdrProject}{}
 \IfFileExists{build/cornell-header.tex}{\input{build/cornell-header.tex}}{}
 
 % ------------------------------------------------------------------
@@ -169,8 +168,6 @@
 \newlength{\cnAttW}
 \newlength{\cnTLX}
 \newlength{\cnTLW}
-\newlength{\cnProjX}
-\newlength{\cnProjW}
 \newlength{\cnCapMidX}
 \newlength{\cnCapRightX}
 \newlength{\cnNotesTextW}
@@ -212,7 +209,7 @@
 % ------------------------------------------------------------------
 % \cornellpage{Notes content}
 %
-% Call once per page. Header fields (Topic/Date/Attendees/Time/Project)
+% Call once per page. Header fields (Topic/Date/Attendees/Time)
 % come from \cnHdrTopic etc. (see meeting.yaml) and are applied to every
 % page automatically. Pass an empty group ({}) for "Notes content" to
 % leave the main panel blank for handwriting instead of typed text.
@@ -231,11 +228,11 @@
   \setlength{\cnDateX}{0.64\cnPageW}
   \setlength{\cnDateW}{0.36\cnPageW}\addtolength{\cnDateW}{-\cnPad}
 
-  \setlength{\cnAttW}{0.42\cnPageW}\addtolength{\cnAttW}{-2\cnPad}
-  \setlength{\cnTLX}{0.44\cnPageW}
-  \setlength{\cnTLW}{0.26\cnPageW}
-  \setlength{\cnProjX}{0.72\cnPageW}
-  \setlength{\cnProjW}{0.28\cnPageW}\addtolength{\cnProjW}{-\cnPad}
+  % Attendees/Time mirror Topic/Date's column split so Time lands
+  % directly below Date.
+  \setlength{\cnAttW}{\cnMeetW}
+  \setlength{\cnTLX}{\cnDateX}
+  \setlength{\cnTLW}{\cnDateW}
 
   \setlength{\cnCapMidX}{\cnHalfWidth}\addtolength{\cnCapMidX}{\cnPad}
   \setlength{\cnCapRightX}{\cnPageW}\addtolength{\cnCapRightX}{-\cnPad}
@@ -261,7 +258,6 @@
 
     \cnFieldNoRule{\the\cnPad}{\the\cnRowBY}{\the\cnAttW}{Attendees:}{\cnHdrAttendees}
     \cnFieldNoRule{\the\cnTLX}{\the\cnRowBY}{\the\cnTLW}{Time:}{\cnHdrTime}
-    \cnFieldNoRule{\the\cnProjX}{\the\cnRowBY}{\the\cnProjW}{Project:}{\cnHdrProject}
 
     % --- region captions --------------------------------------------------
     \node[anchor=south west,font=\itshape\scriptsize,gray,inner sep=2pt]

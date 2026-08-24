@@ -1,9 +1,8 @@
 # Cornell Notes
 
 A Cornell-style meeting notes template for LaTeX. Each page has a header
-(topic, date, attendees, time, project), a large notes panel with a ruled
-cue column beside it, and a ruled footer, all for handwriting on a
-printout.
+(topic, date, attendees, time), a large notes panel with a ruled cue
+column beside it, and a ruled footer, all for handwriting on a printout.
 
 Header details, notes content, and the page layout itself aren't edited in
 the `.tex` file directly — they're generated from YAML and Markdown files,
@@ -59,7 +58,7 @@ e.g. `... cornell-notes clean`.
 ## Editing a page
 
 - **`meeting.yaml`** — the header fields (`topic`, `date`, `attendees`,
-  `time`, `project`). Applied to every page automatically.
+  `time`). Applied to every page automatically.
 - **`notes.md`** — the notes panel content, written in Markdown.
 
 ```yaml
@@ -67,7 +66,6 @@ topic: Weekly Sync
 date: 2026-08-23
 attendees: Alice, Bob, Priya
 time: "10:00--10:30, Zoom"
-project: "Project Atlas"
 ```
 
 ```markdown

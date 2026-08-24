@@ -57,6 +57,11 @@ def delongtable(latex):
     order a plain tabular needs. \\caption (float-only; would crash the
     same way a captioned image does, see markdown-implicit_figures
     below) is downgraded to a bold text line above the table.
+
+    The result is horizontally centered in the notes panel via
+    \\centering (a declaration, not the `center` environment -- `center`
+    adds stretchy vertical glue of its own, which risks the same
+    panel-stretching bug this function exists to fix).
     """
 
     def convert(m):
@@ -82,9 +87,31 @@ def delongtable(latex):
         tabular = f"\\begin{{tabular}}{{{spec}}}\n{header}{row_body}{footer}\\end{{tabular}}"
         if caption:
             tabular = f"\\textbf{{{caption}}}\\par\n{tabular}"
-        return tabular
+        # \centering (a declaration, not the `center` environment) just
+        # changes alignment for this group -- unlike `center`, it adds no
+        # extra stretchy vertical glue, so it can't reintroduce the same
+        # vsplit-panel-stretching bug longtable had.
+        return f"{{\\centering\n{tabular}\\par}}"
 
     return LONGTABLE_RE.sub(convert, latex)
+
+
+# A line that is *only* an \includegraphics call is a standalone image
+# paragraph (e.g. ![Tux](tux.jpg) on its own line in notes.md) -- pandoc
+# emits nothing else around it in that case. An image inline within a
+# sentence never matches this (it shares its line with surrounding text),
+# so this can't mis-fire on inline images.
+STANDALONE_IMAGE_RE = re.compile(
+    r"^\\includegraphics(?:\[[^\]]*\])?\{[^}]*\}$", re.MULTILINE
+)
+
+
+def center_standalone_images(latex):
+    """Horizontally center a standalone image paragraph in the notes
+    panel, the same way delongtable() centers tables. \\centering is
+    scoped to just this line, so it can't leak into surrounding text.
+    """
+    return STANDALONE_IMAGE_RE.sub(lambda m: f"{{\\centering\n{m.group(0)}\\par}}", latex)
 
 
 def markdown_to_latex(markdown):
@@ -101,14 +128,22 @@ def markdown_to_latex(markdown):
         # and crash ("Not in outer par mode") inside cornellFlow's vbox.
         # Disabling the extension keeps alt text but always emits a bare
         # \includegraphics.
-        ["pandoc", "-f", "markdown-implicit_figures", "-t", "latex", "--no-highlight"],
+        #
+        # --wrap=none: without it, pandoc word-wraps its LaTeX output at
+        # ~72 columns for readability. That's invisible in normal prose,
+        # but center_standalone_images() below distinguishes "an image
+        # alone on its line" (its own paragraph) from "an inline image
+        # mid-sentence" -- and wrapping can put an inline image alone on
+        # a line purely by coincidence of line length. --wrap=none keeps
+        # each paragraph on one line so that heuristic is reliable.
+        ["pandoc", "-f", "markdown-implicit_figures", "-t", "latex", "--no-highlight", "--wrap=none"],
         input=markdown,
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
         raise RuntimeError(f"pandoc failed: {result.stderr}")
-    return delongtable(result.stdout.strip())
+    return center_standalone_images(delongtable(result.stdout.strip()))
 
 
 def main():

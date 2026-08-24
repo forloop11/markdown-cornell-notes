@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Convert notes.md into build/cornell-content.tex: one \\cornellFlow{...}
-per section of main-panel content.
+"""Convert notes.md into build/cornell-content.tex: one cornellFlow
+environment per section of main-panel content.
 
 pandoc converts Markdown to LaTeX; \\cornellFlow (defined in
 cornell-notes.tex) then measures that content with TeX's \\vsplit and
@@ -24,17 +24,91 @@ import sys
 
 PAGEBREAK_RE = re.compile(r"^\s*<!--\s*pagebreak\s*-->\s*$", re.MULTILINE)
 
+LONGTABLE_RE = re.compile(
+    # spec is captured non-greedily up to the "}\n" that closes the
+    # \begin{longtable}{...} argument -- can't use [^}]* here since
+    # pandoc's column specs contain their own braces (e.g. "@{}ll@{}").
+    r"\\begin\{longtable\}\[[^\]]*\]\{(?P<spec>.*?)\}\n(?P<body>.*?)\\end\{longtable\}",
+    re.DOTALL,
+)
+LONGTABLE_MARKER_RE = re.compile(r"\\end(firsthead|head|foot|lastfoot)\s*\n?")
+CAPTION_RE = re.compile(r"\A\\caption\{(?P<text>.*?)\}\\tabularnewline\s*\n", re.DOTALL)
+
+
+def delongtable(latex):
+    """Rewrite pandoc's \\begin{longtable}...\\end{longtable} (emitted for
+    every pipe table) into a plain tabular.
+
+    longtable is page-builder-aware: it tracks \\pagegoal/\\pagetotal to
+    decide where to break a table across real pages, and anchors its
+    closing rule (the \\endlastfoot block) near the page bottom in case
+    the table turns out short on its final page. cornellFlow's tables
+    always live inside a \\vsplit'd, fixed-height vbox rather than a real
+    page, so that anchoring glue just stretches to fill the whole panel,
+    shoving the table to the bottom with a big gap above it. Since these
+    tables always fit within one panel -- cornellFlow's own \\vsplit loop
+    is what paginates across panels -- longtable's multi-page machinery
+    is both unneeded and actively harmful here.
+
+    longtable's source order is header, footer, then body rows (footer
+    comes before the rows because it's meant to repeat at the end of
+    every page), marked off by \\endfirsthead/\\endhead/\\endfoot/
+    \\endlastfoot. Reassembling as header + body + footer restores the
+    order a plain tabular needs. \\caption (float-only; would crash the
+    same way a captioned image does, see markdown-implicit_figures
+    below) is downgraded to a bold text line above the table.
+    """
+
+    def convert(m):
+        spec = m.group("spec")
+        body = m.group("body")
+
+        cap_m = CAPTION_RE.match(body)
+        caption = None
+        if cap_m:
+            caption = cap_m.group("text")
+            body = body[cap_m.end():]
+
+        segments = {}
+        pos = 0
+        for marker in LONGTABLE_MARKER_RE.finditer(body):
+            segments[marker.group(1)] = body[pos:marker.start()]
+            pos = marker.end()
+        row_body = body[pos:]
+
+        header = segments.get("firsthead", segments.get("head", ""))
+        footer = segments.get("lastfoot", segments.get("foot", ""))
+
+        tabular = f"\\begin{{tabular}}{{{spec}}}\n{header}{row_body}{footer}\\end{{tabular}}"
+        if caption:
+            tabular = f"\\textbf{{{caption}}}\\par\n{tabular}"
+        return tabular
+
+    return LONGTABLE_RE.sub(convert, latex)
+
 
 def markdown_to_latex(markdown):
     result = subprocess.run(
-        ["pandoc", "-f", "markdown", "-t", "latex"],
+        # --no-highlight: without it, a fenced code block with a language
+        # tag (e.g. ```python) emits \begin{Shaded}/\Highlighting, which
+        # need pandoc's syntax-highlighting preamble (fancyvrb, framed,
+        # Tok color commands) that this document doesn't load. Plain
+        # \begin{verbatim} works with any language tag or none.
+        #
+        # markdown-implicit_figures: without it, a standalone image with
+        # alt text (e.g. ![Tux](tux.jpg)) is wrapped in a LaTeX `figure`
+        # float with \caption. Floats need real page-level vertical mode
+        # and crash ("Not in outer par mode") inside cornellFlow's vbox.
+        # Disabling the extension keeps alt text but always emits a bare
+        # \includegraphics.
+        ["pandoc", "-f", "markdown-implicit_figures", "-t", "latex", "--no-highlight"],
         input=markdown,
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
         raise RuntimeError(f"pandoc failed: {result.stderr}")
-    return result.stdout.strip()
+    return delongtable(result.stdout.strip())
 
 
 def main():
@@ -52,7 +126,7 @@ def main():
     pages = []
     for chunk in chunks:
         latex = markdown_to_latex(chunk)
-        pages.append(f"\\cornellFlow{{%\n{latex}%\n}}")
+        pages.append(f"\\begin{{cornellFlow}}\n{latex}\n\\end{{cornellFlow}}")
 
     lines = [
         f"% Generated from {in_path} by scripts/markdown_to_pages.py -- do not edit by hand.",

@@ -10,6 +10,8 @@ the `.tex` file directly — they're generated from YAML and Markdown files,
 so day-to-day use is just editing `meeting.yaml` / `notes.md` /
 `settings/page.yaml` and running `make`.
 
+![](assets/page-layout.drawio.png)
+
 ## Requirements
 
 - A TeX Live (or similar) install with `pdflatex` and `latexmk`, plus the

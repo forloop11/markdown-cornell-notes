@@ -35,6 +35,13 @@
 \usepackage{tikz}
 \usepackage{xcolor}
 \usetikzlibrary{calc}
+% Support for notes.md/pandoc output: task-list checkboxes (amssymb's
+% \square/\boxtimes) and pipe tables (longtable/booktabs). All three are
+% already pulled in by texlive-latex-recommended, so this costs nothing
+% in image size.
+\usepackage{amssymb}
+\usepackage{longtable}
+\usepackage{booktabs}
 % Real clickable links/bookmarks for notes.md images and linked documents
 % (see assets/); loaded last, as is customary for hyperref. hidelinks
 % keeps the printed page free of colored/boxed link decoration.
@@ -49,9 +56,33 @@
 \providecommand{\tightlist}{%
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 
+% pandoc emits \st{...} for ~~strikethrough~~, normally provided by the
+% `soul` package. Neither `soul` nor `ulem` is in the Docker image's
+% minimal texlive set (both live only in texlive-latex-extra, a large
+% pull), so this draws the strike line with tikz (already a dependency)
+% instead. Unlike soul's \st, this treats its argument as one unbreakable
+% box, so it won't line-wrap mid-phrase -- fine for a struck word or
+% short phrase, not for striking out a whole paragraph.
+\providecommand{\st}[1]{%
+  \tikz[baseline=(cnStText.base)]{
+    \node[inner sep=0pt,outer sep=0pt] (cnStText) {#1};
+    \draw[line width=0.5pt]
+      ($(cnStText.west)+(0,0.55ex)$) -- ($(cnStText.east)+(0,0.55ex)$);
+  }%
+}
+
 % Images from notes.md (e.g. ![](assets/foo.png)) default-fit to the
 % notes panel width instead of overflowing it.
 \setkeys{Gin}{width=\linewidth}
+
+% When notes.md sizes an image with only one dimension (e.g.
+% ![](img.png){width=50pt}), pandoc pairs it with an explicit
+% height=\textheight/\textwidth rather than leaving height unset. Without
+% keepaspectratio, \includegraphics stretches to satisfy both dimensions
+% exactly, badly distorting the image. Force keepaspectratio on every
+% \includegraphics call so sized images scale instead of warping.
+\let\cnOrigIncludegraphics\includegraphics
+\renewcommand{\includegraphics}[2][]{\cnOrigIncludegraphics[#1,keepaspectratio]{#2}}
 
 \newbox\cnFlowBox
 \newbox\cnFlowSplit
@@ -253,23 +284,29 @@
 }
 
 % ------------------------------------------------------------------
-% \cornellFlow{content}
+% \begin{cornellFlow} content \end{cornellFlow}
 %
 % Typesets content into the notes panel and, unlike \cornellpage, breaks
 % it across as many pages as it actually needs: content is measured into
 % a single tall box, then repeatedly \vsplit at the panel height, calling
 % \cornellpage once per resulting chunk (each with the header and page
 % number applied automatically, as usual).
+%
+% This is an environment rather than a \newcommand argument so that
+% verbatim-family environments (pandoc's rendering of Markdown code
+% blocks) can appear inside it: verbatim needs to read its body live,
+% off the main input stream, which a macro argument's pre-scan would
+% prevent.
 % ------------------------------------------------------------------
-\newcommand{\cornellFlow}[1]{%
-  \setbox\cnFlowBox=\vbox{%
+\newenvironment{cornellFlow}{%
+  \setbox\cnFlowBox=\vbox\bgroup
     \hsize=\cnNotesTextW
     \linewidth=\hsize
     \footnotesize
     \noindent
-    #1%
+}{%
     \par\vfil\penalty-10000
-  }%
+  \egroup
   \cnFlowLoop
 }
 \def\cnFlowLoop{%

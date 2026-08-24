@@ -15,7 +15,8 @@ so day-to-day use is just editing `meeting.yaml` / `notes.md` /
 ## Requirements
 
 - A TeX Live (or similar) install with `pdflatex` and `latexmk`, plus the
-  `tikz`, `xcolor`, `geometry`, and `hyperref` packages
+  `tikz`, `xcolor`, `geometry`, `hyperref`, `amssymb`, `longtable`, and
+  `booktabs` packages
 - Python 3 (standard library only, no pip packages required)
 - [pandoc](https://pandoc.org/), for converting `notes.md` to LaTeX
 
@@ -79,6 +80,13 @@ project: "Project Atlas"
 
 Run `make build` again and both files flow through to the PDF.
 
+> The `notes.md` shipped in this repo is currently a test file exercising
+> the Markdown syntax this pipeline supports — formatting, lists, tables,
+> code blocks, math, images, and so on — rather than real meeting
+> content. Replace it with your own notes; until you do, it doubles as a
+> working reference for what's supported (its HTML comments also note
+> what isn't, and why).
+
 ### Pagination
 
 The notes panel has a fixed height, so `notes.md` is measured and
@@ -96,9 +104,9 @@ between two sections.
 ### Multiple topics per document
 
 `cornell-notes.tex` just does `\input{build/cornell-content.tex}`, which
-holds one `\cornellFlow{...}` call per `notes.md` section. Every resulting
-page shares the same header from `meeting.yaml` and numbers itself
-automatically (top-right corner of the header box).
+holds one `cornellFlow` environment per `notes.md` section. Every
+resulting page shares the same header from `meeting.yaml` and numbers
+itself automatically (top-right corner of the header box).
 
 ### Images and linked documents
 

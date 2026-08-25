@@ -3,7 +3,7 @@
 environment per section of main-panel content.
 
 pandoc converts Markdown to LaTeX; \\cornellFlow (defined in
-cornell-notes.tex) then measures that content with TeX's \\vsplit and
+etc/cornell-notes.tex) then measures that content with TeX's \\vsplit and
 automatically breaks it across as many pages as it actually needs, each
 carrying the same repeating header (see meeting.yaml) and the next page
 number.

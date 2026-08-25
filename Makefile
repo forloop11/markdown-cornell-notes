@@ -1,5 +1,5 @@
-TEX      := cornell-notes.tex
-PDF      := $(TEX:.tex=.pdf)
+TEX      := etc/cornell-notes.tex
+PDF      := $(notdir $(TEX:.tex=.pdf))
 YAML     := meeting.yaml
 BUILDDIR := build
 HEADER   := $(BUILDDIR)/cornell-header.tex
@@ -16,11 +16,11 @@ DOCKER_IMAGE := cornell-notes
 build: $(PDF)
 	$(LATEXMK) -c $(TEX)
 
-# Same as `build`, but run inside the Docker image (see Dockerfile) instead
-# of requiring pdflatex/latexmk/pandoc to be installed locally. Runs as the
-# calling user so the output isn't left root-owned on the host.
+# Same as `build`, but run inside the Docker image (see docker/Dockerfile)
+# instead of requiring pdflatex/latexmk/pandoc to be installed locally. Runs
+# as the calling user so the output isn't left root-owned on the host.
 docker:
-	docker build -t $(DOCKER_IMAGE) .
+	docker build -t $(DOCKER_IMAGE) -f docker/Dockerfile .
 	docker run --rm -v "$(CURDIR)":/workspace -u "$$(id -u):$$(id -g)" $(DOCKER_IMAGE)
 
 $(HEADER): $(YAML) scripts/yaml_to_header.py scripts/simple_yaml.py

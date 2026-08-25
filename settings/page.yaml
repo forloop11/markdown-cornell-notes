@@ -1,5 +1,5 @@
 # Page geometry, header/footer/cue-column sizing, and spacing for
-# cornell-notes.tex. Run `python3 scripts/yaml_to_settings.py` to
+# etc/cornell-notes.tex. Run `python3 scripts/yaml_to_settings.py` to
 # regenerate build/cornell-page-settings.tex, then compile as usual
 # (or just `make build`, which does this automatically).
 #

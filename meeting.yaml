@@ -1,6 +1,6 @@
-# Header details for the first \cornellpage in cornell-notes.tex.
+# Header details for the first \cornellpage in etc/cornell-notes.tex.
 # Run `python3 scripts/yaml_to_header.py` to regenerate build/cornell-header.tex, then
-# compile cornell-notes.tex with pdflatex as usual.
+# compile etc/cornell-notes.tex with pdflatex as usual.
 
 topic: Weekly Sync
 date: 2026-08-23

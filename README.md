@@ -30,14 +30,14 @@ make build
 
 This regenerates the header, content, and page settings from
 `meeting.yaml` / `notes.md` / `settings/page.yaml`, compiles
-`cornell-notes.tex`, and cleans up pdflatex's intermediate files
+`etc/cornell-notes.tex`, and cleans up pdflatex's intermediate files
 afterward. The result is `cornell-notes.pdf`.
 
 ## Docker
 
-The `Dockerfile` packages just the pieces this project's build actually
-uses (not a full `texlive-full` install, which runs several GB) — around
-1GB total, mostly `pandoc` and the TeX Live packages themselves.
+The `docker/Dockerfile` packages just the pieces this project's build
+actually uses (not a full `texlive-full` install, which runs several GB)
+— around 1GB total, mostly `pandoc` and the TeX Live packages themselves.
 
 ```sh
 make docker
@@ -46,7 +46,7 @@ make docker
 which is equivalent to:
 
 ```sh
-docker build -t cornell-notes .
+docker build -t cornell-notes -f docker/Dockerfile .
 docker run --rm -v "$(pwd)":/workspace -u "$(id -u):$(id -g)" cornell-notes
 ```
 
@@ -101,7 +101,7 @@ between two sections.
 
 ### Multiple topics per document
 
-`cornell-notes.tex` just does `\input{build/cornell-content.tex}`, which
+`etc/cornell-notes.tex` just does `\input{build/cornell-content.tex}`, which
 holds one `cornellFlow` environment per `notes.md` section. Every
 resulting page shares the same header from `meeting.yaml` and numbers
 itself automatically (top-right corner of the header box).
@@ -127,7 +127,8 @@ included, is mounted into the container at build time.
 ## Project structure
 
 ```
-cornell-notes.tex   Template + \cornellpage / \cornellFlow macros; \input's
+etc/
+  cornell-notes.tex  Template + \cornellpage / \cornellFlow macros; \input's
                      the generated files below and compiles to a PDF.
 meeting.yaml        Header fields (source of truth).
 notes.md            Notes panel content, in Markdown (source of truth).
@@ -141,7 +142,8 @@ scripts/
   yaml_to_settings.py    settings/page.yaml -> build/cornell-page-settings.tex
 build/              Generated .tex fragments (gitignored, rebuilt by make).
 Makefile            `make build` / `make docker` / `make clean` / `make distclean`.
-Dockerfile          Container image with the build toolchain; see Docker above.
+docker/
+  Dockerfile           Container image with the build toolchain; see Docker above.
 .dockerignore       Keeps .git and build/ out of the Docker build context.
 ```
 
@@ -165,7 +167,7 @@ python3 scripts/yaml_to_settings.py settings/page.yaml build/cornell-page-settin
 ## Customizing the layout
 
 `settings/page.yaml` controls the page geometry and layout proportions —
-no need to touch `cornell-notes.tex` itself:
+no need to touch `etc/cornell-notes.tex` itself:
 
 ```yaml
 paper: letterpaper

@@ -6,7 +6,7 @@ column beside it, and a ruled footer, all for handwriting on a printout.
 
 Header details, notes content, and the page layout itself aren't edited in
 the `.tex` file directly — they're generated from YAML and Markdown files,
-so day-to-day use is just editing `meeting.yaml` / `notes.md` /
+so day-to-day use is just editing `header.yaml` / `notes.md` /
 `settings/page.yaml` and running `make`.
 
 ![](assets/page-layout.drawio.png)
@@ -29,8 +29,8 @@ make build
 ```
 
 This regenerates the header, content, and page settings from
-`meeting.yaml` / `notes.md` / `settings/page.yaml`, compiles
-`etc/cornell-notes.tex`, and cleans up pdflatex's intermediate files
+`header.yaml` / `notes.md` / `settings/page.yaml`, compiles
+`settings/template.tex`, and cleans up pdflatex's intermediate files
 afterward. The result is `cornell-notes.pdf`.
 
 ## Docker
@@ -57,7 +57,7 @@ e.g. `... cornell-notes clean`.
 
 ## Editing a page
 
-- **`meeting.yaml`** — the header fields (`topic`, `date`, `attendees`,
+- **`header.yaml`** — the header fields (`topic`, `date`, `attendees`,
   `time`). Applied to every page automatically.
 - **`notes.md`** — the notes panel content, written in Markdown.
 
@@ -101,9 +101,9 @@ between two sections.
 
 ### Multiple topics per document
 
-`etc/cornell-notes.tex` just does `\input{build/cornell-content.tex}`, which
+`settings/template.tex` just does `\input{build/cornell-content.tex}`, which
 holds one `cornellFlow` environment per `notes.md` section. Every
-resulting page shares the same header from `meeting.yaml` and numbers
+resulting page shares the same header from `header.yaml` and numbers
 itself automatically (top-right corner of the header box).
 
 ### Images and linked documents
@@ -127,17 +127,16 @@ included, is mounted into the container at build time.
 ## Project structure
 
 ```
-etc/
-  cornell-notes.tex  Template + \cornellpage / \cornellFlow macros; \input's
-                     the generated files below and compiles to a PDF.
-meeting.yaml        Header fields (source of truth).
+header.yaml         Header fields (source of truth).
 notes.md            Notes panel content, in Markdown (source of truth).
 assets/             Images & other files notes.md links to (source of truth).
 settings/
+  template.tex         Template + \cornellpage / \cornellFlow macros; \input's
+                        the generated files below and compiles to a PDF.
   page.yaml            Page geometry & layout proportions (source of truth).
 scripts/
   simple_yaml.py        Shared minimal YAML parser used by the three below.
-  yaml_to_header.py      meeting.yaml       -> build/cornell-header.tex
+  yaml_to_header.py      header.yaml        -> build/cornell-header.tex
   markdown_to_pages.py   notes.md (+pandoc) -> build/cornell-content.tex
   yaml_to_settings.py    settings/page.yaml -> build/cornell-page-settings.tex
 build/              Generated .tex fragments (gitignored, rebuilt by make).
@@ -153,7 +152,7 @@ can also be run directly if you want to regenerate one file without the
 others:
 
 ```sh
-python3 scripts/yaml_to_header.py meeting.yaml build/cornell-header.tex
+python3 scripts/yaml_to_header.py header.yaml build/cornell-header.tex
 python3 scripts/markdown_to_pages.py notes.md build/cornell-content.tex
 python3 scripts/yaml_to_settings.py settings/page.yaml build/cornell-page-settings.tex
 ```
@@ -167,7 +166,7 @@ python3 scripts/yaml_to_settings.py settings/page.yaml build/cornell-page-settin
 ## Customizing the layout
 
 `settings/page.yaml` controls the page geometry and layout proportions —
-no need to touch `etc/cornell-notes.tex` itself:
+no need to touch `settings/template.tex` itself:
 
 ```yaml
 paper: letterpaper

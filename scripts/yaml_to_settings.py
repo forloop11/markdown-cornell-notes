@@ -3,7 +3,7 @@
 
 Controls page geometry (paper size, margin), header/footer/cue-column
 sizing (as fractions of the page), and spacing (rule spacing, padding,
-border inset) -- the "TEMPLATE CONFIGURATION" knobs in etc/cornell-notes.tex.
+border inset) -- the "TEMPLATE CONFIGURATION" knobs in settings/template.tex.
 Field values are passed through to LaTeX as-is (lengths and decimals,
 not prose), so no escaping is needed.
 

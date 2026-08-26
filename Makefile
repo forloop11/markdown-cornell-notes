@@ -1,6 +1,7 @@
-TEX      := etc/cornell-notes.tex
-PDF      := $(notdir $(TEX:.tex=.pdf))
-YAML     := meeting.yaml
+TEX      := settings/template.tex
+JOBNAME  := cornell-notes
+PDF      := $(JOBNAME).pdf
+YAML     := header.yaml
 BUILDDIR := build
 HEADER   := $(BUILDDIR)/cornell-header.tex
 MD       := notes.md
@@ -8,13 +9,13 @@ CONTENT  := $(BUILDDIR)/cornell-content.tex
 SETTINGS_YAML := settings/page.yaml
 SETTINGS := $(BUILDDIR)/cornell-page-settings.tex
 LATEXMK  := latexmk
-LATEXOPTS := -pdf -interaction=nonstopmode -halt-on-error
+LATEXOPTS := -pdf -interaction=nonstopmode -halt-on-error -jobname=$(JOBNAME)
 DOCKER_IMAGE := cornell-notes
 
 .PHONY: build clean distclean docker
 
 build: $(PDF)
-	$(LATEXMK) -c $(TEX)
+	$(LATEXMK) -c -jobname=$(JOBNAME) $(TEX)
 
 # Same as `build`, but run inside the Docker image (see docker/Dockerfile)
 # instead of requiring pdflatex/latexmk/pandoc to be installed locally. Runs
@@ -36,8 +37,8 @@ $(PDF): $(TEX) $(HEADER) $(CONTENT) $(SETTINGS)
 	$(LATEXMK) $(LATEXOPTS) $(TEX)
 
 clean:
-	$(LATEXMK) -c $(TEX)
+	$(LATEXMK) -c -jobname=$(JOBNAME) $(TEX)
 
 distclean:
-	$(LATEXMK) -C $(TEX)
+	$(LATEXMK) -C -jobname=$(JOBNAME) $(TEX)
 	rm -f $(HEADER) $(CONTENT) $(SETTINGS)

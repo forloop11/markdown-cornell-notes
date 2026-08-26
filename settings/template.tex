@@ -15,7 +15,7 @@
 %   +----------------------------------------------------+
 %
 % Usage: call \cornellpage{notes} once per page (see example at bottom).
-% Header fields come from meeting.yaml and apply to every page; page
+% Header fields come from header.yaml and apply to every page; page
 % numbers are automatic. Adjustable knobs are in the
 % "TEMPLATE CONFIGURATION" block below.
 %
@@ -88,9 +88,9 @@
 \newbox\cnFlowSplit
 
 % ------------------------------------------------------------------
-% Header fields sourced from meeting.yaml.
+% Header fields sourced from header.yaml.
 % Run `python3 scripts/yaml_to_header.py` to (re)generate
-% build/cornell-header.tex from meeting.yaml before compiling; these
+% build/cornell-header.tex from header.yaml before compiling; these
 % \newcommand defaults keep the build working even if that hasn't been
 % done yet.
 % ------------------------------------------------------------------
@@ -210,7 +210,7 @@
 % \cornellpage{Notes content}
 %
 % Call once per page. Header fields (Topic/Date/Attendees/Time)
-% come from \cnHdrTopic etc. (see meeting.yaml) and are applied to every
+% come from \cnHdrTopic etc. (see header.yaml) and are applied to every
 % page automatically. Pass an empty group ({}) for "Notes content" to
 % leave the main panel blank for handwriting instead of typed text.
 % The page number in the header's upper-right corner is automatic.
@@ -319,7 +319,7 @@
 % ------------------------------------------------------------------
 % One \cornellpage per page of notes.md (split on "<!-- pagebreak -->");
 % see build/cornell-content.tex generation notes above. Each page
-% automatically gets the same header (from meeting.yaml) and the next
+% automatically gets the same header (from header.yaml) and the next
 % page number.
 % ------------------------------------------------------------------
 

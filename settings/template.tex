@@ -6,12 +6,12 @@
 %   +----------------------------------------------------+
 %   |            Header: meeting details & metadata      |
 %   +----------------------------------------+-----------+
-%   |                                        |  Ruled     |
+%   |                                        |   Cue      |
 %   |           Main panel for notes         |  column    |
 %   |                                        |  (hand-    |
 %   |                                        |  writing)  |
 %   +----------------------------------------+-----------+
-%   |           Summary band, ruled (for hand writing)     |
+%   |           Summary band (for hand writing)            |
 %   +----------------------------------------------------+
 %
 % Usage: call \cornellpage{notes} once per page (see example at bottom).
@@ -154,7 +154,7 @@
 \newlength{\cnPageW}       % drawable width  (slightly under \textwidth)
 \newlength{\cnPageH}       % drawable height (slightly under \textheight)
 \newlength{\cnHeaderHeight}
-\newlength{\cnSummaryHeight} % the ruled band at the bottom of the page
+\newlength{\cnSummaryHeight} % the band at the bottom of the page
 \newlength{\cnBodyTop}     % y-coordinate of the body/header boundary
 \newlength{\cnCueWidth}
 \newlength{\cnCueTextX}    % x-coordinate of the cue column's text area
@@ -164,7 +164,6 @@
 \newlength{\cnSummaryColBX} % x-coordinate of the summary band's second column
 \newlength{\cnNotesWidth}
 \newlength{\cnHalfWidth}
-\newlength{\cnRuleSpacing}
 \newlength{\cnPad}
 \newlength{\cnBorderInset} % safety margin so thick-stroke ink stays inside \textwidth/\textheight
 \newlength{\cnNotesPanelH} % usable height of the main notes panel, for \vsplit pagination
@@ -174,7 +173,6 @@
 \newcommand{\cnCueWidthFrac}{0.25}
 \newcommand{\cnSummaryHeightFrac}{0.18}
 
-\setlength{\cnRuleSpacing}{0.30in}           % ruled-line spacing
 \setlength{\cnPad}{0.12in}                   % inner padding for text
 \setlength{\cnBorderInset}{2pt}
 
@@ -199,7 +197,7 @@
   \setlength{\cnBodyTop}{\cnPageH}
   \addtolength{\cnBodyTop}{-\cnHeaderHeight}
 
-  \setlength{\cnCueWidth}{\cnCueWidthFrac\cnPageW}        % right-hand ruled column
+  \setlength{\cnCueWidth}{\cnCueWidthFrac\cnPageW}        % right-hand column
   \setlength{\cnNotesWidth}{\cnPageW}
   \addtolength{\cnNotesWidth}{-\cnCueWidth}
 
@@ -237,29 +235,7 @@
 \newlength{\cnCapRightX}
 \newlength{\cnNotesTextW}
 \newlength{\cnNotesTextY}
-\newlength{\cnRegionH}
-\newlength{\cnCueTextH}    % height of this page's typeset cue text (0pt if none)
-\newlength{\cnCueRuleTop}  % upper bound for the cue column's ruled lines
 \newlength{\cnSummaryTextY}    % y-coordinate of the summary band's text area
-\newlength{\cnSummaryTextHA}    % height of this page's typeset summary column-1 text (0pt if none)
-\newlength{\cnSummaryTextHB}   % height of this page's typeset summary column-2 text (0pt if none)
-\newlength{\cnSummaryRuleTopA}  % upper bound for the summary band's column-1 ruled lines
-\newlength{\cnSummaryRuleTopB} % upper bound for the summary band's column-2 ruled lines
-
-% ------------------------------------------------------------------
-% Draw evenly spaced horizontal ruled lines inside the rectangle whose
-% corners are (x0,y0)--(x1,y1). All four args must be bare dimensions
-% (a "\the<length>" token, with no arithmetic).
-% ------------------------------------------------------------------
-\newcommand{\cnRuledLines}[4]{%
-  \setlength{\cnRegionH}{#4}%
-  \addtolength{\cnRegionH}{-#2}%
-  \pgfmathsetmacro{\cnNLines}{floor(\the\cnRegionH/\the\cnRuleSpacing)}%
-  \foreach \i in {1,...,\cnNLines}{%
-    \draw[gray!55,thin]
-      (#1,#2+\i*\the\cnRuleSpacing) -- (#3,#2+\i*\the\cnRuleSpacing);
-  }%
-}
 
 % A labelled fill-in blank: label at top-left (x,y); an optional typed
 % value on the line below it, wrapped to width w so it can never spill
@@ -291,7 +267,18 @@
 \cnfirstpagetrue
 
 \newcommand{\cornellpage}[1]{%
-  \ifcnfirstpage\cnfirstpagefalse\else\newpage\fi
+  % \global is required here: \cornellpage is always called from inside
+  % a \cornellFlow (see below), and \newenvironment wraps every
+  % environment's body in its own TeX group -- a plain (non-\global)
+  % \cnfirstpagefalse would only last until that \cornellFlow's
+  % \end{cornellFlow} closes the group, then silently revert to true.
+  % With a single \cornellFlow block (one notes.md section, the common
+  % case) that's invisible, since nothing rechecks it afterward; with a
+  % second \cornellFlow block (from a "<!-- pagebreak -->" in notes.md),
+  % its first \cornellpage call would wrongly see \cnfirstpage as true
+  % again, skip \newpage, and every page from there on would render
+  % with the previous page's already-typeset \thepage value.
+  \ifcnfirstpage\global\cnfirstpagefalse\else\newpage\fi
   % --- precompute header field geometry -------------------------------
   \setlength{\cnRowAY}{\cnPageH}\addtolength{\cnRowAY}{-8pt}
   \setlength{\cnRowBY}{\cnRowAY}\addtolength{\cnRowBY}{-0.5\cnHeaderHeight}
@@ -313,37 +300,17 @@
   \setlength{\cnNotesTextY}{\cnBodyTop}\addtolength{\cnNotesTextY}{-\cnPad}
   \setlength{\cnSummaryTextY}{\cnSummaryHeight}\addtolength{\cnSummaryTextY}{-\cnPad}
 
-  % Typeset this page's cue and summary text once, up front, so their
-  % heights are known before the cue column's/summary band's ruled lines
-  % are drawn -- otherwise the fixed rule-line grid runs straight through
-  % the text instead of stopping above it. A page with no cue/summary
-  % text gets a zero-height box, so the ruled lines fall back to spanning
-  % the whole region as before.
+  % Typeset this page's cue text.
   \setbox\cnCueBox=\vbox{\hsize=\the\cnCueTextW\linewidth=\hsize\footnotesize\noindent\cnCueText{\thepage}}%
-  \setlength{\cnCueTextH}{\ht\cnCueBox}\addtolength{\cnCueTextH}{\dp\cnCueBox}%
-  \setlength{\cnCueRuleTop}{\cnBodyTop}%
-  \ifdim\cnCueTextH>0pt
-    \addtolength{\cnCueRuleTop}{-\cnCueTextH}%
-    \addtolength{\cnCueRuleTop}{-2\cnPad}%
-  \fi
 
   % Summary text is typeset at one column's width, then \vsplit at one
   % column's height: whatever fits lands in column 1, and any overflow
   % (rather than running past the band) lands in column 2 instead. A
   % page with little/no summary text ends up with an empty (\ifvoid)
-  % column 2, same zero-height fallback as the cue column above.
+  % column 2.
   \setbox\cnSummaryBox=\vbox{\hsize=\the\cnSummaryColW\linewidth=\hsize\footnotesize
     \noindent\cnSummaryText{\thepage}\par\vfil\penalty-10000}%
   \setbox\cnSummaryColA=\vsplit\cnSummaryBox to \cnSummaryColH\relax
-  \setlength{\cnSummaryTextHA}{\ht\cnSummaryColA}\addtolength{\cnSummaryTextHA}{\dp\cnSummaryColA}%
-  \setlength{\cnSummaryRuleTopA}{\cnSummaryHeight}%
-  \ifdim\cnSummaryTextHA>0pt
-    \addtolength{\cnSummaryRuleTopA}{-\cnSummaryTextHA}%
-    \addtolength{\cnSummaryRuleTopA}{-2\cnPad}%
-  \fi
-
-  \setlength{\cnSummaryTextHB}{0pt}%
-  \setlength{\cnSummaryRuleTopB}{\cnSummaryHeight}%
   \ifvoid\cnSummaryBox
     % Nothing overflowed into column 2 -- clear it explicitly, since
     % otherwise it would still hold column 2's box from whichever
@@ -352,11 +319,6 @@
     \setbox\cnSummaryColB=\hbox{}%
   \else
     \setbox\cnSummaryColB=\vsplit\cnSummaryBox to \cnSummaryColH\relax
-    \setlength{\cnSummaryTextHB}{\ht\cnSummaryColB}\addtolength{\cnSummaryTextHB}{\dp\cnSummaryColB}%
-    \ifdim\cnSummaryTextHB>0pt
-      \addtolength{\cnSummaryRuleTopB}{-\cnSummaryTextHB}%
-      \addtolength{\cnSummaryRuleTopB}{-2\cnPad}%
-    \fi
   \fi
 
   \noindent
@@ -368,15 +330,7 @@
     \draw[black,thick] (\the\cnNotesWidth,\the\cnSummaryHeight) -- (\the\cnNotesWidth,\the\cnBodyTop); % notes / cue
     % No visible divider between the summary band's two columns (see
     % \cnHalfWidth/\cnSummaryColBX below) -- they're a layout/wrap detail,
-    % not a ruled boundary meant to be seen.
-
-    % --- ruled lines: right-hand cue column, and the summary band's two
-    % columns, each stopping above its own typed text for this page (if
-    % any) -- see \cnCueRuleTop/\cnSummaryRuleTopA/\cnSummaryRuleTopB
-    % above ---
-    \cnRuledLines{\the\cnNotesWidth}{\the\cnSummaryHeight}{\the\cnPageW}{\the\cnCueRuleTop}
-    \cnRuledLines{0pt}{0pt}{\the\cnHalfWidth}{\the\cnSummaryRuleTopA}
-    \cnRuledLines{\the\cnHalfWidth}{0pt}{\the\cnPageW}{\the\cnSummaryRuleTopB}
+    % not a boundary meant to be seen.
 
     % --- header fields (label + optional typed value) --------------------
     \cnField{\the\cnPad}{\the\cnRowAY}{\the\cnMeetW}{Topic:}{\cnHdrTopic}
@@ -430,7 +384,22 @@
 % blocks) can appear inside it: verbatim needs to read its body live,
 % off the main input stream, which a macro argument's pre-scan would
 % prevent.
+%
+% \cnfinalflow marks the very last cornellFlow block in the document
+% (set by scripts/markdown_to_pages.py, which is the only thing that
+% knows how many cornellFlow blocks notes.md produces); \cnlastpage is
+% then true only for that block's own last \vsplit'd page -- i.e. the
+% document's actual final page. \cnCueText/\cnSummaryText (see
+% scripts/markdown_to_pages.py's render_directive_tex) check \cnlastpage
+% to render a "^<page>"/"^^<page>" directive whose target page is beyond
+% the document's real length there, instead of it silently never
+% appearing.
 % ------------------------------------------------------------------
+\newif\ifcnfinalflow
+\cnfinalflowfalse
+\newif\ifcnlastpage
+\cnlastpagefalse
+
 \newenvironment{cornellFlow}{%
   \setbox\cnFlowBox=\vbox\bgroup
     \hsize=\cnNotesTextW
@@ -446,6 +415,8 @@
   \ifvoid\cnFlowBox
   \else
     \setbox\cnFlowSplit=\vsplit\cnFlowBox to \cnNotesPanelH\relax
+    \cnlastpagefalse
+    \ifvoid\cnFlowBox\ifcnfinalflow\cnlastpagetrue\fi\fi
     \cornellpage{\box\cnFlowSplit}%
     \cnFlowLoop
   \fi

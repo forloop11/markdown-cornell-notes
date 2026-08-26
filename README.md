@@ -1,9 +1,9 @@
 # Cornell Notes
 
 A Cornell-style meeting notes template for LaTeX. Each page has a header
-(topic, date, attendees, time), a large notes panel with a ruled cue
-column beside it, and a ruled summary band below both, all for
-handwriting on a printout.
+(topic, date, attendees, time), a large notes panel with a cue column
+beside it, and a summary band below both, all blank for handwriting on
+a printout.
 
 Header details, notes content, and the page layout itself aren't edited in
 the `.tex` file directly — they're generated from YAML and Markdown files,
@@ -118,15 +118,13 @@ A line of the form
 ```
 
 e.g. `^1 This is my question for Cue`, adds `<text>` as a bullet point in
-the ruled cue column of that page number (the actual rendered PDF page,
+the cue column of that page number (the actual rendered PDF page,
 matching the "Page N" printed in each page's header) instead of the main
 notes panel — handy for questions or keywords next to the notes they
 relate to. The directive line itself isn't printed. `<text>` goes through
 the same Markdown/LaTeX pipeline as the main content, so it can use
 inline formatting (`**bold**`, etc.); multiple entries targeting the same
-page each become their own bullet, in document order. The column's ruled
-lines stop above the bullet text (resuming below it) rather than running
-through it.
+page each become their own bullet, in document order.
 
 ### Summary-band text
 
@@ -137,18 +135,23 @@ A line of the form
 ```
 
 e.g. `^^1 This is my summary for page 1`, adds `<text>` as an item in an
-ordered (numbered) list in that page's ruled summary band — the strip at
+ordered (numbered) list in that page's summary band — the strip at
 the bottom of the page — instead of the main notes panel. The band is
 split into two side-by-side columns: text starts in the left column,
 word-wrapped to half the band's width, and if it's too long to fit, the
 overflow continues at the top of the right column instead of running
 past the band. Otherwise this behaves just like cue-column text: the
-directive line isn't printed, `<text>` goes through the same
-Markdown/LaTeX pipeline as the main content, and each column's ruled
-lines stop above its own typed text (resuming below it).
+directive line isn't printed, and `<text>` goes through the same
+Markdown/LaTeX pipeline as the main content.
 
 The two directives are easy to tell apart even in shorthand: one caret
 (`^1 ...`) is the cue column, two carets (`^^1 ...`) is the summary band.
+
+`<page>` doesn't have to be a valid page number: anything below 1 (e.g.
+`^0` or `^-3`) is clamped to page 1, and anything past the document's
+actual last page (e.g. `^99` in a 3-page document) renders on that last
+page instead — so a directive never silently vanishes just because the
+page count changed or was miscounted.
 
 ### Multiple topics per document
 
@@ -232,13 +235,12 @@ no need to touch `settings/template.tex` itself:
 
 ```yaml
 paper: letterpaper
-margin: 0.5in
+margin: 0.25in
 
 header_height: 0.12
 cue_width: 0.25
 summary_height: 0.18
 
-rule_spacing: 0.2in
 padding: 0.12in
 border_inset: 2pt
 ```
@@ -246,12 +248,12 @@ border_inset: 2pt
 - **`paper`, `margin`** — passed straight to the LaTeX `geometry` package,
   so any value it accepts works (e.g. `paper: a4paper`, `margin: 20mm`).
 - **`header_height`, `cue_width`, `summary_height`** — sizing for the
-  header band, right-hand ruled cue column, and the ruled summary band
-  at the bottom of the page, each as a plain decimal fraction of the
-  drawable page height/width.
-- **`rule_spacing`, `padding`, `border_inset`** — ruled-line spacing,
-  inner text padding, and the safety margin that keeps thick strokes
-  inside the printable area, each a LaTeX length.
+  header band, right-hand cue column, and the summary band at the bottom
+  of the page, each as a plain decimal fraction of the drawable page
+  height/width.
+- **`padding`, `border_inset`** — inner text padding and the safety
+  margin that keeps thick strokes inside the printable area, each a
+  LaTeX length.
 
 Edit the file and run `make build` (or `make docker`) again; every page
 picks up the change automatically. Under the hood this generates

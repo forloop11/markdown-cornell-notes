@@ -22,7 +22,7 @@ A line of the form
 
     ^<page> <text>
 
-e.g. "^1 This is my question for Cue", adds <text> to the ruled cue
+e.g. "^1 This is my question for Cue", adds <text> to the cue
 column of the given page number (the actual rendered PDF page, matching
 the "Page N" printed in each page's header) instead of the main notes
 panel. Multiple entries targeting the same page render as a bulleted
@@ -32,9 +32,13 @@ Similarly, a line of the form
 
     ^^<page> <text>
 
-adds <text> to the page's ruled summary band (the strip at the bottom of
+adds <text> to the page's summary band (the strip at the bottom of
 the page) instead. Multiple entries targeting the same page render as
 separate lines, in document order.
+
+A page number below 1 is clamped to page 1. A page number past the end
+of the document (e.g. "^99" in a 3-page document) renders on the actual
+last page instead of silently vanishing.
 
 Usage (from the repo root): python3 scripts/markdown_to_pages.py [input.md] [content.tex] [cue.tex] [summary.tex]
 """
@@ -47,15 +51,16 @@ from collections import defaultdict
 PAGEBREAK_RE = re.compile(r"^\s*<!--\s*pagebreak\s*-->\s*$", re.MULTILINE)
 
 # A whole line of the form "^<page> <text>" -- the caret must be followed
-# directly by digits then whitespace, so it can't be confused with
-# pandoc's inline superscript syntax (e.g. "x^2^"), which never has a
-# space right after the opening caret. "^^<page> <text>" (summary-band
-# entries, see SUMMARY_RE) never matches this: the character right after
-# the first caret is the second caret, not a digit.
-CUE_RE = re.compile(r"^\^(?P<page>\d+)[ \t]+(?P<text>.+?)[ \t]*$", re.MULTILINE)
+# directly by an optionally-signed integer then whitespace, so it can't
+# be confused with pandoc's inline superscript syntax (e.g. "x^2^" or
+# "x^-1^"), which never has a space right after the opening caret.
+# "^^<page> <text>" (summary-band entries, see SUMMARY_RE) never matches
+# this: the character right after the first caret is the second caret,
+# not a digit or a sign.
+CUE_RE = re.compile(r"^\^(?P<page>-?\d+)[ \t]+(?P<text>.+?)[ \t]*$", re.MULTILINE)
 
 # A whole line of the form "^^<page> <text>" -- see module docstring.
-SUMMARY_RE = re.compile(r"^\^\^(?P<page>\d+)[ \t]+(?P<text>.+?)[ \t]*$", re.MULTILINE)
+SUMMARY_RE = re.compile(r"^\^\^(?P<page>-?\d+)[ \t]+(?P<text>.+?)[ \t]*$", re.MULTILINE)
 
 LONGTABLE_RE = re.compile(
     # spec is captured non-greedily up to the "}\n" that closes the
@@ -179,12 +184,17 @@ def extract_directive_entries(markdown, pattern):
     of markdown, returning (remaining_markdown, entries), where entries is
     a list of (page_number, text) in document order and remaining_markdown
     has each directive line blanked out (so it doesn't also show up as a
-    main-panel paragraph).
+    main-panel paragraph). A page number below 1 is clamped to 1 -- page 1
+    always exists, so there's no ambiguity about where "before the start"
+    should land. A page number past the end of the document is handled at
+    render time instead (see render_cue_tex/render_summary_tex): the
+    generator has no way to know the final page count yet, since it's
+    only decided later by \\vsplit-based pagination in settings/template.tex.
     """
     entries = []
 
     def collect(m):
-        entries.append((int(m.group("page")), m.group("text")))
+        entries.append((max(int(m.group("page")), 1), m.group("text")))
         return ""
 
     return pattern.sub(collect, markdown), entries
@@ -199,21 +209,39 @@ def as_list(env, texts):
     return f"\\begin{{{env}}}\n{items}\\end{{{env}}}"
 
 
-def render_cue_tex(entries):
-    """Build build/cornell-cue.tex's content: a \\renewcommand{\\cnCueText}
-    that, given a page number, returns every "^<page> <text>" entry
-    targeting that page (each run through the same Markdown/LaTeX
-    pipeline as the main content) as a bullet in an unordered list.
+def render_directive_tex(macro, env, entries):
+    """Build the content of a \\renewcommand{<macro>} that, given the
+    current page number as #1, returns every entry targeting that page
+    (each run through the same Markdown/LaTeX pipeline as the main
+    content), wrapped in `env`.
+
+    A page number past the end of the document can't be caught at
+    generation time (see extract_directive_entries), so every entry also
+    gets a fallback branch, active only on the document's actual last
+    page (\\ifcnlastpage, set by \\cnFlowLoop in settings/template.tex):
+    if the entry's target page is still greater than #1 there -- i.e. it
+    was never matched by an earlier, real page -- it renders there
+    instead of silently vanishing.
     """
     by_page = defaultdict(list)
     for page, text in entries:
         by_page[page].append(markdown_to_latex(text))
 
     body = "".join(
-        f"  \\ifnum#1={page} {as_list('cnCueList', texts)}\\fi%\n"
+        f"  \\ifnum#1={page} {as_list(env, texts)}\\fi%\n"
+        f"  \\ifcnlastpage\\ifnum{page}>#1 {as_list(env, texts)}\\fi\\fi%\n"
         for page, texts in sorted(by_page.items())
     )
-    return f"\\renewcommand{{\\cnCueText}}[1]{{%\n{body}}}\n"
+    return f"\\renewcommand{{{macro}}}[1]{{%\n{body}}}\n"
+
+
+def render_cue_tex(entries):
+    """Build build/cornell-cue.tex's content: a \\renewcommand{\\cnCueText}
+    that, given a page number, returns every "^<page> <text>" entry
+    targeting that page (each run through the same Markdown/LaTeX
+    pipeline as the main content) as a bullet in an unordered list.
+    """
+    return render_directive_tex("\\cnCueText", "cnCueList", entries)
 
 
 def render_summary_tex(entries):
@@ -223,15 +251,7 @@ def render_summary_tex(entries):
     the same Markdown/LaTeX pipeline as the main content) as an item in
     an ordered (numbered) list, in document order.
     """
-    by_page = defaultdict(list)
-    for page, text in entries:
-        by_page[page].append(markdown_to_latex(text))
-
-    body = "".join(
-        f"  \\ifnum#1={page} {as_list('cnSummaryList', texts)}\\fi%\n"
-        for page, texts in sorted(by_page.items())
-    )
-    return f"\\renewcommand{{\\cnSummaryText}}[1]{{%\n{body}}}\n"
+    return render_directive_tex("\\cnSummaryText", "cnSummaryList", entries)
 
 
 def markdown_to_latex(markdown):
@@ -300,6 +320,12 @@ def main():
     for chunk in chunks:
         latex = markdown_to_latex(chunk)
         pages.append(f"\\begin{{cornellFlow}}\n{latex}\n\\end{{cornellFlow}}")
+
+    # Marks the last cornellFlow block so \cnFlowLoop (settings/template.tex)
+    # can tell, once it's producing that block's own last \vsplit page, that
+    # it's rendering the document's actual final page -- see \cnlastpage in
+    # render_directive_tex above.
+    pages[-1] = "\\cnfinalflowtrue\n" + pages[-1]
 
     write_generated(content_path, in_path, "\n\n".join(pages) + "\n")
     write_generated(cue_path, in_path, render_cue_tex(cue_entries))

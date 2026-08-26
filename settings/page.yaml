@@ -9,18 +9,17 @@
 # Paper size and uniform margin: any values the LaTeX `geometry` package
 # accepts (e.g. paper: a4paper, margin: 20mm).
 paper: letterpaper
-margin: 0.5in
+margin: 0.25in
 
 # Header, right-hand cue-column, and summary-band sizing, as fractions of
 # the drawable page height/width. Must be plain decimals, no units. The
-# summary band is the ruled strip at the bottom of the page, full width;
-# it holds notes.md's "^^<page> <text>" entries.
+# summary band is the strip at the bottom of the page, full width; it
+# holds notes.md's "^^<page> <text>" entries.
 header_height: 0.12
 cue_width: 0.25
 summary_height: 0.18
 
-# Ruled-line spacing, inner text padding, and the safety margin that
-# keeps thick strokes inside the printable area. Any LaTeX length.
-rule_spacing: 0.2in
+# Inner text padding and the safety margin that keeps thick strokes
+# inside the printable area. Any LaTeX length.
 padding: 0.12in
 border_inset: 2pt

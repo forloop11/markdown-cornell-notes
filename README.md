@@ -24,7 +24,9 @@ University or the Pauk estate.
 - A TeX Live (or similar) install with `pdflatex` and `latexmk`, plus the
   `tikz`, `xcolor`, `geometry`, `hyperref`, `amssymb`, `longtable`, and
   `booktabs` packages
-- Python 3 (standard library only, no pip packages required)
+- Python 3 (standard library only, no pip packages required, for `make
+  build` itself — the optional [Streamlit editor app](#streamlit-editor-app)
+  below needs `pip install -r requirements.txt`)
 - [pandoc](https://pandoc.org/), for converting `md/notes.md` to LaTeX
 
 Don't want to install any of that locally? Use the [Docker image](#docker)
@@ -64,6 +66,53 @@ The `-u "$(id -u):$(id -g)"` runs the container as your own user instead
 of root, so the output PDF and `build/` come out owned by you rather
 than root. The image's entrypoint is `make`, so you can run any target,
 e.g. `... cornell-notes clean`.
+
+## Streamlit editor app
+
+A browser UI for the whole pipeline above — edit the header fields and a
+markdown file side by side with a rendered PDF, without touching the CLI.
+
+```sh
+pip install -r requirements.txt
+make app
+```
+
+then open the URL `streamlit` prints (defaults to
+[http://localhost:8501](http://localhost:8501)). Or, without installing
+anything locally:
+
+```sh
+make docker-app
+```
+
+which builds the same Docker image as `make docker` and runs it with its
+port published, `-p 8501:8501`.
+
+The page has a header form (`topic`/`date`/`attendees`/`time`) at the top,
+a dropdown to switch between the files in `md/` (with buttons to create or
+delete one), and a **Render** button that saves both the header and the
+selected file to disk and runs `make build` for you — the build log is
+shown in an expander so LaTeX/pandoc errors surface in the UI instead of
+disappearing. Below that, the markdown editor (left) and the resulting PDF
+(right) sit side by side; switching files preserves each file's unsaved
+edits for the rest of the session, though only Render writes them to disk.
+
+The editor itself is [CodeMirror](https://codemirror.net/), with syntax
+highlighting for Markdown, inline/raw HTML, and fenced ` ```html `/
+` ```latex ` code blocks, and — the reason it's CodeMirror rather than a
+more typical embedded code-editor widget — real support for the browser's
+own spellcheck: misspelled words get the usual squiggly underline, and
+right-click → "Add to dictionary" uses the browser's own per-profile
+dictionary, so it's remembered on future visits with no app-side state at
+all. Its JS is vendored (`app/components/code_editor/frontend/bundle.js`)
+rather than loaded from a CDN, so the app works offline; if you edit
+`app/components/code_editor/frontend_src/editor.js`, rebuild it with:
+
+```sh
+cd app/components/code_editor/frontend_src
+npm install
+npm run build
+```
 
 ## Editing a page
 
@@ -207,9 +256,16 @@ scripts/
   topic_slug.py          yaml/header.yaml's topic+date -> output PDF's filename
 build/              Generated .tex fragments (gitignored, rebuilt by make).
 pdf/                Output PDF (see Naming the output PDF below).
-Makefile            `make build` / `make docker` / `make clean` / `make distclean`.
+app/
+  streamlit_app.py     The Streamlit editor app; see Streamlit editor app above.
+  pipeline.py           Header/markdown file I/O + `make build` invocation for the app.
+  components/
+    code_editor/         CodeMirror-based editor component (markdown/HTML/LaTeX
+                          highlighting + native browser spellcheck).
+requirements.txt   Python deps for the app (`streamlit`); not needed for `make build`.
+Makefile            `make build` / `make docker` / `make app` / `make docker-app` / `make clean` / `make distclean`.
 docker/
-  Dockerfile           Container image with the build toolchain; see Docker above.
+  Dockerfile           Container image with the build toolchain (+ the app); see Docker above.
 .dockerignore       Keeps .git and build/ out of the Docker build context.
 ```
 
@@ -233,6 +289,8 @@ python3 scripts/yaml_to_settings.py settings/page.yaml build/cornell-page-settin
   demonstrates this pipeline's Markdown syntax without touching your own
   notes.
 - `make docker` — runs the same build inside Docker; see [Docker](#docker) above.
+- `make app` / `make docker-app` — runs the [Streamlit editor app](#streamlit-editor-app),
+  locally or in Docker.
 - `make clean` — removes pdflatex's intermediate files, keeps the PDF.
 - `make distclean` — also removes the generated `build/` files and the PDF.
 

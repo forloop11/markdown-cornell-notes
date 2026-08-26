@@ -19,7 +19,7 @@ EXAMPLE_MD       := md/notes-example.md
 EXAMPLE_YAML     := yaml/header-example.yaml
 EXAMPLE_BUILDDIR := build/example
 
-.PHONY: build clean distclean docker build-example
+.PHONY: build clean distclean docker build-example app docker-app
 
 build: $(PDF)
 	$(LATEXMK) -c -jobname=$(JOBNAME) -outdir=$(OUTDIR) $(TEX)
@@ -37,6 +37,21 @@ build-example:
 docker:
 	docker build -t $(DOCKER_IMAGE) -f docker/Dockerfile .
 	docker run --rm -v "$(CURDIR)":/workspace -u "$$(id -u):$$(id -g)" $(DOCKER_IMAGE)
+
+# Runs the Streamlit editor app (requires `pip install -r requirements.txt`
+# first; see README.md). Binds 0.0.0.0 rather than Streamlit's usual
+# localhost-only default so this also works unchanged as the `docker-app`
+# target below, where the container's published port has to be reachable
+# from outside it.
+app:
+	streamlit run app/streamlit_app.py --server.address=0.0.0.0
+
+# Same as `app`, but run inside the Docker image, with the app's port
+# published to the host. Overrides the image's default `make build`
+# command (see docker/Dockerfile's ENTRYPOINT/CMD) with `make app` instead.
+docker-app:
+	docker build -t $(DOCKER_IMAGE) -f docker/Dockerfile .
+	docker run --rm -p 8501:8501 -v "$(CURDIR)":/workspace -u "$$(id -u):$$(id -g)" $(DOCKER_IMAGE) app
 
 $(HEADER): $(YAML) scripts/yaml_to_header.py scripts/simple_yaml.py
 	python3 scripts/yaml_to_header.py $(YAML) $(HEADER)

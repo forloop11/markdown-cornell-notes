@@ -224,6 +224,12 @@ python3 scripts/yaml_to_settings.py settings/page.yaml build/cornell-page-settin
 
 ## Other Makefile targets
 
+- `make build-example` — builds `notes-example.md` / `header-example.yaml`
+  instead of `notes.md` / `header.yaml`, using its own `build/example/`
+  scratch directory so it never collides with (or goes stale against) a
+  regular `make build`. Useful for regenerating the reference PDF that
+  demonstrates this pipeline's Markdown syntax without touching your own
+  notes.
 - `make docker` — runs the same build inside Docker; see [Docker](#docker) above.
 - `make clean` — removes pdflatex's intermediate files, keeps the PDF.
 - `make distclean` — also removes the generated `build/` files and the PDF.

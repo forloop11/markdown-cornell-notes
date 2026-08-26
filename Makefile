@@ -15,10 +15,21 @@ LATEXMK  := latexmk
 LATEXOPTS := -pdf -interaction=nonstopmode -halt-on-error -jobname=$(JOBNAME) -outdir=$(OUTDIR)
 DOCKER_IMAGE := cornell-notes
 
-.PHONY: build clean distclean docker
+EXAMPLE_MD       := notes-example.md
+EXAMPLE_YAML     := header-example.yaml
+EXAMPLE_BUILDDIR := build/example
+
+.PHONY: build clean distclean docker build-example
 
 build: $(PDF)
 	$(LATEXMK) -c -jobname=$(JOBNAME) -outdir=$(OUTDIR) $(TEX)
+
+# Builds notes/<slug>.pdf from notes-example.md / header-example.yaml instead of
+# notes.md / header.yaml, using its own build/example/ scratch dir so it
+# never collides with (or goes stale against) the regular build's
+# intermediate files.
+build-example:
+	$(MAKE) build MD=$(EXAMPLE_MD) YAML=$(EXAMPLE_YAML) BUILDDIR=$(EXAMPLE_BUILDDIR)
 
 # Same as `build`, but run inside the Docker image (see docker/Dockerfile)
 # instead of requiring pdflatex/latexmk/pandoc to be installed locally. Runs

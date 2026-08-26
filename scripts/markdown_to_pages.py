@@ -114,6 +114,33 @@ def center_standalone_images(latex):
     return STANDALONE_IMAGE_RE.sub(lambda m: f"{{\\centering\n{m.group(0)}\\par}}", latex)
 
 
+# \href{<target>} -- pandoc emits this uniformly for every Markdown link,
+# web URLs (https://...) and local files (assets/foo.txt) alike.
+HREF_RE = re.compile(r"\\href\{([^}]*)\}")
+
+# A URL with a scheme (http:, mailto:, ...) or a leading "/" or "#" is
+# absolute/fragment and must be left alone; anything else is a path
+# relative to notes.md's own location (the repo root).
+ABSOLUTE_LINK_RE = re.compile(r"^(?:[A-Za-z][A-Za-z0-9+.-]*:|/|#)")
+
+# make build compiles with the repo root as cwd (so \includegraphics still
+# resolves images at compile time) but writes the PDF one level down, into
+# notes/ (see Makefile's OUTDIR) -- PDF viewers resolve a relative \href
+# target against the PDF's own location, not the compiling cwd, so local
+# links need this "step back up to the repo root" prefix to still work.
+RELATIVE_LINK_PREFIX = "../"
+
+
+def rebase_relative_links(latex):
+    def rebase(match):
+        target = match.group(1)
+        if ABSOLUTE_LINK_RE.match(target):
+            return match.group(0)
+        return f"\\href{{{RELATIVE_LINK_PREFIX}{target}}}"
+
+    return HREF_RE.sub(rebase, latex)
+
+
 def markdown_to_latex(markdown):
     result = subprocess.run(
         # --no-highlight: without it, a fenced code block with a language
@@ -143,7 +170,8 @@ def markdown_to_latex(markdown):
     )
     if result.returncode != 0:
         raise RuntimeError(f"pandoc failed: {result.stderr}")
-    return center_standalone_images(delongtable(result.stdout.strip()))
+    latex = rebase_relative_links(result.stdout.strip())
+    return center_standalone_images(delongtable(latex))
 
 
 def main():

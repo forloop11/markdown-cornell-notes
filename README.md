@@ -31,7 +31,9 @@ make build
 This regenerates the header, content, and page settings from
 `header.yaml` / `notes.md` / `settings/page.yaml`, compiles
 `settings/template.tex`, and cleans up pdflatex's intermediate files
-afterward. The result is `cornell-notes.pdf`.
+afterward. The result lands in `notes/`, named after `header.yaml`'s
+`topic` and `date` fields (e.g. `notes/Weekly-Sync_2026-08-23.pdf`) — see
+[Naming the output PDF](#naming-the-output-pdf) below.
 
 ## Docker
 
@@ -51,7 +53,7 @@ docker run --rm -v "$(pwd)":/workspace -u "$(id -u):$(id -g)" cornell-notes
 ```
 
 The `-u "$(id -u):$(id -g)"` runs the container as your own user instead
-of root, so `cornell-notes.pdf` and `build/` come out owned by you rather
+of root, so the output PDF and `build/` come out owned by you rather
 than root. The image's entrypoint is `make`, so you can run any target,
 e.g. `... cornell-notes clean`.
 
@@ -120,9 +122,12 @@ See the [reference notes](assets/reference-notes.txt) for background.
 Images are auto-scaled to fit the notes panel width, so a full-resolution
 screenshot won't overflow the page. Links are real, clickable PDF links
 (via `hyperref`) — for a local file like the example above, a PDF viewer
-resolves it relative to `cornell-notes.pdf`'s own location on disk. This
-also works with `make docker`: the whole project directory, `assets/`
-included, is mounted into the container at build time.
+resolves it relative to the output PDF's own location on disk, which is
+`notes/` rather than the repo root; `scripts/markdown_to_pages.py`
+rewrites each relative link with a `../` prefix so it still resolves
+correctly (web URLs are left untouched). This also works with `make
+docker`: the whole project directory, `assets/` included, is mounted
+into the container at build time.
 
 ## Project structure
 
@@ -135,11 +140,13 @@ settings/
                         the generated files below and compiles to a PDF.
   page.yaml            Page geometry & layout proportions (source of truth).
 scripts/
-  simple_yaml.py        Shared minimal YAML parser used by the three below.
+  simple_yaml.py        Shared minimal YAML parser used by the scripts below.
   yaml_to_header.py      header.yaml        -> build/cornell-header.tex
   markdown_to_pages.py   notes.md (+pandoc) -> build/cornell-content.tex
   yaml_to_settings.py    settings/page.yaml -> build/cornell-page-settings.tex
+  topic_slug.py          header.yaml's topic+date -> output PDF's filename
 build/              Generated .tex fragments (gitignored, rebuilt by make).
+notes/              Output PDF (see Naming the output PDF below).
 Makefile            `make build` / `make docker` / `make clean` / `make distclean`.
 docker/
   Dockerfile           Container image with the build toolchain; see Docker above.
@@ -194,6 +201,23 @@ Edit the file and run `make build` (or `make docker`) again; every page
 picks up the change automatically. Under the hood this generates
 `build/cornell-page-settings.tex`, the same pattern as the header and
 content files above.
+
+## Naming the output PDF
+
+The PDF is written to `notes/` and named after `header.yaml`'s `topic`
+and `date` fields, not a fixed `cornell-notes.pdf`. `scripts/topic_slug.py`
+slugifies each field — collapsing any run of characters that aren't safe
+in a filename (spaces, punctuation, ...) to a single hyphen — and joins
+them with an underscore, so:
+
+```yaml
+topic: Weekly Sync
+date: 2026-08-23
+```
+
+produces `notes/Weekly-Sync_2026-08-23.pdf`. Change `topic`/`date` and
+run `make build` again to rename the output; the previous PDF isn't
+deleted automatically.
 
 ## License
 

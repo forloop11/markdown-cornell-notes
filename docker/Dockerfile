@@ -1,4 +1,4 @@
-# Minimal toolchain for building cornell-notes.pdf: pdflatex + latexmk,
+# Minimal toolchain for building the Cornell notes PDF: pdflatex + latexmk,
 # only the LaTeX packages this template actually uses (no texlive-full),
 # pandoc for Markdown, and Python 3 (stdlib only) for the generator
 # scripts. Mount the project directory and run `make build`.

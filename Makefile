@@ -1,7 +1,7 @@
 TEX      := settings/template.tex
 YAML     := yaml/header.yaml
 JOBNAME  := $(shell python3 scripts/topic_slug.py $(YAML))
-OUTDIR   := notes
+OUTDIR   := pdf
 PDF      := $(OUTDIR)/$(JOBNAME).pdf
 BUILDDIR := build
 HEADER   := $(BUILDDIR)/cornell-header.tex
@@ -24,7 +24,7 @@ EXAMPLE_BUILDDIR := build/example
 build: $(PDF)
 	$(LATEXMK) -c -jobname=$(JOBNAME) -outdir=$(OUTDIR) $(TEX)
 
-# Builds notes/<slug>.pdf from md/notes-example.md / yaml/header-example.yaml instead of
+# Builds pdf/<slug>.pdf from md/notes-example.md / yaml/header-example.yaml instead of
 # md/notes.md / yaml/header.yaml, using its own build/example/ scratch dir so it
 # never collides with (or goes stale against) the regular build's
 # intermediate files.

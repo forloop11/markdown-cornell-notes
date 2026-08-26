@@ -164,7 +164,7 @@ ABSOLUTE_LINK_RE = re.compile(r"^(?:[A-Za-z][A-Za-z0-9+.-]*:|/|#)")
 
 # make build compiles with the repo root as cwd (so \includegraphics still
 # resolves images at compile time) but writes the PDF one level down, into
-# notes/ (see Makefile's OUTDIR) -- PDF viewers resolve a relative \href
+# pdf/ (see Makefile's OUTDIR) -- PDF viewers resolve a relative \href
 # target against the PDF's own location, not the compiling cwd, so local
 # links need this "step back up to the repo root" prefix to still work.
 RELATIVE_LINK_PREFIX = "../"

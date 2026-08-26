@@ -39,8 +39,8 @@ make build
 This regenerates the header, content, and page settings from
 `yaml/header.yaml` / `md/notes.md` / `settings/page.yaml`, compiles
 `settings/template.tex`, and cleans up pdflatex's intermediate files
-afterward. The result lands in `notes/`, named after `yaml/header.yaml`'s
-`topic` and `date` fields (e.g. `notes/Weekly-Sync_2026-08-23.pdf`) — see
+afterward. The result lands in `pdf/`, named after `yaml/header.yaml`'s
+`topic` and `date` fields (e.g. `pdf/Weekly-Sync_2026-08-23.pdf`) — see
 [Naming the output PDF](#naming-the-output-pdf) below.
 
 ## Docker
@@ -175,7 +175,7 @@ Images are auto-scaled to fit the notes panel width, so a full-resolution
 screenshot won't overflow the page. Links are real, clickable PDF links
 (via `hyperref`) — for a local file like the example above, a PDF viewer
 resolves it relative to the output PDF's own location on disk, which is
-`notes/` rather than the repo root; `scripts/markdown_to_pages.py`
+`pdf/` rather than the repo root; `scripts/markdown_to_pages.py`
 rewrites each relative link with a `../` prefix so it still resolves
 correctly (web URLs are left untouched). This also works with `make
 docker`: the whole project directory, `assets/` included, is mounted
@@ -206,7 +206,7 @@ scripts/
   yaml_to_settings.py    settings/page.yaml -> build/cornell-page-settings.tex
   topic_slug.py          yaml/header.yaml's topic+date -> output PDF's filename
 build/              Generated .tex fragments (gitignored, rebuilt by make).
-notes/              Output PDF (see Naming the output PDF below).
+pdf/                Output PDF (see Naming the output PDF below).
 Makefile            `make build` / `make docker` / `make clean` / `make distclean`.
 docker/
   Dockerfile           Container image with the build toolchain; see Docker above.
@@ -270,7 +270,7 @@ content files above.
 
 ## Naming the output PDF
 
-The PDF is written to `notes/` and named after `yaml/header.yaml`'s `topic`
+The PDF is written to `pdf/` and named after `yaml/header.yaml`'s `topic`
 and `date` fields, not a fixed `cornell-notes.pdf`. `scripts/topic_slug.py`
 slugifies each field — collapsing any run of characters that aren't safe
 in a filename (spaces, punctuation, ...) to a single hyphen — and joins
@@ -281,7 +281,7 @@ topic: Weekly Sync
 date: 2026-08-23
 ```
 
-produces `notes/Weekly-Sync_2026-08-23.pdf`. Change `topic`/`date` and
+produces `pdf/Weekly-Sync_2026-08-23.pdf`. Change `topic`/`date` and
 run `make build` again to rename the output; the previous PDF isn't
 deleted automatically.
 

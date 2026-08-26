@@ -96,7 +96,9 @@ const codeLanguages = (info) => {
 
 let view = null;
 let lastKey = null;
+let lastFlushToken = null;
 let debounceTimer = null;
+let lastSentDoc = null;
 
 function sendToStreamlit(message) {
   window.parent.postMessage({ isStreamlitMessage: true, ...message }, "*");
@@ -108,12 +110,41 @@ function setFrameHeight() {
 }
 
 function sendValue(doc) {
+  if (doc === lastSentDoc) return;
+  lastSentDoc = doc;
   sendToStreamlit({ type: "streamlit:setComponentValue", value: doc });
 }
 
 function scheduleSendValue(doc) {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => sendValue(doc), DEBOUNCE_MS);
+}
+
+// Send immediately rather than waiting out the debounce, and cancel any
+// pending debounced send (it would just be a redundant no-op once this
+// runs, since sendValue() no-ops on an unchanged doc anyway).
+function flushNow(doc) {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  sendValue(doc);
+}
+
+// Unconditional version of flushNow, used only for a Python-requested
+// flush (see the flush_token handling in onRender below): always sends,
+// even if the doc looks unchanged from the last thing we sent. This is
+// what Python's Render handler blocks on to know the save actually landed
+// -- if this used the same dedup as flushNow/sendValue, an unchanged doc
+// would never produce a new Streamlit widget value, and Python would have
+// nothing to react to.
+function forceSend(doc) {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  lastSentDoc = doc;
+  sendToStreamlit({ type: "streamlit:setComponentValue", value: doc });
 }
 
 function makeState(doc) {
@@ -148,6 +179,15 @@ function makeState(doc) {
           setFrameHeight();
         }
       }),
+      // Flush immediately on blur rather than leaving the last edit(s)
+      // sitting in the debounce window. Clicking Render (or any other
+      // Streamlit control) blurs this editor first, as part of the same
+      // click -- so this is what guarantees the file on disk actually
+      // reflects what's in the editor at the moment Render runs, instead
+      // of racing the debounce timer.
+      EditorView.domEventHandlers({
+        blur: (_event, editorView) => flushNow(editorView.state.doc.toString()),
+      }),
     ],
   });
 }
@@ -155,6 +195,7 @@ function makeState(doc) {
 function mount(initialDoc, height) {
   const container = document.getElementById("editor");
   container.style.height = `${height}px`;
+  lastSentDoc = initialDoc;
   view = new EditorView({
     state: makeState(initialDoc),
     parent: container,
@@ -168,10 +209,12 @@ function onRender(event) {
   const doc = typeof args.value === "string" ? args.value : "";
   const key = args.doc_id;
   const height = typeof args.height === "number" ? args.height : 700;
+  const flushToken = args.flush_token;
 
   if (!view) {
     mount(doc, height);
     lastKey = key;
+    lastFlushToken = flushToken;
     setFrameHeight();
     return;
   }
@@ -183,8 +226,21 @@ function onRender(event) {
   // clobbered mid-edit on each debounce tick.
   if (key !== lastKey) {
     lastKey = key;
+    lastFlushToken = flushToken;
+    lastSentDoc = doc;
     view.setState(makeState(doc));
     setFrameHeight();
+    return;
+  }
+
+  // Python bumps flush_token right when Render is clicked and blocks on
+  // seeing a reply before it actually builds -- see the "Render" comment
+  // in streamlit_app.py for why relying on the debounce/blur alone isn't
+  // enough (postMessage delivery to the parent frame isn't guaranteed to
+  // finish before the click's own Streamlit rerun request goes out).
+  if (flushToken !== undefined && flushToken !== lastFlushToken) {
+    lastFlushToken = flushToken;
+    forceSend(view.state.doc.toString());
   }
 }
 

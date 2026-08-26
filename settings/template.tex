@@ -124,6 +124,14 @@
 \newbox\cnSummaryColA
 \newbox\cnSummaryColB
 
+% Directory the generated cornell-*.tex fragments below live in. The
+% Makefile overrides this per invocation (via latexmk's -usepretex, which
+% runs before this \providecommand, so it wins) with BUILDDIR -- e.g.
+% build/example for `make build-example`, build/app for the Streamlit app
+% -- so that concurrent/isolated builds actually use their own generated
+% content instead of silently reading over each other's build/ directory.
+\providecommand{\cnBuildDir}{build}
+
 % ------------------------------------------------------------------
 % Header fields sourced from header.yaml.
 % Run `python3 scripts/yaml_to_header.py` to (re)generate
@@ -135,18 +143,18 @@
 \newcommand{\cnHdrDate}{}
 \newcommand{\cnHdrAttendees}{}
 \newcommand{\cnHdrTime}{}
-\IfFileExists{build/cornell-header.tex}{\input{build/cornell-header.tex}}{}
+\IfFileExists{\cnBuildDir/cornell-header.tex}{\input{\cnBuildDir/cornell-header.tex}}{}
 
 % Cue-column text for a given page number, from notes.md's "^<page> <text>"
 % directive lines (see scripts/markdown_to_pages.py). \cnCueText{3} expands
 % to whatever notes.md targeted at page 3, or nothing if none did.
 \newcommand{\cnCueText}[1]{}
-\IfFileExists{build/cornell-cue.tex}{\input{build/cornell-cue.tex}}{}
+\IfFileExists{\cnBuildDir/cornell-cue.tex}{\input{\cnBuildDir/cornell-cue.tex}}{}
 
 % Summary-band text for a given page number, from notes.md's
 % "^^<page> <text>" directive lines (see scripts/markdown_to_pages.py).
 \newcommand{\cnSummaryText}[1]{}
-\IfFileExists{build/cornell-summary.tex}{\input{build/cornell-summary.tex}}{}
+\IfFileExists{\cnBuildDir/cornell-summary.tex}{\input{\cnBuildDir/cornell-summary.tex}}{}
 
 % ------------------------------------------------------------------
 % TEMPLATE CONFIGURATION
@@ -183,7 +191,7 @@
 % compiling; the defaults just above keep the build working even if
 % that hasn't been done yet.
 % ------------------------------------------------------------------
-\IfFileExists{build/cornell-page-settings.tex}{\input{build/cornell-page-settings.tex}}{}
+\IfFileExists{\cnBuildDir/cornell-page-settings.tex}{\input{\cnBuildDir/cornell-page-settings.tex}}{}
 
 % \textwidth/\textheight are only finalized by geometry at
 % \begin{document}, so the fractional lengths above must be computed
@@ -431,6 +439,6 @@
 % page number.
 % ------------------------------------------------------------------
 
-\input{build/cornell-content.tex}
+\input{\cnBuildDir/cornell-content.tex}
 
 \end{document}

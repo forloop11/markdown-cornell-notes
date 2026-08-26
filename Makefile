@@ -12,7 +12,14 @@ SUMMARY  := $(BUILDDIR)/cornell-summary.tex
 SETTINGS_YAML := settings/page.yaml
 SETTINGS := $(BUILDDIR)/cornell-page-settings.tex
 LATEXMK  := latexmk
-LATEXOPTS := -pdf -interaction=nonstopmode -halt-on-error -jobname=$(JOBNAME) -outdir=$(OUTDIR)
+# -usepretex defines \cnBuildDir (read by settings/template.tex's \input
+# calls) before the document loads, so a BUILDDIR override on the command
+# line actually reaches the .tex fragments latexmk compiles -- without
+# this, template.tex's \input paths are effectively hardcoded to plain
+# build/, so build-example/the Streamlit app's isolated BUILDDIR would
+# generate fragments latexmk never actually reads, silently recompiling
+# whatever's left in build/ from the last plain `make build` instead.
+LATEXOPTS := -pdf -interaction=nonstopmode -halt-on-error -jobname=$(JOBNAME) -outdir=$(OUTDIR) -usepretex='\def\cnBuildDir{$(BUILDDIR)}'
 DOCKER_IMAGE := cornell-notes
 
 EXAMPLE_MD       := md/notes-example.md

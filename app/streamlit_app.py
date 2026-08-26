@@ -13,6 +13,11 @@ from components.code_editor import code_editor
 
 st.set_page_config(page_title="Cornell Notes", layout="wide")
 
+# Shared by both panes so their bottoms line up, not just their tops (which
+# already match since both start with a single caption line -- see
+# _render_pdf_pane and the Markdown pane's st.caption in main()).
+PANE_HEIGHT = 700
+
 
 def _init_state():
     if "header_loaded" not in st.session_state:
@@ -31,6 +36,9 @@ def _init_state():
     st.session_state.setdefault("build_log", None)
     st.session_state.setdefault("build_ok", None)
     st.session_state.setdefault("confirm_delete", False)
+    st.session_state.setdefault("flush_token", 0)
+    st.session_state.setdefault("pending_render", False)
+    st.session_state.setdefault("render_awaiting_reply", False)
 
     # Opportunistically show a PDF that already exists on disk for the
     # current header, so there's something in the right pane before the
@@ -82,7 +90,10 @@ def _render_file_controls():
     elif st.session_state.selected_file not in files:
         st.session_state.selected_file = files[0]
 
-    select_col, new_col, delete_col = st.columns([3, 2, 2])
+    # The spacer column pushes Render/Download to the right edge of the row.
+    select_col, new_col, delete_col, _spacer_col, render_col, download_col = st.columns(
+        [3, 1.2, 1.2, 2.2, 1.2, 1.6]
+    )
 
     with select_col:
         if files:
@@ -129,6 +140,35 @@ def _render_file_controls():
                     st.session_state.confirm_delete = False
                     st.rerun()
 
+    with render_col:
+        # Doesn't call _do_render() directly: the editor syncs its content
+        # to Python on a debounce (or on blur), so at the exact instant this
+        # click is processed, st.session_state.drafts may not yet include
+        # whatever was typed in the last moment before the click -- and
+        # since the browser delivers our cross-frame "flush now" message
+        # asynchronously, it can lose the race against this click's own
+        # rerun and arrive too late to matter for this run. Bumping
+        # flush_token instead asks the editor to send its current content
+        # *right now*; main() waits for that reply (a guaranteed second
+        # rerun, since a component's setComponentValue always triggers one)
+        # before actually building, so the save is never stale.
+        if st.button("Render", type="primary", key="render_btn"):
+            st.session_state.pending_render = True
+            st.session_state.render_awaiting_reply = False
+            st.session_state.flush_token += 1
+
+    with download_col:
+        if st.session_state.pdf_bytes is not None:
+            st.download_button(
+                "Download PDF",
+                data=st.session_state.pdf_bytes,
+                file_name=st.session_state.pdf_name,
+                mime="application/pdf",
+                key="download_pdf_btn",
+            )
+        else:
+            st.button("Download PDF", disabled=True, key="download_pdf_btn_disabled")
+
 
 def _do_render():
     filename = st.session_state.selected_file
@@ -165,7 +205,7 @@ def _render_pdf_pane():
     # unsandboxed iframe at the top level doesn't hit that restriction.
     st.markdown(
         f'<iframe src="data:application/pdf;base64,{b64}" '
-        'width="100%" height="750" style="border:none;"></iframe>',
+        f'width="100%" height="{PANE_HEIGHT}" style="border:none;"></iframe>',
         unsafe_allow_html=True,
     )
 
@@ -177,9 +217,6 @@ def main():
     _render_header_fields()
     st.divider()
     _render_file_controls()
-
-    if st.button("Render", type="primary", key="render_btn"):
-        _do_render()
 
     if st.session_state.build_log is not None:
         (st.success if st.session_state.build_ok else st.error)(
@@ -194,12 +231,39 @@ def main():
         left, right = st.columns(2)
         with left:
             st.subheader("Markdown")
+            # Matches the PDF pane's st.caption(pdf_name) line so both
+            # panes' iframes start at the same height -- without this, the
+            # PDF pane's extra caption line pushes it down relative to the
+            # editor, which otherwise goes straight from subheader to iframe.
+            st.caption(st.session_state.selected_file)
             value = code_editor(
                 value=_draft_for(st.session_state.selected_file),
                 key=st.session_state.selected_file,
-                height=700,
+                height=PANE_HEIGHT,
+                flush_token=st.session_state.flush_token,
             )
             st.session_state.drafts[st.session_state.selected_file] = value
+
+            if st.session_state.pending_render:
+                if st.session_state.render_awaiting_reply:
+                    # This run was triggered by the editor's reply to our
+                    # flush request (or, in the unlikely case that reply
+                    # never arrives, some later unrelated widget update --
+                    # either way code_editor() above just returned the
+                    # freshest value Streamlit has for this file, so it's
+                    # safe to save and build now).
+                    st.session_state.pending_render = False
+                    st.session_state.render_awaiting_reply = False
+                    _do_render()
+                    st.rerun()  # so the build-log/success banner (rendered
+                    # earlier in this same script, before _do_render() set
+                    # it) actually shows up
+                else:
+                    # First pass after the click: the code_editor() call
+                    # just above sent the bumped flush_token, so the
+                    # frontend now knows to reply -- wait for that reply's
+                    # rerun before building.
+                    st.session_state.render_awaiting_reply = True
         with right:
             st.subheader("PDF")
             _render_pdf_pane()

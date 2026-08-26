@@ -13,6 +13,12 @@
         background: #282a36;
       }
       #editor {
+        /* border-box so the 1px border sits inside the JS-set height
+           (see mount() in editor.js) instead of adding 2px on top of it --
+           otherwise this pane ends up 2px taller than the PDF pane next to
+           it, throwing off their bottom alignment despite both using the
+           same nominal height. */
+        box-sizing: border-box;
         border: 1px solid #44475a;
         border-radius: 4px;
       }

@@ -16,7 +16,7 @@ _FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fronte
 _component_func = components.declare_component("code_editor", path=_FRONTEND_DIR)
 
 
-def code_editor(value: str, key: str, height: int = 700) -> str:
+def code_editor(value: str, key: str, height: int = 700, flush_token: int = 0) -> str:
     """Render the markdown/HTML/LaTeX-aware editor and return its current content.
 
     `key` is used both as the Streamlit widget key (Streamlit's
@@ -25,5 +25,12 @@ def code_editor(value: str, key: str, height: int = 700) -> str:
     as `doc_id`, as the file-identity signal the frontend uses to decide
     whether to reload its document -- see the cursor-clobber guard in
     editor.js. Pass the selected filename.
+
+    `flush_token`: bump this (e.g. an incrementing counter) to force the
+    frontend to immediately send its current content back, regardless of
+    the normal debounce/blur sync. See the Render button's handler in
+    streamlit_app.py for why this exists and how to wait for the reply.
     """
-    return _component_func(value=value, doc_id=key, height=height, key=key, default=value)
+    return _component_func(
+        value=value, doc_id=key, height=height, flush_token=flush_token, key=key, default=value
+    )

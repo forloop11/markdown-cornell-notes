@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert header.yaml into build/cornell-header.tex.
+"""Convert yaml/header.yaml into build/cornell-header.tex.
 
 Supports the flat "key: value" subset of YAML used for the Cornell notes
 header fields (topic, date, attendees, time) -- no nesting, lists, or
@@ -38,7 +38,7 @@ def escape_latex(value):
 
 
 def main():
-    in_path = sys.argv[1] if len(sys.argv) > 1 else "header.yaml"
+    in_path = sys.argv[1] if len(sys.argv) > 1 else "yaml/header.yaml"
     out_path = sys.argv[2] if len(sys.argv) > 2 else "build/cornell-header.tex"
 
     fields = parse_yaml(in_path)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert notes.md into build/cornell-content.tex: one cornellFlow
+"""Convert md/notes.md into build/cornell-content.tex: one cornellFlow
 environment per section of main-panel content. Also writes
 build/cornell-cue.tex and build/cornell-summary.tex, which carry any
 "^<page> <text>" / "^^<page> <text>" entries (see below) to their target
@@ -8,7 +8,7 @@ page's cue column / summary band.
 pandoc converts Markdown to LaTeX; \\cornellFlow (defined in
 settings/template.tex) then measures that content with TeX's \\vsplit and
 automatically breaks it across as many pages as it actually needs, each
-carrying the same repeating header (see header.yaml) and the next page
+carrying the same repeating header (see yaml/header.yaml) and the next page
 number.
 
 A line containing only
@@ -158,7 +158,8 @@ HREF_RE = re.compile(r"\\href\{([^}]*)\}")
 
 # A URL with a scheme (http:, mailto:, ...) or a leading "/" or "#" is
 # absolute/fragment and must be left alone; anything else is a path
-# relative to notes.md's own location (the repo root).
+# relative to the repo root, since that's `make build`'s compiling cwd
+# regardless of where the input markdown file itself lives.
 ABSOLUTE_LINK_RE = re.compile(r"^(?:[A-Za-z][A-Za-z0-9+.-]*:|/|#)")
 
 # make build compiles with the repo root as cwd (so \includegraphics still
@@ -297,7 +298,7 @@ def write_generated(out_path, in_path, body):
 
 
 def main():
-    in_path = sys.argv[1] if len(sys.argv) > 1 else "notes.md"
+    in_path = sys.argv[1] if len(sys.argv) > 1 else "md/notes.md"
     content_path = sys.argv[2] if len(sys.argv) > 2 else "build/cornell-content.tex"
     cue_path = sys.argv[3] if len(sys.argv) > 3 else "build/cornell-cue.tex"
     summary_path = sys.argv[4] if len(sys.argv) > 4 else "build/cornell-summary.tex"

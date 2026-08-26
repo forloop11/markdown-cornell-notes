@@ -1,11 +1,11 @@
 TEX      := settings/template.tex
-YAML     := header.yaml
+YAML     := yaml/header.yaml
 JOBNAME  := $(shell python3 scripts/topic_slug.py $(YAML))
 OUTDIR   := notes
 PDF      := $(OUTDIR)/$(JOBNAME).pdf
 BUILDDIR := build
 HEADER   := $(BUILDDIR)/cornell-header.tex
-MD       := notes.md
+MD       := md/notes.md
 CONTENT  := $(BUILDDIR)/cornell-content.tex
 CUE      := $(BUILDDIR)/cornell-cue.tex
 SUMMARY  := $(BUILDDIR)/cornell-summary.tex
@@ -15,8 +15,8 @@ LATEXMK  := latexmk
 LATEXOPTS := -pdf -interaction=nonstopmode -halt-on-error -jobname=$(JOBNAME) -outdir=$(OUTDIR)
 DOCKER_IMAGE := cornell-notes
 
-EXAMPLE_MD       := notes-example.md
-EXAMPLE_YAML     := header-example.yaml
+EXAMPLE_MD       := md/notes-example.md
+EXAMPLE_YAML     := yaml/header-example.yaml
 EXAMPLE_BUILDDIR := build/example
 
 .PHONY: build clean distclean docker build-example
@@ -24,8 +24,8 @@ EXAMPLE_BUILDDIR := build/example
 build: $(PDF)
 	$(LATEXMK) -c -jobname=$(JOBNAME) -outdir=$(OUTDIR) $(TEX)
 
-# Builds notes/<slug>.pdf from notes-example.md / header-example.yaml instead of
-# notes.md / header.yaml, using its own build/example/ scratch dir so it
+# Builds notes/<slug>.pdf from md/notes-example.md / yaml/header-example.yaml instead of
+# md/notes.md / yaml/header.yaml, using its own build/example/ scratch dir so it
 # never collides with (or goes stale against) the regular build's
 # intermediate files.
 build-example:

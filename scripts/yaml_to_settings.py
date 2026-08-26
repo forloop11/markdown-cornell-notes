@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Convert settings/page.yaml into build/cornell-page-settings.tex.
 
-Controls page geometry (paper size, margin), header/footer/cue-column
-sizing (as fractions of the page), and spacing (rule spacing, padding,
-border inset) -- the "TEMPLATE CONFIGURATION" knobs in settings/template.tex.
+Controls page geometry (paper size, margin), header/cue-column/
+summary-band sizing (as fractions of the page), and spacing (rule
+spacing, padding, border inset) -- the "TEMPLATE CONFIGURATION" knobs in
+settings/template.tex.
 Field values are passed through to LaTeX as-is (lengths and decimals,
 not prose), so no escaping is needed.
 
@@ -16,8 +17,8 @@ from simple_yaml import parse_yaml, write_generated
 GEOMETRY_FIELDS = ("paper", "margin")
 FRAC_MACROS = {
     "header_height": "cnHeaderHeightFrac",
-    "footer_height": "cnFooterHeightFrac",
     "cue_width": "cnCueWidthFrac",
+    "summary_height": "cnSummaryHeightFrac",
 }
 LENGTH_MACROS = {
     "rule_spacing": "cnRuleSpacing",

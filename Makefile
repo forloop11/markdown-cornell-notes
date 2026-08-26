@@ -7,6 +7,8 @@ BUILDDIR := build
 HEADER   := $(BUILDDIR)/cornell-header.tex
 MD       := notes.md
 CONTENT  := $(BUILDDIR)/cornell-content.tex
+CUE      := $(BUILDDIR)/cornell-cue.tex
+SUMMARY  := $(BUILDDIR)/cornell-summary.tex
 SETTINGS_YAML := settings/page.yaml
 SETTINGS := $(BUILDDIR)/cornell-page-settings.tex
 LATEXMK  := latexmk
@@ -28,13 +30,13 @@ docker:
 $(HEADER): $(YAML) scripts/yaml_to_header.py scripts/simple_yaml.py
 	python3 scripts/yaml_to_header.py $(YAML) $(HEADER)
 
-$(CONTENT): $(MD) scripts/markdown_to_pages.py
-	python3 scripts/markdown_to_pages.py $(MD) $(CONTENT)
+$(CONTENT) $(CUE) $(SUMMARY) &: $(MD) scripts/markdown_to_pages.py
+	python3 scripts/markdown_to_pages.py $(MD) $(CONTENT) $(CUE) $(SUMMARY)
 
 $(SETTINGS): $(SETTINGS_YAML) scripts/yaml_to_settings.py scripts/simple_yaml.py
 	python3 scripts/yaml_to_settings.py $(SETTINGS_YAML) $(SETTINGS)
 
-$(PDF): $(TEX) $(HEADER) $(CONTENT) $(SETTINGS) | $(OUTDIR)
+$(PDF): $(TEX) $(HEADER) $(CONTENT) $(CUE) $(SUMMARY) $(SETTINGS) | $(OUTDIR)
 	$(LATEXMK) $(LATEXOPTS) $(TEX)
 
 $(OUTDIR):
@@ -45,4 +47,4 @@ clean:
 
 distclean:
 	$(LATEXMK) -C -jobname=$(JOBNAME) -outdir=$(OUTDIR) $(TEX)
-	rm -f $(HEADER) $(CONTENT) $(SETTINGS)
+	rm -f $(HEADER) $(CONTENT) $(CUE) $(SUMMARY) $(SETTINGS)

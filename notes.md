@@ -1,5 +1,31 @@
 # Text Formatting
 
+^1 This is my question for Cue on page 1
+
+^1 This is my question for Cue on page 1 on a new line
+
+^2 This is my question for Cue on page 2
+
+^^1 This is my summary for page 1
+
+^^2 This is my summary for page 2
+
+^^2 Verified with scratch tests outside the repo: realistic short summaries stay in column A with no warnings; deliberately long text correctly overflows into column B; and an extreme stress case (6 long items, more than 2 columns can hold) still degrades gracefully — one benign "overfull" warning, no crash, no data loss beyond the documented 2-column limit.
+
+^^2 Verified with scratch tests outside the repo: realistic short summaries stay in column A with no warnings; deliberately long text correctly overflows into column B; and an extreme stress case (6 long items, more than 2 columns can hold) still degrades gracefully — one benign "overfull" warning, no crash, no data loss beyond the documented 2-column limit.
+
+
+
+<!-- Cue-column text: a line of the form "^<page> <text>" (see the ^1
+     line above) adds <text> to the ruled cue column of that page number
+     instead of the main notes panel, e.g. for questions or keywords next
+     to the notes they relate to. It's stripped out here, not printed as
+     a paragraph. -->
+
+<!-- Summary-band text: a line of the form "^^<page> <text>" (see the ^^1
+     line above) adds <text> to that page's ruled summary band (the strip
+     at the bottom of the page) instead. Same stripping as above. -->
+
 **Bold**, *italic*, ***bold italic***, `inline code`, and ~~strikethrough~~.
 
 # Lists

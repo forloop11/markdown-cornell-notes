@@ -1,4 +1,4 @@
-# Page geometry, header/footer/cue-column sizing, and spacing for
+# Page geometry, header/cue-column/summary-band sizing, and spacing for
 # settings/template.tex. Run `python3 scripts/yaml_to_settings.py` to
 # regenerate build/cornell-page-settings.tex, then compile as usual
 # (or just `make build`, which does this automatically).
@@ -11,14 +11,16 @@
 paper: letterpaper
 margin: 0.5in
 
-# Header, footer, and right-hand cue-column sizing, as fractions of the
-# drawable page height/width. Must be plain decimals, no units.
+# Header, right-hand cue-column, and summary-band sizing, as fractions of
+# the drawable page height/width. Must be plain decimals, no units. The
+# summary band is the ruled strip at the bottom of the page, full width;
+# it holds notes.md's "^^<page> <text>" entries.
 header_height: 0.12
-footer_height: 0.18
 cue_width: 0.25
+summary_height: 0.18
 
 # Ruled-line spacing, inner text padding, and the safety margin that
 # keeps thick strokes inside the printable area. Any LaTeX length.
-rule_spacing: 0.25in
+rule_spacing: 0.2in
 padding: 0.12in
 border_inset: 2pt

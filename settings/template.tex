@@ -11,7 +11,7 @@
 %   |                                        |  (hand-    |
 %   |                                        |  writing)  |
 %   +----------------------------------------+-----------+
-%   |           Footer, ruled (for hand writing)          |
+%   |           Summary band, ruled (for hand writing)     |
 %   +----------------------------------------------------+
 %
 % Usage: call \cornellpage{notes} once per page (see example at bottom).
@@ -56,6 +56,39 @@
 \providecommand{\tightlist}{%
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 
+% Bulleted list for cue-column entries (scripts/markdown_to_pages.py's
+% "^<page> <text>" directive; see \cnCueText below). itemize's default
+% leftmargin (~2.5em) eats too much of the narrow cue column, so this
+% uses a plain `list` with a much smaller one instead, hugging the
+% column's left edge.
+\newenvironment{cnCueList}{%
+  \begin{list}{\textbullet}{%
+    \setlength{\leftmargin}{1em}\setlength{\itemindent}{0pt}%
+    \setlength{\itemsep}{0pt}\setlength{\parsep}{0pt}%
+    \setlength{\topsep}{0pt}\setlength{\partopsep}{0pt}%
+  }%
+}{%
+  \end{list}%
+}
+
+% Numbered list for summary-band entries (scripts/markdown_to_pages.py's
+% "^^<page> <text>" directive; see \cnSummaryText below). Same tight,
+% narrow-column margin treatment as cnCueList above, but with an "N."
+% label instead of a bullet -- summary-band text is typeset one column
+% at a time (see \cnSummaryColW in \cornellpage), so it's just as narrow
+% as the cue column.
+\newcounter{cnSummaryListCtr}
+\newenvironment{cnSummaryList}{%
+  \begin{list}{\arabic{cnSummaryListCtr}.}{%
+    \usecounter{cnSummaryListCtr}%
+    \setlength{\leftmargin}{1.5em}\setlength{\itemindent}{0pt}%
+    \setlength{\itemsep}{0pt}\setlength{\parsep}{0pt}%
+    \setlength{\topsep}{0pt}\setlength{\partopsep}{0pt}%
+  }%
+}{%
+  \end{list}%
+}
+
 % pandoc emits \st{...} for ~~strikethrough~~, normally provided by the
 % `soul` package. Neither `soul` nor `ulem` is in the Docker image's
 % minimal texlive set (both live only in texlive-latex-extra, a large
@@ -86,6 +119,10 @@
 
 \newbox\cnFlowBox
 \newbox\cnFlowSplit
+\newbox\cnCueBox
+\newbox\cnSummaryBox
+\newbox\cnSummaryColA
+\newbox\cnSummaryColB
 
 % ------------------------------------------------------------------
 % Header fields sourced from header.yaml.
@@ -100,15 +137,31 @@
 \newcommand{\cnHdrTime}{}
 \IfFileExists{build/cornell-header.tex}{\input{build/cornell-header.tex}}{}
 
+% Cue-column text for a given page number, from notes.md's "^<page> <text>"
+% directive lines (see scripts/markdown_to_pages.py). \cnCueText{3} expands
+% to whatever notes.md targeted at page 3, or nothing if none did.
+\newcommand{\cnCueText}[1]{}
+\IfFileExists{build/cornell-cue.tex}{\input{build/cornell-cue.tex}}{}
+
+% Summary-band text for a given page number, from notes.md's
+% "^^<page> <text>" directive lines (see scripts/markdown_to_pages.py).
+\newcommand{\cnSummaryText}[1]{}
+\IfFileExists{build/cornell-summary.tex}{\input{build/cornell-summary.tex}}{}
+
 % ------------------------------------------------------------------
 % TEMPLATE CONFIGURATION
 % ------------------------------------------------------------------
 \newlength{\cnPageW}       % drawable width  (slightly under \textwidth)
 \newlength{\cnPageH}       % drawable height (slightly under \textheight)
 \newlength{\cnHeaderHeight}
-\newlength{\cnFooterHeight}
+\newlength{\cnSummaryHeight} % the ruled band at the bottom of the page
 \newlength{\cnBodyTop}     % y-coordinate of the body/header boundary
 \newlength{\cnCueWidth}
+\newlength{\cnCueTextX}    % x-coordinate of the cue column's text area
+\newlength{\cnCueTextW}    % usable text width of the cue column
+\newlength{\cnSummaryColW} % usable text width of one summary-band column
+\newlength{\cnSummaryColH} % usable text height of one summary-band column
+\newlength{\cnSummaryColBX} % x-coordinate of the summary band's second column
 \newlength{\cnNotesWidth}
 \newlength{\cnHalfWidth}
 \newlength{\cnRuleSpacing}
@@ -116,17 +169,17 @@
 \newlength{\cnBorderInset} % safety margin so thick-stroke ink stays inside \textwidth/\textheight
 \newlength{\cnNotesPanelH} % usable height of the main notes panel, for \vsplit pagination
 
-% Header/footer/cue-column sizing, as fractions of the drawable page.
+% Header/cue-column/summary-band sizing, as fractions of the drawable page.
 \newcommand{\cnHeaderHeightFrac}{0.12}
-\newcommand{\cnFooterHeightFrac}{0.18}
 \newcommand{\cnCueWidthFrac}{0.25}
+\newcommand{\cnSummaryHeightFrac}{0.18}
 
 \setlength{\cnRuleSpacing}{0.30in}           % ruled-line spacing
 \setlength{\cnPad}{0.12in}                   % inner padding for text
 \setlength{\cnBorderInset}{2pt}
 
 % ------------------------------------------------------------------
-% Page geometry, header/footer/cue-column fractions, and spacing
+% Page geometry, header/cue-column/summary-band fractions, and spacing
 % sourced from settings/page.yaml. Run `python3 scripts/yaml_to_settings.py`
 % to (re)generate build/cornell-page-settings.tex from it before
 % compiling; the defaults just above keep the build working even if
@@ -142,7 +195,7 @@
   \setlength{\cnPageH}{\textheight}\addtolength{\cnPageH}{-\cnBorderInset}
 
   \setlength{\cnHeaderHeight}{\cnHeaderHeightFrac\cnPageH}    % header band
-  \setlength{\cnFooterHeight}{\cnFooterHeightFrac\cnPageH}    % footer band
+  \setlength{\cnSummaryHeight}{\cnSummaryHeightFrac\cnPageH}  % summary band
   \setlength{\cnBodyTop}{\cnPageH}
   \addtolength{\cnBodyTop}{-\cnHeaderHeight}
 
@@ -150,12 +203,24 @@
   \setlength{\cnNotesWidth}{\cnPageW}
   \addtolength{\cnNotesWidth}{-\cnCueWidth}
 
-  \setlength{\cnHalfWidth}{0.5\cnPageW}        % footer column width
+  \setlength{\cnCueTextX}{\cnNotesWidth}\addtolength{\cnCueTextX}{\cnPad}
+  \setlength{\cnCueTextW}{\cnCueWidth}\addtolength{\cnCueTextW}{-2\cnPad}
+
+  \setlength{\cnHalfWidth}{0.5\cnPageW}        % summary-band column width
+
+  % Summary band splits into two side-by-side columns (left then right)
+  % so a lot of "^^<page>" text grows sideways instead of vertically past
+  % the band -- see \cornellpage below, which \vsplits the typeset text
+  % at \cnSummaryColH into these two columns. Both columns are inset from
+  % the page edges and the shared \cnHalfWidth divider by \cnPad.
+  \setlength{\cnSummaryColW}{\cnHalfWidth}\addtolength{\cnSummaryColW}{-1.5\cnPad}
+  \setlength{\cnSummaryColH}{\cnSummaryHeight}\addtolength{\cnSummaryColH}{-2\cnPad}
+  \setlength{\cnSummaryColBX}{\cnHalfWidth}\addtolength{\cnSummaryColBX}{0.5\cnPad}
 
   % usable size of the main notes panel, for \vsplit-based pagination
   \setlength{\cnNotesTextW}{\cnNotesWidth}\addtolength{\cnNotesTextW}{-2\cnPad}
   \setlength{\cnNotesPanelH}{\cnBodyTop}
-  \addtolength{\cnNotesPanelH}{-\cnFooterHeight}
+  \addtolength{\cnNotesPanelH}{-\cnSummaryHeight}
   \addtolength{\cnNotesPanelH}{-2\cnPad}
 }
 
@@ -173,6 +238,13 @@
 \newlength{\cnNotesTextW}
 \newlength{\cnNotesTextY}
 \newlength{\cnRegionH}
+\newlength{\cnCueTextH}    % height of this page's typeset cue text (0pt if none)
+\newlength{\cnCueRuleTop}  % upper bound for the cue column's ruled lines
+\newlength{\cnSummaryTextY}    % y-coordinate of the summary band's text area
+\newlength{\cnSummaryTextHA}    % height of this page's typeset summary column-1 text (0pt if none)
+\newlength{\cnSummaryTextHB}   % height of this page's typeset summary column-2 text (0pt if none)
+\newlength{\cnSummaryRuleTopA}  % upper bound for the summary band's column-1 ruled lines
+\newlength{\cnSummaryRuleTopB} % upper bound for the summary band's column-2 ruled lines
 
 % ------------------------------------------------------------------
 % Draw evenly spaced horizontal ruled lines inside the rectangle whose
@@ -239,18 +311,72 @@
 
   \setlength{\cnNotesTextW}{\cnNotesWidth}\addtolength{\cnNotesTextW}{-2\cnPad}
   \setlength{\cnNotesTextY}{\cnBodyTop}\addtolength{\cnNotesTextY}{-\cnPad}
+  \setlength{\cnSummaryTextY}{\cnSummaryHeight}\addtolength{\cnSummaryTextY}{-\cnPad}
+
+  % Typeset this page's cue and summary text once, up front, so their
+  % heights are known before the cue column's/summary band's ruled lines
+  % are drawn -- otherwise the fixed rule-line grid runs straight through
+  % the text instead of stopping above it. A page with no cue/summary
+  % text gets a zero-height box, so the ruled lines fall back to spanning
+  % the whole region as before.
+  \setbox\cnCueBox=\vbox{\hsize=\the\cnCueTextW\linewidth=\hsize\footnotesize\noindent\cnCueText{\thepage}}%
+  \setlength{\cnCueTextH}{\ht\cnCueBox}\addtolength{\cnCueTextH}{\dp\cnCueBox}%
+  \setlength{\cnCueRuleTop}{\cnBodyTop}%
+  \ifdim\cnCueTextH>0pt
+    \addtolength{\cnCueRuleTop}{-\cnCueTextH}%
+    \addtolength{\cnCueRuleTop}{-2\cnPad}%
+  \fi
+
+  % Summary text is typeset at one column's width, then \vsplit at one
+  % column's height: whatever fits lands in column 1, and any overflow
+  % (rather than running past the band) lands in column 2 instead. A
+  % page with little/no summary text ends up with an empty (\ifvoid)
+  % column 2, same zero-height fallback as the cue column above.
+  \setbox\cnSummaryBox=\vbox{\hsize=\the\cnSummaryColW\linewidth=\hsize\footnotesize
+    \noindent\cnSummaryText{\thepage}\par\vfil\penalty-10000}%
+  \setbox\cnSummaryColA=\vsplit\cnSummaryBox to \cnSummaryColH\relax
+  \setlength{\cnSummaryTextHA}{\ht\cnSummaryColA}\addtolength{\cnSummaryTextHA}{\dp\cnSummaryColA}%
+  \setlength{\cnSummaryRuleTopA}{\cnSummaryHeight}%
+  \ifdim\cnSummaryTextHA>0pt
+    \addtolength{\cnSummaryRuleTopA}{-\cnSummaryTextHA}%
+    \addtolength{\cnSummaryRuleTopA}{-2\cnPad}%
+  \fi
+
+  \setlength{\cnSummaryTextHB}{0pt}%
+  \setlength{\cnSummaryRuleTopB}{\cnSummaryHeight}%
+  \ifvoid\cnSummaryBox
+    % Nothing overflowed into column 2 -- clear it explicitly, since
+    % otherwise it would still hold column 2's box from whichever
+    % earlier page last had overflow (box registers are global and
+    % persist across \cornellpage calls until reassigned).
+    \setbox\cnSummaryColB=\hbox{}%
+  \else
+    \setbox\cnSummaryColB=\vsplit\cnSummaryBox to \cnSummaryColH\relax
+    \setlength{\cnSummaryTextHB}{\ht\cnSummaryColB}\addtolength{\cnSummaryTextHB}{\dp\cnSummaryColB}%
+    \ifdim\cnSummaryTextHB>0pt
+      \addtolength{\cnSummaryRuleTopB}{-\cnSummaryTextHB}%
+      \addtolength{\cnSummaryRuleTopB}{-2\cnPad}%
+    \fi
+  \fi
 
   \noindent
   \begin{tikzpicture}
     % --- outer border + row/column dividers (table skeleton) ---
     \draw[black,thick] (0,0) rectangle (\the\cnPageW,\the\cnPageH);
-    \draw[black,thick] (0,\the\cnFooterHeight) -- (\the\cnPageW,\the\cnFooterHeight); % footer / body
-    \draw[black,thick] (0,\the\cnBodyTop) -- (\the\cnPageW,\the\cnBodyTop);           % body / header
-    \draw[black,thick] (\the\cnNotesWidth,\the\cnFooterHeight) -- (\the\cnNotesWidth,\the\cnBodyTop); % notes / cue
+    \draw[black,thick] (0,\the\cnSummaryHeight) -- (\the\cnPageW,\the\cnSummaryHeight); % summary / body
+    \draw[black,thick] (0,\the\cnBodyTop) -- (\the\cnPageW,\the\cnBodyTop);             % body / header
+    \draw[black,thick] (\the\cnNotesWidth,\the\cnSummaryHeight) -- (\the\cnNotesWidth,\the\cnBodyTop); % notes / cue
+    % No visible divider between the summary band's two columns (see
+    % \cnHalfWidth/\cnSummaryColBX below) -- they're a layout/wrap detail,
+    % not a ruled boundary meant to be seen.
 
-    % --- ruled lines: right-hand cue column and footer ---
-    \cnRuledLines{\the\cnNotesWidth}{\the\cnFooterHeight}{\the\cnPageW}{\the\cnBodyTop}
-    \cnRuledLines{0pt}{0pt}{\the\cnPageW}{\the\cnFooterHeight}
+    % --- ruled lines: right-hand cue column, and the summary band's two
+    % columns, each stopping above its own typed text for this page (if
+    % any) -- see \cnCueRuleTop/\cnSummaryRuleTopA/\cnSummaryRuleTopB
+    % above ---
+    \cnRuledLines{\the\cnNotesWidth}{\the\cnSummaryHeight}{\the\cnPageW}{\the\cnCueRuleTop}
+    \cnRuledLines{0pt}{0pt}{\the\cnHalfWidth}{\the\cnSummaryRuleTopA}
+    \cnRuledLines{\the\cnHalfWidth}{0pt}{\the\cnPageW}{\the\cnSummaryRuleTopB}
 
     % --- header fields (label + optional typed value) --------------------
     \cnField{\the\cnPad}{\the\cnRowAY}{\the\cnMeetW}{Topic:}{\cnHdrTopic}
@@ -265,7 +391,7 @@
     \node[anchor=south west,font=\itshape\scriptsize,gray,inner sep=2pt]
       at (\the\cnCapMidX,0pt) {};
     \node[anchor=south east,font=\itshape\scriptsize,gray,inner sep=2pt]
-      at (\the\cnCapRightX,\the\cnFooterHeight) {};
+      at (\the\cnCapRightX,\the\cnSummaryHeight) {};
 
     % --- auto page number: upper-right corner of the header box ---------
     \node[anchor=north east,font=\itshape\scriptsize,gray,inner sep=2pt]
@@ -275,6 +401,17 @@
     \node[anchor=north west,align=left,
           text width=\the\cnNotesTextW,
           inner sep=0pt] at (\the\cnPad,\the\cnNotesTextY) {#1};
+
+    % --- cue column text for this page (notes.md's "^<page> <text>") ----
+    \node[anchor=north west,inner sep=0pt]
+      at (\the\cnCueTextX,\the\cnNotesTextY) {\box\cnCueBox};
+
+    % --- summary band text for this page (notes.md's "^^<page> <text>"),
+    % column 1 then column 2 (overflow from column 1) ---
+    \node[anchor=north west,inner sep=0pt]
+      at (\the\cnPad,\the\cnSummaryTextY) {\box\cnSummaryColA};
+    \node[anchor=north west,inner sep=0pt]
+      at (\the\cnSummaryColBX,\the\cnSummaryTextY) {\box\cnSummaryColB};
   \end{tikzpicture}%
   \par
 }

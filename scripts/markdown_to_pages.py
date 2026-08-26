@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Convert notes.md into build/cornell-content.tex: one cornellFlow
-environment per section of main-panel content.
+environment per section of main-panel content. Also writes
+build/cornell-cue.tex and build/cornell-summary.tex, which carry any
+"^<page> <text>" / "^^<page> <text>" entries (see below) to their target
+page's cue column / summary band.
 
 pandoc converts Markdown to LaTeX; \\cornellFlow (defined in
 settings/template.tex) then measures that content with TeX's \\vsplit and
@@ -15,14 +18,44 @@ A line containing only
 forces an extra break between two sections (e.g. to start a new topic on
 its own page) on top of whatever automatic breaks \\cornellFlow inserts.
 
-Usage (from the repo root): python3 scripts/markdown_to_pages.py [input.md] [output.tex]
+A line of the form
+
+    ^<page> <text>
+
+e.g. "^1 This is my question for Cue", adds <text> to the ruled cue
+column of the given page number (the actual rendered PDF page, matching
+the "Page N" printed in each page's header) instead of the main notes
+panel. Multiple entries targeting the same page render as a bulleted
+list, in document order.
+
+Similarly, a line of the form
+
+    ^^<page> <text>
+
+adds <text> to the page's ruled summary band (the strip at the bottom of
+the page) instead. Multiple entries targeting the same page render as
+separate lines, in document order.
+
+Usage (from the repo root): python3 scripts/markdown_to_pages.py [input.md] [content.tex] [cue.tex] [summary.tex]
 """
 import os
 import re
 import subprocess
 import sys
+from collections import defaultdict
 
 PAGEBREAK_RE = re.compile(r"^\s*<!--\s*pagebreak\s*-->\s*$", re.MULTILINE)
+
+# A whole line of the form "^<page> <text>" -- the caret must be followed
+# directly by digits then whitespace, so it can't be confused with
+# pandoc's inline superscript syntax (e.g. "x^2^"), which never has a
+# space right after the opening caret. "^^<page> <text>" (summary-band
+# entries, see SUMMARY_RE) never matches this: the character right after
+# the first caret is the second caret, not a digit.
+CUE_RE = re.compile(r"^\^(?P<page>\d+)[ \t]+(?P<text>.+?)[ \t]*$", re.MULTILINE)
+
+# A whole line of the form "^^<page> <text>" -- see module docstring.
+SUMMARY_RE = re.compile(r"^\^\^(?P<page>\d+)[ \t]+(?P<text>.+?)[ \t]*$", re.MULTILINE)
 
 LONGTABLE_RE = re.compile(
     # spec is captured non-greedily up to the "}\n" that closes the
@@ -141,6 +174,66 @@ def rebase_relative_links(latex):
     return HREF_RE.sub(rebase, latex)
 
 
+def extract_directive_entries(markdown, pattern):
+    """Pull directive lines matching `pattern` (CUE_RE or SUMMARY_RE) out
+    of markdown, returning (remaining_markdown, entries), where entries is
+    a list of (page_number, text) in document order and remaining_markdown
+    has each directive line blanked out (so it doesn't also show up as a
+    main-panel paragraph).
+    """
+    entries = []
+
+    def collect(m):
+        entries.append((int(m.group("page")), m.group("text")))
+        return ""
+
+    return pattern.sub(collect, markdown), entries
+
+
+def as_list(env, texts):
+    """Wrap `texts` (already-converted LaTeX) as \\item entries inside
+    `env`, a settings/template.tex list environment (cnCueList or
+    cnSummaryList).
+    """
+    items = "".join(f"\\item {text}\n" for text in texts)
+    return f"\\begin{{{env}}}\n{items}\\end{{{env}}}"
+
+
+def render_cue_tex(entries):
+    """Build build/cornell-cue.tex's content: a \\renewcommand{\\cnCueText}
+    that, given a page number, returns every "^<page> <text>" entry
+    targeting that page (each run through the same Markdown/LaTeX
+    pipeline as the main content) as a bullet in an unordered list.
+    """
+    by_page = defaultdict(list)
+    for page, text in entries:
+        by_page[page].append(markdown_to_latex(text))
+
+    body = "".join(
+        f"  \\ifnum#1={page} {as_list('cnCueList', texts)}\\fi%\n"
+        for page, texts in sorted(by_page.items())
+    )
+    return f"\\renewcommand{{\\cnCueText}}[1]{{%\n{body}}}\n"
+
+
+def render_summary_tex(entries):
+    """Build build/cornell-summary.tex's content: a
+    \\renewcommand{\\cnSummaryText} that, given a page number, returns
+    every "^^<page> <text>" entry targeting that page (each run through
+    the same Markdown/LaTeX pipeline as the main content) as an item in
+    an ordered (numbered) list, in document order.
+    """
+    by_page = defaultdict(list)
+    for page, text in entries:
+        by_page[page].append(markdown_to_latex(text))
+
+    body = "".join(
+        f"  \\ifnum#1={page} {as_list('cnSummaryList', texts)}\\fi%\n"
+        for page, texts in sorted(by_page.items())
+    )
+    return f"\\renewcommand{{\\cnSummaryText}}[1]{{%\n{body}}}\n"
+
+
 def markdown_to_latex(markdown):
     result = subprocess.run(
         # --no-highlight: without it, a fenced code block with a language
@@ -174,12 +267,29 @@ def markdown_to_latex(markdown):
     return center_standalone_images(delongtable(latex))
 
 
+def write_generated(out_path, in_path, body):
+    out_dir = os.path.dirname(out_path)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+    header = f"% Generated from {in_path} by scripts/markdown_to_pages.py -- do not edit by hand.\n\n"
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(header + body)
+
+
 def main():
     in_path = sys.argv[1] if len(sys.argv) > 1 else "notes.md"
-    out_path = sys.argv[2] if len(sys.argv) > 2 else "build/cornell-content.tex"
+    content_path = sys.argv[2] if len(sys.argv) > 2 else "build/cornell-content.tex"
+    cue_path = sys.argv[3] if len(sys.argv) > 3 else "build/cornell-cue.tex"
+    summary_path = sys.argv[4] if len(sys.argv) > 4 else "build/cornell-summary.tex"
 
     with open(in_path, encoding="utf-8") as f:
         markdown = f.read()
+
+    # Summary entries ("^^<page>") first: SUMMARY_RE can't accidentally
+    # match a cue line, but stripping summary lines first keeps the
+    # extraction order self-evident regardless.
+    markdown, summary_entries = extract_directive_entries(markdown, SUMMARY_RE)
+    markdown, cue_entries = extract_directive_entries(markdown, CUE_RE)
 
     chunks = [chunk.strip() for chunk in PAGEBREAK_RE.split(markdown)]
     chunks = [chunk for chunk in chunks if chunk]
@@ -191,17 +301,9 @@ def main():
         latex = markdown_to_latex(chunk)
         pages.append(f"\\begin{{cornellFlow}}\n{latex}\n\\end{{cornellFlow}}")
 
-    lines = [
-        f"% Generated from {in_path} by scripts/markdown_to_pages.py -- do not edit by hand.",
-        "",
-        "\n\n".join(pages),
-    ]
-
-    out_dir = os.path.dirname(out_path)
-    if out_dir:
-        os.makedirs(out_dir, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
+    write_generated(content_path, in_path, "\n\n".join(pages) + "\n")
+    write_generated(cue_path, in_path, render_cue_tex(cue_entries))
+    write_generated(summary_path, in_path, render_summary_tex(summary_entries))
 
 
 if __name__ == "__main__":

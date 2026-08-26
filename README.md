@@ -2,7 +2,8 @@
 
 A Cornell-style meeting notes template for LaTeX. Each page has a header
 (topic, date, attendees, time), a large notes panel with a ruled cue
-column beside it, and a ruled footer, all for handwriting on a printout.
+column beside it, and a ruled summary band below both, all for
+handwriting on a printout.
 
 Header details, notes content, and the page layout itself aren't edited in
 the `.tex` file directly — they're generated from YAML and Markdown files,
@@ -10,6 +11,13 @@ so day-to-day use is just editing `header.yaml` / `notes.md` /
 `settings/page.yaml` and running `make`.
 
 ![](assets/page-layout.drawio.png)
+
+The page layout (notes panel, cue column, and summary band) follows the
+Cornell Note-Taking System, developed by Walter Pauk at Cornell
+University and first published in his book *How to Study in College*
+(Houghton Mifflin, 1962). This LaTeX/Markdown build pipeline implementing
+that layout was created by Todd Takala; it isn't affiliated with Cornell
+University or the Pauk estate.
 
 ## Requirements
 
@@ -101,6 +109,47 @@ only
 
 between two sections.
 
+### Cue-column text
+
+A line of the form
+
+```
+^<page> <text>
+```
+
+e.g. `^1 This is my question for Cue`, adds `<text>` as a bullet point in
+the ruled cue column of that page number (the actual rendered PDF page,
+matching the "Page N" printed in each page's header) instead of the main
+notes panel — handy for questions or keywords next to the notes they
+relate to. The directive line itself isn't printed. `<text>` goes through
+the same Markdown/LaTeX pipeline as the main content, so it can use
+inline formatting (`**bold**`, etc.); multiple entries targeting the same
+page each become their own bullet, in document order. The column's ruled
+lines stop above the bullet text (resuming below it) rather than running
+through it.
+
+### Summary-band text
+
+A line of the form
+
+```
+^^<page> <text>
+```
+
+e.g. `^^1 This is my summary for page 1`, adds `<text>` as an item in an
+ordered (numbered) list in that page's ruled summary band — the strip at
+the bottom of the page — instead of the main notes panel. The band is
+split into two side-by-side columns: text starts in the left column,
+word-wrapped to half the band's width, and if it's too long to fit, the
+overflow continues at the top of the right column instead of running
+past the band. Otherwise this behaves just like cue-column text: the
+directive line isn't printed, `<text>` goes through the same
+Markdown/LaTeX pipeline as the main content, and each column's ruled
+lines stop above its own typed text (resuming below it).
+
+The two directives are easy to tell apart even in shorthand: one caret
+(`^1 ...`) is the cue column, two carets (`^^1 ...`) is the summary band.
+
 ### Multiple topics per document
 
 `settings/template.tex` just does `\input{build/cornell-content.tex}`, which
@@ -135,6 +184,10 @@ into the container at build time.
 header.yaml         Header fields (source of truth).
 notes.md            Notes panel content, in Markdown (source of truth).
 assets/             Images & other files notes.md links to (source of truth).
+docs/
+  page-layout.drawio   Editable diagram source for the README's layout image
+                        (assets/page-layout.drawio.png); edit in draw.io/diagrams.net
+                        and re-export the PNG by hand.
 settings/
   template.tex         Template + \cornellpage / \cornellFlow macros; \input's
                         the generated files below and compiles to a PDF.
@@ -142,7 +195,9 @@ settings/
 scripts/
   simple_yaml.py        Shared minimal YAML parser used by the scripts below.
   yaml_to_header.py      header.yaml        -> build/cornell-header.tex
-  markdown_to_pages.py   notes.md (+pandoc) -> build/cornell-content.tex
+  markdown_to_pages.py   notes.md (+pandoc) -> build/cornell-content.tex,
+                                                build/cornell-cue.tex,
+                                                build/cornell-summary.tex
   yaml_to_settings.py    settings/page.yaml -> build/cornell-page-settings.tex
   topic_slug.py          header.yaml's topic+date -> output PDF's filename
 build/              Generated .tex fragments (gitignored, rebuilt by make).
@@ -160,7 +215,7 @@ others:
 
 ```sh
 python3 scripts/yaml_to_header.py header.yaml build/cornell-header.tex
-python3 scripts/markdown_to_pages.py notes.md build/cornell-content.tex
+python3 scripts/markdown_to_pages.py notes.md build/cornell-content.tex build/cornell-cue.tex build/cornell-summary.tex
 python3 scripts/yaml_to_settings.py settings/page.yaml build/cornell-page-settings.tex
 ```
 
@@ -180,19 +235,20 @@ paper: letterpaper
 margin: 0.5in
 
 header_height: 0.12
-footer_height: 0.18
 cue_width: 0.25
+summary_height: 0.18
 
-rule_spacing: 0.30in
+rule_spacing: 0.2in
 padding: 0.12in
 border_inset: 2pt
 ```
 
 - **`paper`, `margin`** — passed straight to the LaTeX `geometry` package,
   so any value it accepts works (e.g. `paper: a4paper`, `margin: 20mm`).
-- **`header_height`, `footer_height`, `cue_width`** — sizing for the
-  header band, footer band, and right-hand ruled cue column, each as a
-  plain decimal fraction of the drawable page height/width.
+- **`header_height`, `cue_width`, `summary_height`** — sizing for the
+  header band, right-hand ruled cue column, and the ruled summary band
+  at the bottom of the page, each as a plain decimal fraction of the
+  drawable page height/width.
 - **`rule_spacing`, `padding`, `border_inset`** — ruled-line spacing,
   inner text padding, and the safety margin that keeps thick strokes
   inside the printable area, each a LaTeX length.

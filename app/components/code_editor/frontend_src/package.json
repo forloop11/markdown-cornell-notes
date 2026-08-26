@@ -1,0 +1,22 @@
+{
+  "name": "cornell-notes-code-editor",
+  "private": true,
+  "version": "1.0.0",
+  "description": "CodeMirror 6 editor bundle for the Cornell notes Streamlit app's code_editor component. Rebuild with `npm install && npm run build`.",
+  "scripts": {
+    "build": "esbuild editor.js --bundle --minify --format=iife --outfile=../frontend/bundle.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.7.1",
+    "@codemirror/lang-html": "^6.4.9",
+    "@codemirror/lang-markdown": "^6.3.1",
+    "@codemirror/language": "^6.10.6",
+    "@codemirror/legacy-modes": "^6.4.1",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.34.1",
+    "@lezer/highlight": "^1.2.1"
+  }
+}

@@ -43,7 +43,7 @@ const draculaEditorTheme = EditorView.theme(
     ".cm-content": { caretColor: dracula.foreground },
     "&.cm-focused .cm-cursor": { borderLeftColor: dracula.foreground },
     "&.cm-selectionBackground, ::selection, .cm-content ::selection": {
-      backgroundColor: `${dracula.currentLine} !important`,
+      backgroundColor: "rgba(189, 147, 249, 0.35) !important",
     },
     ".cm-activeLine": { backgroundColor: dracula.currentLine },
     ".cm-activeLineGutter": { backgroundColor: dracula.currentLine },
@@ -147,6 +147,17 @@ function forceSend(doc) {
   sendToStreamlit({ type: "streamlit:setComponentValue", value: doc });
 }
 
+// Tab isn't bound by @codemirror/commands' defaultKeymap (that's what
+// @codemirror/commands' separate indentWithTab is for, which we don't use
+// since we want a literal 2-space insert rather than indent-unit-aware
+// indent/dedent). Without this binding, Tab falls through to the browser's
+// native focus-navigation on the contenteditable surface, tabbing out of
+// the editor instead of typing.
+function insertTab(view) {
+  view.dispatch(view.state.replaceSelection("  "), { scrollIntoView: true });
+  return true;
+}
+
 function makeState(doc) {
   return EditorState.create({
     doc,
@@ -154,7 +165,7 @@ function makeState(doc) {
       lineNumbers(),
       highlightActiveLine(),
       history(),
-      keymap.of([...defaultKeymap, ...historyKeymap]),
+      keymap.of([{ key: "Tab", run: insertTab }, ...defaultKeymap, ...historyKeymap]),
       draculaEditorTheme,
       syntaxHighlighting(draculaHighlightStyle, { fallback: true }),
       markdown({ codeLanguages }),

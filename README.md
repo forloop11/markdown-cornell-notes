@@ -88,14 +88,17 @@ make docker-app
 which builds the same Docker image as `make docker` and runs it with its
 port published, `-p 8501:8501`.
 
-The page has a header form (`topic`/`date`/`attendees`/`time`) at the top,
-a dropdown to switch between the files in `md/` (with buttons to create or
-delete one), and a **Render** button that saves both the header and the
-selected file to disk and runs `make build` for you — the build log is
-shown in an expander so LaTeX/pandoc errors surface in the UI instead of
-disappearing. Below that, the markdown editor (left) and the resulting PDF
-(right) sit side by side; switching files preserves each file's unsaved
-edits for the rest of the session, though only Render writes them to disk.
+The page has a header form (`topic`/`date`/`attendees`/`time`) at the top, a
+dropdown to switch between the files in `md/` (with buttons to create or
+delete one), and, on the right of that row, **Render** and **Download PDF**.
+Render saves both the header and the selected file to disk and runs `make
+build` for you — the build log is shown in an expander so LaTeX/pandoc
+errors surface in the UI instead of disappearing. Download PDF (disabled
+until a PDF exists) downloads the current one under its actual output
+filename. Below that, the markdown editor (left) and the resulting PDF
+(right) sit side by side, matched in height so their tops and bottoms
+align; switching files preserves each file's unsaved edits for the rest of
+the session, though only Render writes them to disk.
 
 The editor itself is [CodeMirror](https://codemirror.net/), with syntax
 highlighting for Markdown, inline/raw HTML, and fenced ` ```html `/
@@ -204,10 +207,14 @@ page count changed or was miscounted.
 
 ### Multiple topics per document
 
-`settings/template.tex` just does `\input{build/cornell-content.tex}`, which
-holds one `cornellFlow` environment per `md/notes.md` section. Every
-resulting page shares the same header from `yaml/header.yaml` and numbers
-itself automatically (top-right corner of the header box).
+`settings/template.tex` just does `\input{\cnBuildDir/cornell-content.tex}`,
+which holds one `cornellFlow` environment per `md/notes.md` section.
+(`\cnBuildDir` defaults to `build`, overridden per-invocation by the
+Makefile's `BUILDDIR` — see `make build-example` below and the Streamlit
+app's own scratch directory — so isolated builds actually compile their own
+generated content instead of whatever's currently in the default `build/`.)
+Every resulting page shares the same header from `yaml/header.yaml` and
+numbers itself automatically (top-right corner of the header box).
 
 ### Images and linked documents
 

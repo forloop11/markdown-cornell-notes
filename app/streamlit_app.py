@@ -16,7 +16,7 @@ st.set_page_config(page_title="Cornell Notes", layout="wide")
 # Shared by both panes so their bottoms line up, not just their tops (which
 # already match since both start with a single caption line -- see
 # _render_pdf_pane and the Markdown pane's st.caption in main()).
-PANE_HEIGHT = 700
+PANE_HEIGHT = 900
 
 
 def _init_state():
@@ -90,10 +90,7 @@ def _render_file_controls():
     elif st.session_state.selected_file not in files:
         st.session_state.selected_file = files[0]
 
-    # The spacer column pushes Render/Download to the right edge of the row.
-    select_col, new_col, delete_col, _spacer_col, render_col, download_col = st.columns(
-        [3, 1.2, 1.2, 2.2, 1.2, 1.6]
-    )
+    select_col, buttons_col = st.columns([3, 5.6], vertical_alignment="bottom")
 
     with select_col:
         if files:
@@ -104,7 +101,15 @@ def _render_file_controls():
                 on_change=lambda: st.session_state.update(confirm_delete=False),
             )
 
-    with new_col:
+    # A horizontal container (children sized to their own content and laid
+    # out left-to-right, unlike st.columns' equal-fraction split) so New
+    # file/Delete file/Render/Download PDF sit right after the dropdown
+    # instead of Render/Download being pushed to the far right, with
+    # standard spacing between every button.
+    with buttons_col:
+        button_row = st.container(horizontal=True, gap="small")
+
+    with button_row:
         with st.popover("New file"):
             new_name = st.text_input("File name", placeholder="my-notes", key="new_file_name")
             if st.button("Create", key="create_file_btn"):
@@ -116,31 +121,29 @@ def _render_file_controls():
                 except pipeline.PipelineError as exc:
                     st.error(str(exc))
 
-    with delete_col:
         if files and st.session_state.selected_file:
             if not st.session_state.confirm_delete:
                 if st.button("Delete file", key="delete_file_btn"):
                     st.session_state.confirm_delete = True
                     st.rerun()
             else:
-                st.warning(f"Delete {st.session_state.selected_file}?")
-                yes_col, no_col = st.columns(2)
-                if yes_col.button("Yes, delete", key="confirm_delete_btn"):
-                    try:
-                        pipeline.delete_markdown_file(st.session_state.selected_file)
-                        st.session_state.drafts.pop(st.session_state.selected_file, None)
+                with st.container(horizontal=True, gap="small"):
+                    st.warning(f"Delete {st.session_state.selected_file}?")
+                    if st.button("Yes, delete", key="confirm_delete_btn"):
+                        try:
+                            pipeline.delete_markdown_file(st.session_state.selected_file)
+                            st.session_state.drafts.pop(st.session_state.selected_file, None)
+                            st.session_state.confirm_delete = False
+                            remaining = pipeline.list_markdown_files()
+                            st.session_state.pending_select = remaining[0] if remaining else None
+                            st.rerun()
+                        except pipeline.PipelineError as exc:
+                            st.session_state.confirm_delete = False
+                            st.error(str(exc))
+                    if st.button("Cancel", key="cancel_delete_btn"):
                         st.session_state.confirm_delete = False
-                        remaining = pipeline.list_markdown_files()
-                        st.session_state.pending_select = remaining[0] if remaining else None
                         st.rerun()
-                    except pipeline.PipelineError as exc:
-                        st.session_state.confirm_delete = False
-                        st.error(str(exc))
-                if no_col.button("Cancel", key="cancel_delete_btn"):
-                    st.session_state.confirm_delete = False
-                    st.rerun()
 
-    with render_col:
         # Doesn't call _do_render() directly: the editor syncs its content
         # to Python on a debounce (or on blur), so at the exact instant this
         # click is processed, st.session_state.drafts may not yet include
@@ -157,7 +160,6 @@ def _render_file_controls():
             st.session_state.render_awaiting_reply = False
             st.session_state.flush_token += 1
 
-    with download_col:
         if st.session_state.pdf_bytes is not None:
             st.download_button(
                 "Download PDF",
@@ -203,8 +205,13 @@ def _render_pdf_pane():
     # iframe inside that sandboxed wrapper renders a broken-file icon
     # instead of the PDF, confirmed by hand against a real browser. A single
     # unsandboxed iframe at the top level doesn't hit that restriction.
+    # The #view=Fit open parameter (honored by Chromium's built-in PDF
+    # viewer) tells it to scale the whole page -- both width and height --
+    # to fit the frame on load, rather than picking its own default zoom.
+    # FitV (fit height only) was tried first but let the page overflow the
+    # frame's width instead; plain Fit is the one that fits both axes.
     st.markdown(
-        f'<iframe src="data:application/pdf;base64,{b64}" '
+        f'<iframe src="data:application/pdf;base64,{b64}#view=Fit" '
         f'width="100%" height="{PANE_HEIGHT}" style="border:none;"></iframe>',
         unsafe_allow_html=True,
     )

@@ -16,8 +16,8 @@ margin: 0.25in
 # summary band is the strip at the bottom of the page, full width; it
 # holds notes.md's "^^<page> <text>" entries.
 header_height: 0.12
-cue_width: 0.25
-summary_height: 0.18
+cue_width: 0.3
+summary_height: 0.2
 
 # Inner text padding and the safety margin that keeps thick strokes
 # inside the printable area. Any LaTeX length.

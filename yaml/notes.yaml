@@ -5,4 +5,6 @@
 topic: "Testing 3"
 date: "2026-08-08"
 attendees: "Todd"
-time: "10:30--11:00 MST, Home"
+time: "10:30--11:00 MST"
+timezone: "America/Phoenix"
+location: "Test Site"

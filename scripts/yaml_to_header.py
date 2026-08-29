@@ -17,6 +17,8 @@ FIELD_MACROS = {
     "date": "cnHdrDate",
     "attendees": "cnHdrAttendees",
     "time": "cnHdrTime",
+    "timezone": "cnHdrTimezone",
+    "location": "cnHdrLocation",
 }
 
 LATEX_SPECIALS = {

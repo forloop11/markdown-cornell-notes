@@ -143,7 +143,33 @@
 \newcommand{\cnHdrDate}{}
 \newcommand{\cnHdrAttendees}{}
 \newcommand{\cnHdrTime}{}
+% Not typeset directly -- round-trips the app's IANA zone name (e.g.
+% "America/Los_Angeles") through notes.yaml so its timezone dropdown can
+% restore the exact zone on reload. The zone abbreviation shown on the
+% page (e.g. "PDT") is baked into \cnHdrTime itself by the app.
+\newcommand{\cnHdrTimezone}{}
+% Typeset via \cnHdrTimeLine below, not appended to \cnHdrTime itself --
+% keeps notes.yaml's "time" and "location" fields independent, so the
+% Time row always reflects the current "location" value.
+\newcommand{\cnHdrLocation}{}
 \IfFileExists{\cnBuildDir/cornell-header.tex}{\input{\cnBuildDir/cornell-header.tex}}{}
+
+% The Time row's displayed text: \cnHdrTime plus \cnHdrLocation, joined by
+% ", " only when both are non-empty (mirrors the old single composed
+% "time" string, but reconstructed from the two fields at build time
+% instead of relying on the app to have concatenated them beforehand).
+\newcommand{\cnEmptyMarker}{}
+\newcommand{\cnHdrTimeLine}{%
+  \ifx\cnHdrTime\cnEmptyMarker
+    \cnHdrLocation%
+  \else
+    \ifx\cnHdrLocation\cnEmptyMarker
+      \cnHdrTime%
+    \else
+      \cnHdrTime, \cnHdrLocation%
+    \fi
+  \fi
+}
 
 % Cue-column text for a given page number, from notes.md's "^<page> <text>"
 % directive lines (see scripts/markdown_to_pages.py). \cnCueText{3} expands
@@ -345,7 +371,7 @@
     \cnField{\the\cnDateX}{\the\cnRowAY}{\the\cnDateW}{Date:}{\cnHdrDate}
 
     \cnFieldNoRule{\the\cnPad}{\the\cnRowBY}{\the\cnAttW}{Attendees:}{\cnHdrAttendees}
-    \cnFieldNoRule{\the\cnTLX}{\the\cnRowBY}{\the\cnTLW}{Time:}{\cnHdrTime}
+    \cnFieldNoRule{\the\cnTLX}{\the\cnRowBY}{\the\cnTLW}{Time:}{\cnHdrTimeLine}
 
     % --- region captions --------------------------------------------------
     \node[anchor=south west,font=\itshape\scriptsize,gray,inner sep=2pt]

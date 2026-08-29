@@ -122,11 +122,20 @@ searchable IANA timezone dropdown live under Date, all stacked below their
 respective field; the dropdown to switch between the files in `md/` lives
 under Attendees. `date` is a calendar date picker, still stored in
 `yaml/<stem>.yaml` as a plain `YYYY-MM-DD` string, same as editing it by
-hand. The start/end/timezone/location group composes into the `time`
-field's usual `"HH:MM--HH:MM"`/`"HH:MM--HH:MM, location"` string, now with
-the zone's abbreviation appended (e.g. `"10:00--10:30 PDT, Zoom"`), so
-existing hand-edited entries in that format still load into the picker
-as-is.
+hand. The start/end/timezone group composes into the `time` field's usual
+`"HH:MM--HH:MM"` string, now with the zone's abbreviation appended (e.g.
+`"10:00--10:30 PDT"`); the dropdown's actual IANA zone name (e.g.
+`"America/Los_Angeles"`) is stored separately in the `timezone` field, so
+reopening a file restores the exact zone in the picker rather than just
+the abbreviation. The Location field is stored directly in its own
+`location` field rather than folded into `time` — `settings/template.tex`
+recombines the two (as `"10:00--10:30 PDT, Zoom"`) when it typesets the
+Time row, and `scripts/topic_slug.py` includes `location` in the output
+PDF's filename (see [Naming the output PDF](#naming-the-output-pdf)).
+Entries written before `timezone`/`location` existed, or hand-edited with
+the old `"HH:MM--HH:MM TZ, location"` convention, still load into the
+picker correctly — and get migrated to the two dedicated fields the next
+time they're saved from the app.
 The header form is per markdown file — each `md/<stem>.md` has its own
 paired `yaml/<stem>.yaml`, so switching files in the dropdown also switches
 the header fields shown, and creating a file creates a blank paired yaml
@@ -170,16 +179,27 @@ npm run build
 ## Editing a page
 
 - **`yaml/notes.yaml`** — the header fields (`topic`, `date`, `attendees`,
-  `time`). Applied to every page automatically. Paired with its markdown
-  file by name: `md/<stem>.md` goes with `yaml/<stem>.yaml`.
+  `time`, `timezone`, `location`). Applied to every page automatically.
+  Paired with its markdown file by name: `md/<stem>.md` goes with
+  `yaml/<stem>.yaml`.
 - **`md/notes.md`** — the notes panel content, written in Markdown.
 
 ```yaml
 topic: Weekly Sync
 date: 2026-08-23
 attendees: Alice, Bob, Priya
-time: "10:00--10:30, Zoom"
+time: "10:00--10:30"
+timezone: "America/Los_Angeles"
+location: "Zoom"
 ```
+
+`timezone` and `location` are both optional. `timezone` is only meaningful
+to the app's picker (see [Streamlit editor app](#streamlit-editor-app)) —
+it holds the IANA zone name behind `time`'s abbreviation and isn't typeset
+itself. `location` *is* typeset: `settings/template.tex` appends it to
+`time` (as `"10:00--10:30, Zoom"`) on the Time row, and
+`scripts/topic_slug.py` folds it into the output PDF's filename (see
+[Naming the output PDF](#naming-the-output-pdf)).
 
 ```markdown
 **Agenda**
@@ -406,20 +426,23 @@ content files above.
 
 ## Naming the output PDF
 
-The PDF is written to `pdf/` and named after `yaml/notes.yaml`'s `topic`
-and `date` fields, not a fixed `cornell-notes.pdf`. `scripts/topic_slug.py`
-slugifies each field — collapsing any run of characters that aren't safe
-in a filename (spaces, punctuation, ...) to a single hyphen — and joins
-them with an underscore, so:
+The PDF is written to `pdf/` and named after `yaml/notes.yaml`'s `topic`,
+`date`, and `location` fields, not a fixed `cornell-notes.pdf`.
+`scripts/topic_slug.py` slugifies each field — collapsing any run of
+characters that aren't safe in a filename (spaces, punctuation, ...) to a
+single hyphen — and joins them with an underscore, so:
 
 ```yaml
 topic: Weekly Sync
 date: 2026-08-23
+location: Zoom
 ```
 
-produces `pdf/Weekly-Sync_2026-08-23.pdf`. Change `topic`/`date` and
-run `make build` again to rename the output; the previous PDF isn't
-deleted automatically.
+produces `pdf/Weekly-Sync_2026-08-23_Zoom.pdf`. A blank/missing `location`
+is dropped rather than leaving a trailing underscore, so entries without
+one still produce `pdf/Weekly-Sync_2026-08-23.pdf` as before. Change
+`topic`/`date`/`location` and run `make build` again to rename the output;
+the previous PDF isn't deleted automatically.
 
 ## License
 

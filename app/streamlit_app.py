@@ -30,13 +30,15 @@ DATE_FORMAT = "%Y-%m-%d"
 # "Factory" is a tzdata placeholder, not a real zone -- not useful to offer.
 TZ_OPTIONS = [""] + sorted(z for z in zoneinfo.available_timezones() if z != "Factory")
 
-# Recognizes the "time" field's "HH:MM--HH:MM TZ, location" convention
-# (also accepting a single "-"/en dash, or "to" for the range) so old
-# entries -- including ones this app previously wrote with a timezone
-# abbreviation, e.g. "10:00--10:30 EDT, Teams" -- still show their
-# start/end/location in the new picker without losing or duplicating the
-# abbreviation. An abbreviation like "EDT" doesn't map back to one specific
-# IANA zone, so it's kept as tzhint (passed through as-is by
+# Recognizes the legacy "time" field convention "HH:MM--HH:MM TZ, location"
+# (also accepting a single "-"/en dash, or "to" for the range) -- from
+# before "timezone"/"location" were their own fields, when this app baked
+# both into "time" (e.g. "10:00--10:30 EDT, Teams"). Only used as a
+# fallback in _ensure_header_loaded, for values not covered by those
+# fields (hand-edited entries, or ones written before they existed), so
+# such entries still show their start/end/location correctly on first
+# load. An abbreviation like "EDT" doesn't map back to one specific IANA
+# zone, so it's kept as tzhint (passed through as-is by
 # _compose_time_field) rather than resolved to a real zone in the dropdown.
 TIME_RANGE_RE = re.compile(
     r"^\s*(?P<start>\d{1,2}:\d{2})"
@@ -107,7 +109,10 @@ def _tz_abbrev(tz_name, ref_date, ref_time):
     return dt.tzname() or tz_name
 
 
-def _compose_time_field(start, end, tz_name, location, ref_date, tz_hint=""):
+def _compose_time_field(start, end, tz_name, ref_date, tz_hint=""):
+    # Location is no longer folded in here -- it's written to its own
+    # "location" field (see _render_header_fields) and recombined with
+    # this field for display by settings/template.tex's \cnHdrTimeLine.
     if start and end:
         time_part = f"{start.strftime('%H:%M')}--{end.strftime('%H:%M')}"
     elif start:
@@ -122,10 +127,7 @@ def _compose_time_field(start, end, tz_name, location, ref_date, tz_hint=""):
     if abbrev:
         time_part = f"{time_part} {abbrev}".strip()
 
-    location = (location or "").strip()
-    if time_part and location:
-        return f"{time_part}, {location}"
-    return time_part or location
+    return time_part
 
 
 def _ensure_header_loaded(filename):
@@ -140,9 +142,18 @@ def _ensure_header_loaded(filename):
         time_keys = _time_field_keys(filename)
         st.session_state[time_keys["start"]] = start
         st.session_state[time_keys["end"]] = end
-        st.session_state[time_keys["tz"]] = ""
+        # fields["timezone"] is the IANA zone name the dropdown wrote on a
+        # previous save (see _render_header_fields); an entry that predates
+        # this field, or one hand-edited to something no longer a valid
+        # zone, falls back to unset -- the abbreviation in tz_hint (parsed
+        # from the "time" text above) still shows through in that case.
+        tz_value = fields["timezone"] if fields["timezone"] in TZ_OPTIONS else ""
+        st.session_state[time_keys["tz"]] = tz_value
         st.session_state[time_keys["tz_hint"]] = tz_hint
-        st.session_state[time_keys["location"]] = location
+        # fields["location"] is what the Location field wrote on a previous
+        # save (see _render_header_fields); an entry that predates this
+        # field falls back to whatever's parsed out of the "time" text.
+        st.session_state[time_keys["location"]] = fields["location"] or location
 
 
 def _init_state():
@@ -226,8 +237,15 @@ def _render_header_fields(filename, files):
     location = st.session_state[time_keys["location"]]
     tz_hint = st.session_state[time_keys["tz_hint"]]
     st.session_state[_header_field_key(filename, "time")] = _compose_time_field(
-        start, end, tz_name, location, ref_date, tz_hint
+        start, end, tz_name, ref_date, tz_hint
     )
+    # Persists the dropdown's actual IANA zone name (distinct from the
+    # abbreviation baked into "time" above) so _ensure_header_loaded can
+    # restore the exact zone next time this file is opened.
+    st.session_state[_header_field_key(filename, "timezone")] = tz_name
+    # Persists the Location field directly so _ensure_header_loaded doesn't
+    # have to re-parse it back out of "time" next time this file is opened.
+    st.session_state[_header_field_key(filename, "location")] = location
 
 
 def _resolve_selected_file():

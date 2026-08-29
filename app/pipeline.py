@@ -18,7 +18,7 @@ BUILDDIR = "build/app"
 sys.path.insert(0, str(SCRIPTS_DIR))
 from simple_yaml import parse_yaml  # noqa: E402  (needs SCRIPTS_DIR on sys.path first)
 
-HEADER_FIELDS = ["topic", "date", "attendees", "time"]
+HEADER_FIELDS = ["topic", "date", "attendees", "time", "timezone", "location"]
 
 HEADER_COMMENT = (
     "# Header details for the first \\cornellpage in settings/template.tex.\n"

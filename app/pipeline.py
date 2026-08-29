@@ -12,6 +12,7 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 MD_DIR = REPO_ROOT / "md"
 YAML_DIR = REPO_ROOT / "yaml"
 PDF_DIR = REPO_ROOT / "pdf"
+ASSETS_DIR = REPO_ROOT / "assets"
 BUILDDIR = "build/app"
 
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -92,6 +93,37 @@ def read_markdown_file(name):
 
 def write_markdown_file(name, content):
     (MD_DIR / name).write_text(content, encoding="utf-8")
+
+
+def list_asset_files():
+    return sorted(p.name for p in ASSETS_DIR.iterdir() if p.is_file())
+
+
+def _sanitize_filename(name):
+    # Path(name).name drops any directory components (e.g. from "../../etc/passwd"
+    # or a browser sending a full path), then unsafe characters collapse to "-"
+    # same as markdown filenames -- but the extension is kept, since assets
+    # (unlike notes/header files) aren't all forced into one fixed suffix.
+    filename = _SAFE_STEM_RE.sub("-", Path(name).name.strip()).strip("-")
+    if not filename:
+        raise PipelineError("File name can't be empty.")
+    return filename
+
+
+def save_asset(filename, data):
+    safe_name = _sanitize_filename(filename)
+    path = ASSETS_DIR / safe_name
+    if path.exists():
+        raise PipelineError(f"{safe_name} already exists in assets/.")
+    path.write_bytes(data)
+    return safe_name
+
+
+def delete_asset(name):
+    path = ASSETS_DIR / name
+    if not path.exists() or not path.is_file():
+        raise PipelineError(f"{name} not found in assets/.")
+    path.unlink()
 
 
 def topic_slug(yaml_path):

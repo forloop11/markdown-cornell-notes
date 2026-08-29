@@ -1,5 +1,7 @@
 # Cornell Notes
 
+![screenshot](assets/screenshot.png)
+
 A Cornell-style meeting notes template for LaTeX. Each page has a header
 (topic, date, attendees, time), a large notes panel with a cue column
 beside it, and a summary band below both, all blank for handwriting on
@@ -100,10 +102,16 @@ selected file's header and its markdown content to disk and runs `make
 build` for you — the build log is shown in an expander so LaTeX/pandoc
 errors surface in the UI instead of disappearing. Download PDF (disabled
 until a PDF exists) downloads the current one under its actual output
-filename. Below that, the markdown editor (left) and the resulting PDF
-(right) sit side by side, matched in height so their tops and bottoms
-align; switching files preserves each file's unsaved edits for the rest of
-the session, though only Render writes them to disk.
+filename. Below the file controls, an **Assets** expander (labeled with the
+current file count) manages the `assets/` folder used for images and linked
+documents (see [Images and linked documents](#images-and-linked-documents)
+below): it lists each file with an image thumbnail (where applicable), a
+copyable `assets/<name>` path to paste into your Markdown, and its size, plus
+an uploader to add new files and a delete confirmation per file. Below that,
+the markdown editor (left) and the resulting PDF (right) sit side by side,
+matched in height so their tops and bottoms align; switching files preserves
+each file's unsaved edits for the rest of the session, though only Render
+writes them to disk.
 
 The editor itself is [CodeMirror](https://codemirror.net/), with syntax
 highlighting for Markdown, inline/raw HTML, and fenced ` ```html `/

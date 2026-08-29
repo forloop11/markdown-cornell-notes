@@ -5,6 +5,7 @@ the browser. Run with `make app` (see ../Makefile) or directly:
     streamlit run app/streamlit_app.py
 """
 import base64
+from pathlib import Path
 
 import streamlit as st
 
@@ -17,6 +18,8 @@ st.set_page_config(page_title="Cornell Notes", layout="wide")
 # already match since both start with a single caption line -- see
 # _render_pdf_pane and the Markdown pane's st.caption in main()).
 PANE_HEIGHT = 900
+
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 
 
 def _header_field_key(filename, name):
@@ -45,6 +48,7 @@ def _init_state():
     st.session_state.setdefault("flush_token", 0)
     st.session_state.setdefault("pending_render", False)
     st.session_state.setdefault("render_awaiting_reply", False)
+    st.session_state.setdefault("asset_uploader_version", 0)
 
     # Opportunistically show a PDF that already exists on disk for the
     # selected file's header, so there's something in the right pane
@@ -191,6 +195,48 @@ def _render_file_controls(files):
             st.button("Download PDF", disabled=True, key="download_pdf_btn_disabled")
 
 
+def _render_assets_panel():
+    uploaded = st.file_uploader(
+        "Add files",
+        accept_multiple_files=True,
+        key=f"asset_uploader_{st.session_state.asset_uploader_version}",
+    )
+    if uploaded and st.button("Upload", key="upload_assets_btn"):
+        for f in uploaded:
+            try:
+                pipeline.save_asset(f.name, f.getvalue())
+            except pipeline.PipelineError as exc:
+                st.error(str(exc))
+        # Bumping the widget's key remounts a fresh, empty uploader on the
+        # rerun below -- otherwise the same files would still be "selected"
+        # and re-upload (erroring as already-existing) on every later rerun.
+        st.session_state.asset_uploader_version += 1
+        st.rerun()
+
+    files = pipeline.list_asset_files()
+    if not files:
+        st.caption("No files in assets/ yet.")
+        return
+
+    for name in files:
+        path = pipeline.ASSETS_DIR / name
+        thumb_col, name_col, size_col, delete_col = st.columns(
+            [1, 4, 1.5, 1], vertical_alignment="center"
+        )
+        if Path(name).suffix.lower() in IMAGE_SUFFIXES:
+            thumb_col.image(str(path), width=40)
+        name_col.code(f"assets/{name}", language=None)
+        size_col.caption(f"{path.stat().st_size / 1024:.1f} KB")
+        with delete_col.popover("Delete"):
+            st.write(f"Delete `{name}`?")
+            if st.button("Confirm", key=f"confirm_delete_asset_{name}"):
+                try:
+                    pipeline.delete_asset(name)
+                except pipeline.PipelineError as exc:
+                    st.error(str(exc))
+                st.rerun()
+
+
 def _do_render():
     filename = st.session_state.selected_file
     if not filename:
@@ -247,6 +293,9 @@ def main():
         _render_header_fields(st.session_state.selected_file)
     st.divider()
     _render_file_controls(files)
+
+    with st.expander(f"Assets ({len(pipeline.list_asset_files())})"):
+        _render_assets_panel()
 
     if st.session_state.build_log is not None:
         (st.success if st.session_state.build_ok else st.error)(

@@ -82,8 +82,6 @@ $$\int_0^1 x^2\,dx = \frac{1}{3}$$
 
 # Links, Images, Autolinks
 
-See the [reference notes](assets/reference-notes.txt) for background.
-
 <https://example.com>
 
 ![Tux](assets/tux.jpg){width=50pt}

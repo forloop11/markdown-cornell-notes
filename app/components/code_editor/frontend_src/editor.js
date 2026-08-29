@@ -14,6 +14,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { html } from "@codemirror/lang-html";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { tags as t } from "@lezer/highlight";
+import { autocompletion, startCompletion } from "@codemirror/autocomplete";
 
 const DEBOUNCE_MS = 500;
 
@@ -51,6 +52,28 @@ const draculaEditorTheme = EditorView.theme(
       backgroundColor: dracula.background,
       color: dracula.comment,
       border: "none",
+    },
+    // @codemirror/autocomplete's own baseTheme otherwise renders the
+    // completion tooltip in its stock light colors, clashing with
+    // everything else in this always-dark editor.
+    ".cm-tooltip.cm-tooltip-autocomplete": {
+      backgroundColor: dracula.currentLine,
+      border: `1px solid ${dracula.comment}`,
+    },
+    ".cm-tooltip-autocomplete ul li[aria-selected]": { backgroundColor: dracula.purple },
+    // .cm-completionLabel/-Detail set their own color, which (being a rule
+    // on the element itself rather than inherited) would otherwise win
+    // over the selected-row background-only rule above and leave text
+    // light-on-light against the purple highlight -- so the selected
+    // state needs its own, more specific override for both.
+    ".cm-completionLabel": { color: dracula.foreground },
+    ".cm-completionDetail": { color: dracula.comment, fontStyle: "italic" },
+    ".cm-completionMatchedText": { color: dracula.pink, textDecoration: "none" },
+    ".cm-tooltip-autocomplete ul li[aria-selected] .cm-completionLabel": { color: dracula.background },
+    ".cm-tooltip-autocomplete ul li[aria-selected] .cm-completionDetail": { color: dracula.background },
+    ".cm-tooltip-autocomplete ul li[aria-selected] .cm-completionMatchedText": {
+      color: dracula.background,
+      fontWeight: "bold",
     },
   },
   { dark: true }
@@ -99,6 +122,11 @@ let lastKey = null;
 let lastFlushToken = null;
 let debounceTimer = null;
 let lastSentDoc = null;
+// Filenames from assets/ (see pipeline.list_asset_files() in the Python
+// side), used by assetPathCompletions below. Updated on every render event
+// rather than only when the doc/key changes, since the asset list can
+// change (upload/delete) without the selected file changing.
+let assetFiles = [];
 
 function sendToStreamlit(message) {
   window.parent.postMessage({ isStreamlitMessage: true, ...message }, "*");
@@ -169,6 +197,7 @@ function makeState(doc) {
       draculaEditorTheme,
       syntaxHighlighting(draculaHighlightStyle, { fallback: true }),
       markdown({ codeLanguages }),
+      autocompletion({ override: [slashSnippetCompletions, fenceLangCompletions, assetPathCompletions] }),
       // The one line that actually matters for the "browser spellcheck"
       // requirement: CodeMirror 6's editable surface is a real
       // contenteditable DOM tree (unlike e.g. Ace, which paints styled
@@ -241,6 +270,28 @@ function insertLink() {
     })
   );
   view.focus();
+}
+
+// Leaves the cursor inside the empty parens (rather than selecting a
+// placeholder, like insertLink does for its URL) so assetPathCompletions
+// can immediately offer files from assets/ -- see startCompletion call at
+// the end, which opens that dropdown right away instead of waiting for a
+// keystroke.
+function insertImage() {
+  if (!view) return;
+  view.dispatch(
+    view.state.changeByRange((range) => {
+      const alt = view.state.sliceDoc(range.from, range.to) || "alt text";
+      const insert = `![${alt}]()`;
+      const pathPos = range.from + insert.length - 1;
+      return {
+        changes: { from: range.from, to: range.to, insert },
+        range: EditorSelection.cursor(pathPos),
+      };
+    })
+  );
+  view.focus();
+  startCompletion(view);
 }
 
 function insertText(text) {
@@ -339,6 +390,15 @@ function insertPageNote(marker) {
   insertOwnLineBlock(prefix, marker.length, 1);
 }
 
+// "<!-- pagebreak -->" -- markdown_to_pages.py's PAGEBREAK_RE only matches
+// when this is the *whole* line, same requirement as the cue/summary
+// directives above. No variable part to select afterward, so the cursor
+// just lands at the end of the inserted line, ready for Enter + more text.
+function insertPagebreak() {
+  const text = "<!-- pagebreak -->";
+  insertOwnLineBlock(text, text.length, 0);
+}
+
 // A minimal 2-column pipe-table skeleton, header placeholder selected so
 // typing immediately overwrites it.
 function insertTable() {
@@ -352,6 +412,117 @@ function insertTable() {
 function insertDisplayMath() {
   const placeholder = "x^2";
   insertOwnLineBlock(`$$${placeholder}$$`, 2, placeholder.length);
+}
+
+// --- Autocompletion -------------------------------------------------
+//
+// Three independent completion sources, wired up as autocompletion()'s
+// `override` in makeState below. `override` replaces the language's own
+// completion sources rather than adding to them -- markdown()'s built-in
+// HTML-tag completion is the only thing that costs, and this app doesn't
+// otherwise use inline HTML, so that's an acceptable trade for not having
+// to reach into @codemirror/language's per-language completion data API.
+
+// Only "html" and "latex"/"tex" actually get real syntax highlighting in
+// this editor (see codeLanguages above) -- the other tags here are purely
+// documentation of the block's content for readers of the raw markdown.
+// They render as plain text in both this editor and the built PDF, since
+// markdown_to_pages.py invokes pandoc with --no-highlight (see that
+// file's markdown_to_latex): the tag never reaches a syntax highlighter
+// either way. notes-example.md's own "```python" block is exactly this
+// case -- a tag kept for readability, not rendering.
+const FENCE_LANGUAGES = ["html", "latex", "tex", "python", "javascript", "bash", "json", "yaml", "text"];
+
+// Matches right after a fenced-code opening ``` at the start of a line,
+// with zero or more word characters already typed (e.g. "```py|").
+function fenceLangCompletions(context) {
+  const line = context.state.doc.lineAt(context.pos);
+  const before = line.text.slice(0, context.pos - line.from);
+  const match = /^```(\w*)$/.exec(before);
+  if (!match) return null;
+  return {
+    from: line.from + 3,
+    options: FENCE_LANGUAGES.map((label) => ({ label, type: "keyword" })),
+    validFor: /^\w*$/,
+  };
+}
+
+// Matches inside the target parens of a link or image -- "](assets/tux|" --
+// and offers files from assets/ (see assetFiles, populated from Python's
+// pipeline.list_asset_files() in onRender). Deliberately not anchored to
+// "![" specifically: a plain [text](...) link pointing at an asset (e.g.
+// linking out to a PDF handout) is just as valid as an image embed.
+function assetPathCompletions(context) {
+  const line = context.state.doc.lineAt(context.pos);
+  const before = line.text.slice(0, context.pos - line.from);
+  const match = /\]\(([^)\s]*)$/.exec(before);
+  if (!match) return null;
+  return {
+    from: context.pos - match[1].length,
+    options: assetFiles.map((name) => ({ label: `assets/${name}`, type: "text" })),
+    validFor: /^[\w./-]*$/,
+  };
+}
+
+// Wraps one of the existing toolbar action functions (wrapSelection,
+// toggleLinePrefix, insertPageNote, etc.) so it can also be triggered by
+// accepting a "/word" completion: first deletes the "/word" text the
+// completion is replacing, then runs the action against the resulting
+// (now-clean) selection -- exactly the state the action would see if the
+// matching toolbar button had been clicked instead.
+function applySnippet(action) {
+  return (editorView, _completion, from, to) => {
+    editorView.dispatch({ changes: { from, to, insert: "" } });
+    action();
+  };
+}
+
+const SNIPPETS = [
+  { word: "bold", detail: "**bold text**", action: () => wrapSelection("**", "**", "bold text") },
+  { word: "italic", detail: "*italic text*", action: () => wrapSelection("*", "*", "italic text") },
+  { word: "strikethrough", detail: "~~text~~", action: () => wrapSelection("~~", "~~", "strikethrough text") },
+  { word: "code", detail: "inline `code`", action: () => wrapSelection("`", "`", "code") },
+  { word: "codeblock", detail: "fenced code block", action: () => wrapSelection("```\n", "\n```", "code") },
+  { word: "quote", detail: "blockquote", action: () => toggleLinePrefix(() => "> ", (t) => (t.startsWith("> ") ? 2 : 0)) },
+  { word: "link", detail: "[text](url)", action: insertLink },
+  { word: "image", detail: "![alt](assets/...)", action: insertImage },
+  { word: "table", detail: "pipe-table skeleton", action: insertTable },
+  {
+    word: "task",
+    detail: "task list item",
+    action: () =>
+      toggleLinePrefix(
+        () => "- [ ] ",
+        (t) => (/^-\s\[[ xX]\]\s/.test(t) ? t.match(/^-\s\[[ xX]\]\s/)[0].length : 0)
+      ),
+  },
+  { word: "hr", detail: "horizontal rule", action: () => insertText("\n---\n") },
+  { word: "math", detail: "inline $math$", action: () => wrapSelection("$", "$", "x^2") },
+  { word: "displaymath", detail: "display $$math$$", action: insertDisplayMath },
+  { word: "cue", detail: "^<page> cue-column note", action: () => insertPageNote("^") },
+  { word: "summary", detail: "^^<page> summary-band note", action: () => insertPageNote("^^") },
+  { word: "pagebreak", detail: "force a page break", action: insertPagebreak },
+];
+
+// Matches a "/" that starts a word, only when it's at the start of a line
+// or after whitespace -- NOT anywhere a "/" appears, since markdown is
+// full of them in URLs and paths (e.g. "https://example.com/path"), where
+// popping up a snippet dropdown after every slash would just be noise.
+function slashSnippetCompletions(context) {
+  const line = context.state.doc.lineAt(context.pos);
+  const before = line.text.slice(0, context.pos - line.from);
+  const match = /(?:^|\s)\/(\w*)$/.exec(before);
+  if (!match) return null;
+  const from = line.from + before.length - 1 - match[1].length;
+  return {
+    from,
+    options: SNIPPETS.map(({ word, detail, action }) => ({
+      label: `/${word}`,
+      detail,
+      apply: applySnippet(action),
+    })),
+    validFor: /^\/\w*$/,
+  };
 }
 
 const TOOLBAR_GROUPS = [
@@ -418,6 +589,7 @@ const TOOLBAR_GROUPS = [
   [
     { label: "^", title: "Add cue-column note (^<page> text)", action: () => insertPageNote("^") },
     { label: "^^", title: "Add summary-band note (^^<page> text)", action: () => insertPageNote("^^") },
+    { label: "PB", title: "Page break (<!-- pagebreak -->)", action: insertPagebreak },
   ],
 ];
 
@@ -471,6 +643,7 @@ function onRender(event) {
   const key = args.doc_id;
   const height = typeof args.height === "number" ? args.height : 700;
   const flushToken = args.flush_token;
+  assetFiles = Array.isArray(args.assets) ? args.assets : [];
 
   if (!view) {
     mount(doc, height);

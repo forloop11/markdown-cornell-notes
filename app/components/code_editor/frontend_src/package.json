@@ -10,6 +10,7 @@
     "esbuild": "^0.24.0"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.7.1",
     "@codemirror/lang-html": "^6.4.9",
     "@codemirror/lang-markdown": "^6.3.1",

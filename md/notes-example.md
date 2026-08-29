@@ -8,8 +8,6 @@ Welcome to the jungle. We've got fun and games.
 
 ^^1 This is my summary for page 1
 
-
-
 <!-- Cue-column text: a line of the form "^<page> <text>" (see the ^1
      line above) adds <text> to the ruled cue column of that page number
      instead of the main notes panel, e.g. for questions or keywords next

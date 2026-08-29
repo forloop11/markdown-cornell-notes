@@ -480,6 +480,7 @@ def main():
                 key=st.session_state.selected_file,
                 height=PANE_HEIGHT,
                 flush_token=st.session_state.flush_token,
+                assets=pipeline.list_asset_files(),
             )
             st.session_state.drafts[st.session_state.selected_file] = value
 

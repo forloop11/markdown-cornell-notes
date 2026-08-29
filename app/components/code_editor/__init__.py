@@ -16,7 +16,9 @@ _FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fronte
 _component_func = components.declare_component("code_editor", path=_FRONTEND_DIR)
 
 
-def code_editor(value: str, key: str, height: int = 700, flush_token: int = 0) -> str:
+def code_editor(
+    value: str, key: str, height: int = 700, flush_token: int = 0, assets: list[str] | None = None
+) -> str:
     """Render the markdown/HTML/LaTeX-aware editor and return its current content.
 
     `key` is used both as the Streamlit widget key (Streamlit's
@@ -30,7 +32,18 @@ def code_editor(value: str, key: str, height: int = 700, flush_token: int = 0) -
     frontend to immediately send its current content back, regardless of
     the normal debounce/blur sync. See the Render button's handler in
     streamlit_app.py for why this exists and how to wait for the reply.
+
+    `assets`: filenames from assets/ (e.g. pipeline.list_asset_files()),
+    offered by the frontend's link/image-path autocompletion. Optional --
+    an empty/missing list just means that completion source has nothing
+    to suggest.
     """
     return _component_func(
-        value=value, doc_id=key, height=height, flush_token=flush_token, key=key, default=value
+        value=value,
+        doc_id=key,
+        height=height,
+        flush_token=flush_token,
+        assets=assets or [],
+        key=key,
+        default=value,
     )

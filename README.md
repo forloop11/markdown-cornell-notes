@@ -1,4 +1,4 @@
-# Cornell Notes
+# Markdown Cornell Notes
 
 ![screenshot](assets/screenshot.png)
 

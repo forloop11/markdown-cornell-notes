@@ -2,7 +2,7 @@
 # Run `python3 scripts/yaml_to_header.py` to regenerate build/cornell-header.tex, then
 # compile settings/template.tex with pdflatex as usual.
 
-topic: "Example Meeting"
-date: "2026-08-25"
-attendees: "Lily, Amber, Leika, Nala"
-time: "10:00--10:30 GMT, Teams"
+topic: "test2"
+date: ""
+attendees: ""
+time: ""

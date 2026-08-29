@@ -43,9 +43,11 @@ build-example:
 # Same as `build`, but run inside the Docker image (see docker/Dockerfile)
 # instead of requiring pdflatex/latexmk/pandoc to be installed locally. Runs
 # as the calling user so the output isn't left root-owned on the host.
+# Overrides the image's default `make app` command (see docker/Dockerfile's
+# ENTRYPOINT/CMD) with `make build` instead.
 docker:
 	docker build -t $(DOCKER_IMAGE) -f docker/Dockerfile .
-	docker run --rm -v "$(CURDIR)":/workspace -u "$$(id -u):$$(id -g)" $(DOCKER_IMAGE)
+	docker run --rm -v "$(CURDIR)":/workspace -u "$$(id -u):$$(id -g)" $(DOCKER_IMAGE) build
 
 # Runs the Streamlit editor app (requires `pip install -r requirements.txt`
 # first; see README.md). Binds 0.0.0.0 rather than Streamlit's usual
@@ -56,11 +58,11 @@ app:
 	streamlit run app/streamlit_app.py --server.address=0.0.0.0
 
 # Same as `app`, but run inside the Docker image, with the app's port
-# published to the host. Overrides the image's default `make build`
-# command (see docker/Dockerfile's ENTRYPOINT/CMD) with `make app` instead.
+# published to the host. No command override needed -- `make app` is the
+# image's default CMD (see docker/Dockerfile).
 docker-app:
 	docker build -t $(DOCKER_IMAGE) -f docker/Dockerfile .
-	docker run --rm -p 8501:8501 -v "$(CURDIR)":/workspace -u "$$(id -u):$$(id -g)" $(DOCKER_IMAGE) app
+	docker run --rm -p 8501:8501 -v "$(CURDIR)":/workspace -u "$$(id -u):$$(id -g)" $(DOCKER_IMAGE)
 
 $(HEADER): $(YAML) scripts/yaml_to_header.py scripts/simple_yaml.py
 	python3 scripts/yaml_to_header.py $(YAML) $(HEADER)

@@ -1,0 +1,20 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: cornell-notes
+    # No command needed -- docker/Dockerfile's default CMD is `app`
+    # (`make app`, i.e. the Streamlit editor). Override it to run other
+    # Makefile targets instead, e.g.:
+    #   docker compose run --rm app build
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    volumes:
+      - /home/todd/git/markdown-cornell-notes:/workspace
+    # Matches the Makefile's `-u "$(id -u):$(id -g)"` so files the
+    # container writes (PDFs, build/) come out owned by you rather than
+    # root. Defaults to 1000:1000 (this host's user); override by
+    # exporting UID/GID before `docker compose up` if yours differ.
+    user: "${UID:-1000}:${GID:-1000}"

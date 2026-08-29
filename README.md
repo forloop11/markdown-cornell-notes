@@ -53,6 +53,9 @@ afterward. The result lands in `pdf/`, named after `yaml/notes.yaml`'s
 The `docker/Dockerfile` packages just the pieces this project's build
 actually uses (not a full `texlive-full` install, which runs several GB)
 — around 1GB total, mostly `pandoc` and the TeX Live packages themselves.
+The image's entrypoint is `make`, and its default command is `app` — see
+[Streamlit editor app](#streamlit-editor-app) below — so running it with no
+arguments launches the Streamlit app automatically.
 
 ```sh
 make docker
@@ -62,13 +65,30 @@ which is equivalent to:
 
 ```sh
 docker build -t cornell-notes -f docker/Dockerfile .
-docker run --rm -v "$(pwd)":/workspace -u "$(id -u):$(id -g)" cornell-notes
+docker run --rm -v "$(pwd)":/workspace -u "$(id -u):$(id -g)" cornell-notes build
 ```
 
 The `-u "$(id -u):$(id -g)"` runs the container as your own user instead
 of root, so the output PDF and `build/` come out owned by you rather
-than root. The image's entrypoint is `make`, so you can run any target,
-e.g. `... cornell-notes clean`.
+than root. `build` above overrides the image's default `app` command; you
+can run any other Makefile target the same way, e.g. `... cornell-notes
+clean`.
+
+### docker-compose
+
+`docker-compose.yml` deploys the Streamlit app (the image's default
+command) as a long-running service instead of a one-off `docker run`:
+
+```sh
+docker compose up -d
+```
+
+This builds the image, publishes port 8501, bind-mounts the repo into
+the container's `/workspace`, and runs as your own user (`UID`/`GID`
+env vars, defaulting to `1000:1000`) the same way `make docker` does.
+`docker compose logs -f` follows the app's output, and `docker compose
+down` stops and removes it. Run another Makefile target instead of the
+app with `docker compose run --rm app <target>`, e.g. `... app build`.
 
 ## Streamlit editor app
 
@@ -89,26 +109,39 @@ make docker-app
 ```
 
 which builds the same Docker image as `make docker` and runs it with its
-port published, `-p 8501:8501`.
+port published, `-p 8501:8501` — no command override needed, since `app`
+is the image's default.
 
-The page has a header form (`topic`/`date`/`attendees`/`time`) at the top, a
-dropdown to switch between the files in `md/` (with buttons to create or
-delete one), and, on the right of that row, **Render** and **Download PDF**.
+The page has a collapsible **Header** section (`topic`/`date`/`attendees`/
+`time`) at the top. Location lives under Topic, and start/end time + a
+searchable IANA timezone dropdown live under Date, all stacked below their
+respective field; the dropdown to switch between the files in `md/` lives
+under Attendees. `date` is a calendar date picker, still stored in
+`yaml/<stem>.yaml` as a plain `YYYY-MM-DD` string, same as editing it by
+hand. The start/end/timezone/location group composes into the `time`
+field's usual `"HH:MM--HH:MM"`/`"HH:MM--HH:MM, location"` string, now with
+the zone's abbreviation appended (e.g. `"10:00--10:30 PDT, Zoom"`), so
+existing hand-edited entries in that format still load into the picker
+as-is.
 The header form is per markdown file — each `md/<stem>.md` has its own
 paired `yaml/<stem>.yaml`, so switching files in the dropdown also switches
 the header fields shown, and creating a file creates a blank paired yaml
-alongside it (deleting a file removes its yaml too). Render saves both the
-selected file's header and its markdown content to disk and runs `make
-build` for you — the build log is shown in an expander so LaTeX/pandoc
-errors surface in the UI instead of disappearing. Download PDF (disabled
-until a PDF exists) downloads the current one under its actual output
-filename. Below the file controls, an **Assets** expander (labeled with the
-current file count) manages the `assets/` folder used for images and linked
-documents (see [Images and linked documents](#images-and-linked-documents)
+alongside it (deleting a file removes its yaml too).
+
+Below the **Header** section is an **Assets** expander (labeled with the
+current file count) that manages the `assets/` folder used for images and
+linked documents (see [Images and linked documents](#images-and-linked-documents)
 below): it lists each file with an image thumbnail (where applicable), a
 copyable `assets/<name>` path to paste into your Markdown, and its size, plus
-an uploader to add new files and a delete confirmation per file. Below that,
-the markdown editor (left) and the resulting PDF (right) sit side by side,
+an uploader to add new files and a delete confirmation per file.
+
+Below that, a centered row of **New file**/**Delete file** buttons (to
+create or delete a file) sits next to **Render** and **Download PDF**.
+Render saves both the selected file's header and its markdown content to
+disk and runs `make build` for you, showing a success/failure message once
+it's done. Download PDF (disabled until a PDF exists) downloads the current
+one under its actual output filename. Below that, the markdown editor
+(left) and the resulting PDF (right) sit side by side,
 matched in height so their tops and bottoms align; switching files preserves
 each file's unsaved edits for the rest of the session, though only Render
 writes them to disk.

@@ -2,7 +2,7 @@
 # LaTeX packages this template actually uses (no texlive-full), pandoc for
 # Markdown, Python 3 (stdlib only) for the generator scripts, and Streamlit
 # for the `app`/`docker-app` editor UI. Mount the project directory and run
-# `make build` (default) or `make app`.
+# `make app` (default, see docker-app below) or `make build`.
 #
 # cm-super (~50MB) is included so bold/italic Computer Modern text at odd
 # sizes uses proper vector fonts. Without it, pdflatex still builds, but
@@ -33,5 +33,7 @@ WORKDIR /workspace
 COPY requirements.txt .
 RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
 
+EXPOSE 8501
+
 ENTRYPOINT ["make"]
-CMD ["build"]
+CMD ["app"]

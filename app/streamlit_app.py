@@ -5,6 +5,9 @@ the browser. Run with `make app` (see ../Makefile) or directly:
     streamlit run app/streamlit_app.py
 """
 import base64
+import datetime
+import re
+import zoneinfo
 from pathlib import Path
 
 import streamlit as st
@@ -12,7 +15,7 @@ import streamlit as st
 import pipeline
 from components.code_editor import code_editor
 
-st.set_page_config(page_title="Cornell Notes", layout="wide")
+st.set_page_config(page_title="Markdown Cornell Notes", layout="wide")
 
 # Shared by both panes so their bottoms line up, not just their tops (which
 # already match since both start with a single caption line -- see
@@ -21,9 +24,108 @@ PANE_HEIGHT = 900
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 
+DATE_FORMAT = "%Y-%m-%d"
+
+# "" first so the timezone picker can start unset, same as a blank date/time.
+# "Factory" is a tzdata placeholder, not a real zone -- not useful to offer.
+TZ_OPTIONS = [""] + sorted(z for z in zoneinfo.available_timezones() if z != "Factory")
+
+# Recognizes the "time" field's "HH:MM--HH:MM TZ, location" convention
+# (also accepting a single "-"/en dash, or "to" for the range) so old
+# entries -- including ones this app previously wrote with a timezone
+# abbreviation, e.g. "10:00--10:30 EDT, Teams" -- still show their
+# start/end/location in the new picker without losing or duplicating the
+# abbreviation. An abbreviation like "EDT" doesn't map back to one specific
+# IANA zone, so it's kept as tzhint (passed through as-is by
+# _compose_time_field) rather than resolved to a real zone in the dropdown.
+TIME_RANGE_RE = re.compile(
+    r"^\s*(?P<start>\d{1,2}:\d{2})"
+    r"(?:\s*(?:--|-|–|to)\s*(?P<end>\d{1,2}:\d{2}))?"
+    r"(?:\s+(?P<tzhint>[A-Z]{2,6}))?"
+    r"\s*,?\s*(?P<location>.*?)\s*$"
+)
+
 
 def _header_field_key(filename, name):
     return f"header__{filename}__{name}"
+
+
+def _date_picker_key(filename):
+    # st.date_input's widget state is a datetime.date (or None), not the
+    # "YYYY-MM-DD" string the yaml file and _current_header_fields() need
+    # -- so the picker gets its own key, synced into the string-valued
+    # header_field_key("date") after every render (see _render_header_fields).
+    return _header_field_key(filename, "date") + "__picker"
+
+
+def _parse_iso_date(value):
+    try:
+        return datetime.datetime.strptime(value, DATE_FORMAT).date()
+    except (TypeError, ValueError):
+        return None
+
+
+def _time_field_keys(filename):
+    # Same reasoning as _date_picker_key: the widgets' own state (times, a
+    # zone name, free text) isn't the "time" field's string, so each piece
+    # gets its own key, composed into header_field_key("time") after every
+    # render (see _render_header_fields / _compose_time_field).
+    base = _header_field_key(filename, "time")
+    return {
+        "start": f"{base}__start",
+        "end": f"{base}__end",
+        "tz": f"{base}__tz",
+        "tz_hint": f"{base}__tz_hint",
+        "location": f"{base}__location",
+    }
+
+
+def _parse_time_field(value):
+    match = TIME_RANGE_RE.match(value or "")
+    if not match:
+        return None, None, "", (value or "").strip()
+
+    def to_time(s):
+        return datetime.datetime.strptime(s, "%H:%M").time() if s else None
+
+    return (
+        to_time(match.group("start")),
+        to_time(match.group("end")),
+        match.group("tzhint") or "",
+        match.group("location"),
+    )
+
+
+def _tz_abbrev(tz_name, ref_date, ref_time):
+    try:
+        zone = zoneinfo.ZoneInfo(tz_name)
+    except (zoneinfo.ZoneInfoNotFoundError, ValueError):
+        return tz_name
+    dt = datetime.datetime.combine(
+        ref_date or datetime.date.today(), ref_time or datetime.time(12, 0), tzinfo=zone
+    )
+    return dt.tzname() or tz_name
+
+
+def _compose_time_field(start, end, tz_name, location, ref_date, tz_hint=""):
+    if start and end:
+        time_part = f"{start.strftime('%H:%M')}--{end.strftime('%H:%M')}"
+    elif start:
+        time_part = start.strftime("%H:%M")
+    else:
+        time_part = ""
+
+    # A real dropdown pick always wins over a hint carried from the last
+    # load (see _parse_time_field) -- once the user actually chooses a
+    # zone, the hint's job (preventing round-trip data loss) is done.
+    abbrev = _tz_abbrev(tz_name, ref_date, start) if tz_name else tz_hint
+    if abbrev:
+        time_part = f"{time_part} {abbrev}".strip()
+
+    location = (location or "").strip()
+    if time_part and location:
+        return f"{time_part}, {location}"
+    return time_part or location
 
 
 def _ensure_header_loaded(filename):
@@ -32,6 +134,15 @@ def _ensure_header_loaded(filename):
         fields = pipeline.read_header(filename)
         for name in pipeline.HEADER_FIELDS:
             st.session_state[_header_field_key(filename, name)] = fields[name]
+        st.session_state[_date_picker_key(filename)] = _parse_iso_date(fields["date"])
+
+        start, end, tz_hint, location = _parse_time_field(fields["time"])
+        time_keys = _time_field_keys(filename)
+        st.session_state[time_keys["start"]] = start
+        st.session_state[time_keys["end"]] = end
+        st.session_state[time_keys["tz"]] = ""
+        st.session_state[time_keys["tz_hint"]] = tz_hint
+        st.session_state[time_keys["location"]] = location
 
 
 def _init_state():
@@ -42,7 +153,6 @@ def _init_state():
     st.session_state.setdefault("drafts", {})
     st.session_state.setdefault("pdf_bytes", None)
     st.session_state.setdefault("pdf_name", None)
-    st.session_state.setdefault("build_log", None)
     st.session_state.setdefault("build_ok", None)
     st.session_state.setdefault("confirm_delete", False)
     st.session_state.setdefault("flush_token", 0)
@@ -78,12 +188,46 @@ def _draft_for(filename):
     return st.session_state.drafts[filename]
 
 
-def _render_header_fields(filename):
-    st.subheader("Header")
-    cols = st.columns(4)
-    labels = {"topic": "Topic", "date": "Date", "attendees": "Attendees", "time": "Time"}
-    for col, name in zip(cols, pipeline.HEADER_FIELDS):
-        col.text_input(labels[name], key=_header_field_key(filename, name))
+def _render_header_fields(filename, files):
+    time_keys = _time_field_keys(filename)
+
+    with st.expander("Header", expanded=True):
+        topic_col, date_col, attendees_col = st.columns(3)
+        with topic_col, st.container(gap="xsmall"):
+            st.text_input("Topic", key=_header_field_key(filename, "topic"))
+            st.text_input("Location", key=time_keys["location"])
+
+        with date_col, st.container(gap="xsmall"):
+            picked = st.date_input(
+                "Date", key=_date_picker_key(filename), format="YYYY-MM-DD"
+            )
+            st.session_state[_header_field_key(filename, "date")] = (
+                picked.strftime(DATE_FORMAT) if picked else ""
+            )
+
+            start_col, end_col, tz_col = st.columns(3)
+            start = start_col.time_input("Start", key=time_keys["start"])
+            end = end_col.time_input("End", key=time_keys["end"])
+            tz_name = tz_col.selectbox(
+                "Timezone", TZ_OPTIONS, key=time_keys["tz"], format_func=lambda z: z or "(none)"
+            )
+
+        with attendees_col, st.container(gap="xsmall"):
+            st.text_input("Attendees", key=_header_field_key(filename, "attendees"))
+            if files:
+                st.selectbox(
+                    "Markdown file",
+                    files,
+                    key="selected_file",
+                    on_change=lambda: st.session_state.update(confirm_delete=False),
+                )
+
+    ref_date = _parse_iso_date(st.session_state[_header_field_key(filename, "date")])
+    location = st.session_state[time_keys["location"]]
+    tz_hint = st.session_state[time_keys["tz_hint"]]
+    st.session_state[_header_field_key(filename, "time")] = _compose_time_field(
+        start, end, tz_name, location, ref_date, tz_hint
+    )
 
 
 def _resolve_selected_file():
@@ -110,24 +254,11 @@ def _render_file_controls(files):
     if not files:
         st.error("No markdown files in md/. Create one below.")
 
-    select_col, buttons_col = st.columns([3, 5.6], vertical_alignment="bottom")
-
-    with select_col:
-        if files:
-            st.selectbox(
-                "Markdown file",
-                files,
-                key="selected_file",
-                on_change=lambda: st.session_state.update(confirm_delete=False),
-            )
-
-    # A horizontal container (children sized to their own content and laid
-    # out left-to-right, unlike st.columns' equal-fraction split) so New
-    # file/Delete file/Render/Download PDF sit right after the dropdown
-    # instead of Render/Download being pushed to the far right, with
-    # standard spacing between every button.
-    with buttons_col:
-        button_row = st.container(horizontal=True, gap="small")
+    # A horizontal, full-width container (children sized to their own
+    # content and laid out left-to-right, unlike st.columns' equal-fraction
+    # split) so New file/Delete file/Render/Download PDF sit right after
+    # each other, centered as a group, with standard spacing between them.
+    button_row = st.container(horizontal=True, gap="small", horizontal_alignment="center")
 
     with button_row:
         with st.popover("New file"):
@@ -156,6 +287,9 @@ def _render_file_controls(files):
                             st.session_state.drafts.pop(deleted, None)
                             for name in pipeline.HEADER_FIELDS:
                                 st.session_state.pop(_header_field_key(deleted, name), None)
+                            st.session_state.pop(_date_picker_key(deleted), None)
+                            for time_key in _time_field_keys(deleted).values():
+                                st.session_state.pop(time_key, None)
                             st.session_state.confirm_delete = False
                             remaining = pipeline.list_markdown_files()
                             st.session_state.pending_select = remaining[0] if remaining else None
@@ -247,10 +381,9 @@ def _do_render():
     pipeline.write_markdown_file(filename, st.session_state.drafts.get(filename, ""))
 
     with st.spinner("Rendering PDF..."):
-        success, log, pdf_path = pipeline.render(filename)
+        success, _log, pdf_path = pipeline.render(filename)
 
     st.session_state.build_ok = success
-    st.session_state.build_log = log
     if pdf_path is not None:
         st.session_state.pdf_bytes = pdf_path.read_bytes()
         st.session_state.pdf_name = pdf_path.name
@@ -288,21 +421,19 @@ def main():
     if st.session_state.selected_file:
         _ensure_header_loaded(st.session_state.selected_file)
 
-    st.title("Cornell Notes")
+    st.title("Markdown Cornell Notes")
     if st.session_state.selected_file:
-        _render_header_fields(st.session_state.selected_file)
-    st.divider()
-    _render_file_controls(files)
+        _render_header_fields(st.session_state.selected_file, files)
 
     with st.expander(f"Assets ({len(pipeline.list_asset_files())})"):
         _render_assets_panel()
 
-    if st.session_state.build_log is not None:
+    _render_file_controls(files)
+
+    if st.session_state.build_ok is not None:
         (st.success if st.session_state.build_ok else st.error)(
             "Build succeeded." if st.session_state.build_ok else "Build failed."
         )
-        with st.expander("Build log", expanded=not st.session_state.build_ok):
-            st.code(st.session_state.build_log or "(empty)", language="text")
 
     st.divider()
 

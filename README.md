@@ -2,6 +2,10 @@
 
 ![screenshot](assets/screenshot.png)
 
+---
+
+![screenshot_2](assets/screenshot_2.png)
+
 A Cornell-style meeting notes template for LaTeX. Each page has a header
 (topic, date, attendees, time), a large notes panel with a cue column
 beside it, and a summary band below both, all blank for handwriting on

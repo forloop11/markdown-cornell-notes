@@ -303,32 +303,55 @@ function cycleHeading() {
   view.focus();
 }
 
-// Inserts a "^<page> " (cue) or "^^<page> " (summary) entry on its own new
-// line right after the cursor's current line -- see markdown_to_pages.py's
+// Inserts `text` as its own new line right after the cursor's current line
+// (or, if that line is already empty, in place of it) -- for entries that
+// are whole-line/block constructs and can't just splice into a paragraph
+// midstream: cue/summary directives, a table skeleton, a display-math
+// line. Selects text.slice(selStart, selStart + selLength) in the result,
+// so a placeholder inside it can be typed over immediately.
+function insertOwnLineBlock(text, selStart, selLength) {
+  if (!view) return;
+  const { state } = view;
+  const line = state.doc.lineAt(state.selection.main.to);
+  const needsLeadingNewline = line.text.length > 0;
+  const insertAt = needsLeadingNewline ? line.to : line.from;
+  const offset = insertAt + (needsLeadingNewline ? 1 : 0);
+  view.dispatch({
+    changes: { from: insertAt, insert: needsLeadingNewline ? `\n${text}` : text },
+    selection: EditorSelection.range(offset + selStart, offset + selStart + selLength),
+    scrollIntoView: true,
+  });
+  view.focus();
+}
+
+// "^<page> " (cue) or "^^<page> " (summary) -- see markdown_to_pages.py's
 // CUE_RE/SUMMARY_RE, which only match when one of these is the *whole*
-// line, hence never splicing into the middle of existing text. The page
-// number always starts as a placeholder "1" (selected, so typing the real
-// page number immediately overwrites it) rather than anything inferred
-// from the cursor position: the source markdown has no idea which
-// rendered PDF page it'll land on -- that's decided later by
+// line. The page number always starts as a placeholder "1" (selected, so
+// typing the real page number immediately overwrites it) rather than
+// anything inferred from the cursor position: the source markdown has no
+// idea which rendered PDF page it'll land on -- that's decided later by
 // \cornellFlow's automatic \vsplit pagination -- so any guess here would
 // be no better than the fixed default the docstring already says is safe
 // (out-of-range page numbers clamp to the nearest real page instead of
 // vanishing).
 function insertPageNote(marker) {
-  if (!view) return;
-  const { state } = view;
-  const line = state.doc.lineAt(state.selection.main.to);
-  const needsLeadingNewline = line.text.length > 0;
   const prefix = `${marker}1 `;
-  const insertAt = needsLeadingNewline ? line.to : line.from;
-  const digitStart = insertAt + (needsLeadingNewline ? 1 : 0) + marker.length;
-  view.dispatch({
-    changes: { from: insertAt, insert: needsLeadingNewline ? `\n${prefix}` : prefix },
-    selection: EditorSelection.range(digitStart, digitStart + 1),
-    scrollIntoView: true,
-  });
-  view.focus();
+  insertOwnLineBlock(prefix, marker.length, 1);
+}
+
+// A minimal 2-column pipe-table skeleton, header placeholder selected so
+// typing immediately overwrites it.
+function insertTable() {
+  const header = "Header 1";
+  insertOwnLineBlock(`| ${header} | Header 2 |\n| --- | --- |\n| Cell | Cell |\n`, 2, header.length);
+}
+
+// Display math ($$...$$) needs its own line the same way a table or cue
+// entry does; inline math ($...$) is just a wrap, handled by wrapSelection
+// via the TOOLBAR_GROUPS entry below instead.
+function insertDisplayMath() {
+  const placeholder = "x^2";
+  insertOwnLineBlock(`$$${placeholder}$$`, 2, placeholder.length);
 }
 
 const TOOLBAR_GROUPS = [
@@ -341,6 +364,9 @@ const TOOLBAR_GROUPS = [
       style: "text-decoration:line-through",
       action: () => wrapSelection("~~", "~~", "strikethrough text"),
     },
+    { label: "$", title: "Inline math ($...$)", action: () => wrapSelection("$", "$", "x^2") },
+    { label: "x²", title: "Superscript (x^2^)", action: () => wrapSelection("^", "^", "2") },
+    { label: "x₂", title: "Subscript (x~2~)", action: () => wrapSelection("~", "~", "2") },
   ],
   [
     { label: "H", title: "Heading (click to cycle levels)", action: cycleHeading },
@@ -354,6 +380,7 @@ const TOOLBAR_GROUPS = [
     { label: "`", title: "Inline code", action: () => wrapSelection("`", "`", "code") },
     { label: "{ }", title: "Code block", action: () => wrapSelection("```\n", "\n```", "code") },
     { label: "Link", title: "Link", action: insertLink },
+    { label: "Table", title: "Table", action: insertTable },
   ],
   [
     {
@@ -374,8 +401,20 @@ const TOOLBAR_GROUPS = [
           (text) => (/^\d+\.\s/.test(text) ? text.match(/^\d+\.\s/)[0].length : 0)
         ),
     },
+    {
+      label: "[x]",
+      title: "Task list",
+      action: () =>
+        toggleLinePrefix(
+          () => "- [ ] ",
+          (text) => (/^-\s\[[ xX]\]\s/.test(text) ? text.match(/^-\s\[[ xX]\]\s/)[0].length : 0)
+        ),
+    },
   ],
-  [{ label: "HR", title: "Horizontal rule", action: () => insertText("\n---\n") }],
+  [
+    { label: "HR", title: "Horizontal rule", action: () => insertText("\n---\n") },
+    { label: "$$", title: "Display math ($$...$$)", action: insertDisplayMath },
+  ],
   [
     { label: "^", title: "Add cue-column note (^<page> text)", action: () => insertPageNote("^") },
     { label: "^^", title: "Add summary-band note (^^<page> text)", action: () => insertPageNote("^^") },

@@ -468,11 +468,6 @@ def main():
     if st.session_state.selected_file:
         left, right = st.columns(2)
         with left:
-            st.subheader("Markdown")
-            # Matches the PDF pane's st.caption(pdf_name) line so both
-            # panes' iframes start at the same height -- without this, the
-            # PDF pane's extra caption line pushes it down relative to the
-            # editor, which otherwise goes straight from subheader to iframe.
             st.caption(st.session_state.selected_file)
             value = code_editor(
                 value=_draft_for(st.session_state.selected_file),
@@ -503,7 +498,6 @@ def main():
                     # rerun before building.
                     st.session_state.render_awaiting_reply = True
         with right:
-            st.subheader("PDF")
             _render_pdf_pane()
 
 

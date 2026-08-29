@@ -449,6 +449,12 @@ def main():
     if st.session_state.selected_file:
         _ensure_header_loaded(st.session_state.selected_file)
 
+    # Streamlit's default block container reserves ~6rem of top padding for
+    # a header that this single-page app doesn't use.
+    st.markdown(
+        "<style>.block-container{padding-top:2rem;}</style>",
+        unsafe_allow_html=True,
+    )
     st.title("Markdown Cornell Notes")
     if st.session_state.selected_file:
         _render_header_fields(st.session_state.selected_file, files)

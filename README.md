@@ -117,10 +117,10 @@ port published, `-p 8501:8501` — no command override needed, since `app`
 is the image's default.
 
 The page has a collapsible **Header** section (`topic`/`date`/`attendees`/
-`time`) at the top. Location lives under Topic, and start/end time + a
-searchable IANA timezone dropdown live under Date, all stacked below their
-respective field; the dropdown to switch between the files in `md/` lives
-under Attendees. `date` is a calendar date picker, still stored in
+`time`) at the top. Location lives under Topic, and start/end time (12-hour,
+with an AM/PM toggle) + a searchable IANA timezone dropdown live under Date,
+all stacked below their respective field; the dropdown to switch between the
+files in `md/` lives under Attendees. `date` is a calendar date picker, still stored in
 `yaml/<stem>.yaml` as a plain `YYYY-MM-DD` string, same as editing it by
 hand. The start/end/timezone group composes into the `time` field's usual
 `"HH:MM--HH:MM"` string, now with the zone's abbreviation appended (e.g.
@@ -175,6 +175,62 @@ cd app/components/code_editor/frontend_src
 npm install
 npm run build
 ```
+
+### Formatting toolbar
+
+A toolbar sits above the editor, grouped by kind:
+
+- **Bold**, *italic*, ~~strikethrough~~, inline math (`$...$`), superscript,
+  subscript — wrap the current selection (or a placeholder, if nothing's
+  selected) in the matching Markdown syntax; the wrapped/placeholder text
+  stays selected afterward so you can type straight over it.
+- **Heading** — cycles the cursor's current line through `#` → `##` → `###`
+  → no heading on repeated clicks.
+- Quote, bullet list, numbered list, task list — toggle a per-line prefix
+  (`> `, `- `, `1. `/`2. `/…, `- [ ] `) across every line the selection
+  spans; clicking again on already-prefixed lines removes it.
+- Inline code, fenced code block, Link, Table — code wraps like bold/italic
+  above; Link inserts `[text](https://)` with the URL placeholder selected;
+  Table inserts a 2-column pipe-table skeleton with its header placeholder
+  selected.
+- **HR**, display math (`$$...$$`) — insert a horizontal rule or a
+  display-math line.
+- **^**, **^^**, **PB** — insert a [cue-column](#cue-column-text) note, a
+  [summary-band](#summary-band-text) note, or a
+  [`<!-- pagebreak -->`](#pagination) directive on a new line right after
+  the cursor's current line. `^`/`^^`'s page-number placeholder (defaulting
+  to `1`) is pre-selected, so typing the real page number immediately
+  overwrites it — the editor has no way to know which rendered PDF page the
+  cursor's content will actually land on, since that's decided later by
+  automatic pagination, so `1` is just as good a starting guess as any (and
+  an out-of-range page number still renders on the nearest real page rather
+  than vanishing, same as typing the directive by hand).
+
+The toolbar's ~20 buttons wrap onto a second row if the editor pane isn't
+wide enough to fit them all on one; the editor and PDF panes stay matched
+in height either way.
+
+### Autocompletion
+
+The editor also offers three autocomplete sources, triggered by what you
+type:
+
+- Typing ` ``` ` at the start of a line suggests a fenced code-block
+  language tag (`html`, `latex`/`tex`, `python`, `javascript`, `bash`,
+  `json`, `yaml`, `text`). Only `html` and `latex`/`tex` get real syntax
+  highlighting in the editor — and, like every fenced-code tag, none of
+  them get highlighted in the built PDF either, since
+  `scripts/markdown_to_pages.py` runs pandoc with `--no-highlight` — so the
+  rest are just readable labels for the block's content, the same role
+  `notes-example.md`'s own ` ```python ` block plays.
+- Typing `](` inside a link or image target suggests filenames from
+  `assets/` (as `assets/<name>`), so you don't have to remember exact
+  names.
+- Typing `/` at the start of a line or after whitespace (not mid-URL, so
+  `https://` doesn't trigger it) offers snippet commands for everything the
+  toolbar buttons above do (`/bold`, `/table`, `/task`, `/link`, `/image`,
+  `/cue`, `/summary`, `/pagebreak`, etc.) — accepting one behaves exactly
+  like clicking its toolbar button.
 
 ## Editing a page
 

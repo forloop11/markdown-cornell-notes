@@ -19,8 +19,14 @@ st.set_page_config(page_title="Markdown Cornell Notes", layout="wide")
 
 # Shared by both panes so their bottoms line up, not just their tops (which
 # already match since both start with a single caption line -- see
-# _render_pdf_pane and the Markdown pane's st.caption in main()).
-PANE_HEIGHT = 900
+# _render_pdf_pane and the Markdown pane's st.caption in main()). Tall
+# enough that a full-width, letter-size page (aspect ratio 11/8.5 ~= 1.29 --
+# see settings/page.yaml's `paper`) fits without an inner scrollbar at the
+# ~775px a half-width column comes out to in a typical wide-layout browser
+# window (775 * 1.29 ~= 1000); a narrower window's column still fills the
+# frame's width via #view=FitH (see _render_pdf_pane), just with some
+# scrolling needed to see the bottom of the page.
+PANE_HEIGHT = 1000
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 
@@ -421,13 +427,17 @@ def _render_pdf_pane():
     # iframe inside that sandboxed wrapper renders a broken-file icon
     # instead of the PDF, confirmed by hand against a real browser. A single
     # unsandboxed iframe at the top level doesn't hit that restriction.
-    # The #view=Fit open parameter (honored by Chromium's built-in PDF
-    # viewer) tells it to scale the whole page -- both width and height --
-    # to fit the frame on load, rather than picking its own default zoom.
-    # FitV (fit height only) was tried first but let the page overflow the
-    # frame's width instead; plain Fit is the one that fits both axes.
+    # The #view=FitH open parameter (honored by Chromium's built-in PDF
+    # viewer) tells it to scale the page to the frame's *width* on load,
+    # rather than picking its own default zoom. Plain Fit (fit both width
+    # and height) was tried first, but whenever the frame was proportionally
+    # wider than the page it picked height as the binding constraint,
+    # letterboxing the page down narrower than the frame instead of filling
+    # it -- FitH always fills the frame's width, at the cost of a vertical
+    # scrollbar inside the frame if PANE_HEIGHT is shorter than a
+    # full-width page (see PANE_HEIGHT's own comment).
     st.markdown(
-        f'<iframe src="data:application/pdf;base64,{b64}#view=Fit" '
+        f'<iframe src="data:application/pdf;base64,{b64}#view=FitH" '
         f'width="100%" height="{PANE_HEIGHT}" style="border:none;"></iframe>',
         unsafe_allow_html=True,
     )

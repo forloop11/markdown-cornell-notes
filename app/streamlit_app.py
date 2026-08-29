@@ -223,8 +223,8 @@ def _render_header_fields(filename, files):
             )
 
             start_col, end_col, tz_col = st.columns(3)
-            start = start_col.time_input("Start", key=time_keys["start"])
-            end = end_col.time_input("End", key=time_keys["end"])
+            start = start_col.time_input("Start", key=time_keys["start"], format="12h")
+            end = end_col.time_input("End", key=time_keys["end"], format="12h")
             tz_name = tz_col.selectbox(
                 "Timezone", TZ_OPTIONS, key=time_keys["tz"], format_func=lambda z: z or "(none)"
             )

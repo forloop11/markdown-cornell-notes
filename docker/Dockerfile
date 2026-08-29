@@ -25,6 +25,15 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 
 WORKDIR /workspace
 
+# Makefile's docker/docker-app targets (and docker-compose.yml) run the
+# container with -u "$(id -u):$(id -g)"/a UID:GID pair matching the host
+# user so bind-mounted output isn't left root-owned -- but that uid has no
+# /etc/passwd entry in the container, so $HOME is otherwise unset and
+# Path.home() falls back to "/". Streamlit then tries to create
+# /.streamlit for its config and gets a PermissionError. /tmp is writable
+# by any uid and doesn't need to persist, so pin HOME there.
+ENV HOME=/tmp
+
 # --break-system-packages: Debian's system Python refuses plain `pip
 # install` (PEP 668, "externally managed environment"); safe here since the
 # whole container is dedicated to this one app, so there's no environment

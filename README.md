@@ -7,8 +7,9 @@ a printout.
 
 Header details, notes content, and the page layout itself aren't edited in
 the `.tex` file directly — they're generated from YAML and Markdown files,
-so day-to-day use is just editing `yaml/header.yaml` / `md/notes.md` /
-`settings/page.yaml` and running `make`.
+so day-to-day use is just editing `yaml/notes.yaml` / `md/notes.md` /
+`settings/page.yaml` and running `make`. The yaml file is paired with the
+markdown file by name: `md/<stem>.md` goes with `yaml/<stem>.yaml`.
 
 ![](assets/page-layout.drawio.png)
 
@@ -39,9 +40,9 @@ make build
 ```
 
 This regenerates the header, content, and page settings from
-`yaml/header.yaml` / `md/notes.md` / `settings/page.yaml`, compiles
+`yaml/notes.yaml` / `md/notes.md` / `settings/page.yaml`, compiles
 `settings/template.tex`, and cleans up pdflatex's intermediate files
-afterward. The result lands in `pdf/`, named after `yaml/header.yaml`'s
+afterward. The result lands in `pdf/`, named after `yaml/notes.yaml`'s
 `topic` and `date` fields (e.g. `pdf/Weekly-Sync_2026-08-23.pdf`) — see
 [Naming the output PDF](#naming-the-output-pdf) below.
 
@@ -91,7 +92,11 @@ port published, `-p 8501:8501`.
 The page has a header form (`topic`/`date`/`attendees`/`time`) at the top, a
 dropdown to switch between the files in `md/` (with buttons to create or
 delete one), and, on the right of that row, **Render** and **Download PDF**.
-Render saves both the header and the selected file to disk and runs `make
+The header form is per markdown file — each `md/<stem>.md` has its own
+paired `yaml/<stem>.yaml`, so switching files in the dropdown also switches
+the header fields shown, and creating a file creates a blank paired yaml
+alongside it (deleting a file removes its yaml too). Render saves both the
+selected file's header and its markdown content to disk and runs `make
 build` for you — the build log is shown in an expander so LaTeX/pandoc
 errors surface in the UI instead of disappearing. Download PDF (disabled
 until a PDF exists) downloads the current one under its actual output
@@ -119,8 +124,9 @@ npm run build
 
 ## Editing a page
 
-- **`yaml/header.yaml`** — the header fields (`topic`, `date`, `attendees`,
-  `time`). Applied to every page automatically.
+- **`yaml/notes.yaml`** — the header fields (`topic`, `date`, `attendees`,
+  `time`). Applied to every page automatically. Paired with its markdown
+  file by name: `md/<stem>.md` goes with `yaml/<stem>.yaml`.
 - **`md/notes.md`** — the notes panel content, written in Markdown.
 
 ```yaml
@@ -213,7 +219,7 @@ which holds one `cornellFlow` environment per `md/notes.md` section.
 Makefile's `BUILDDIR` — see `make build-example` below and the Streamlit
 app's own scratch directory — so isolated builds actually compile their own
 generated content instead of whatever's currently in the default `build/`.)
-Every resulting page shares the same header from `yaml/header.yaml` and
+Every resulting page shares the same header from `yaml/notes.yaml` and
 numbers itself automatically (top-right corner of the header box).
 
 ### Images and linked documents
@@ -241,7 +247,8 @@ into the container at build time.
 
 ```
 yaml/
-  header.yaml          Header fields (source of truth).
+  notes.yaml           Header fields (source of truth). Paired with md/notes.md
+                        by filename stem -- see Editing a page above.
 md/
   notes.md             Notes panel content, in Markdown (source of truth).
 assets/             Images & other files md/notes.md links to (source of truth).
@@ -255,12 +262,12 @@ settings/
   page.yaml            Page geometry & layout proportions (source of truth).
 scripts/
   simple_yaml.py        Shared minimal YAML parser used by the scripts below.
-  yaml_to_header.py      yaml/header.yaml   -> build/cornell-header.tex
+  yaml_to_header.py      yaml/notes.yaml    -> build/cornell-header.tex
   markdown_to_pages.py   md/notes.md (+pandoc) -> build/cornell-content.tex,
                                                 build/cornell-cue.tex,
                                                 build/cornell-summary.tex
   yaml_to_settings.py    settings/page.yaml -> build/cornell-page-settings.tex
-  topic_slug.py          yaml/header.yaml's topic+date -> output PDF's filename
+  topic_slug.py          yaml/notes.yaml's topic+date -> output PDF's filename
 build/              Generated .tex fragments (gitignored, rebuilt by make).
 pdf/                Output PDF (see Naming the output PDF below).
 app/
@@ -282,15 +289,15 @@ can also be run directly if you want to regenerate one file without the
 others:
 
 ```sh
-python3 scripts/yaml_to_header.py yaml/header.yaml build/cornell-header.tex
+python3 scripts/yaml_to_header.py yaml/notes.yaml build/cornell-header.tex
 python3 scripts/markdown_to_pages.py md/notes.md build/cornell-content.tex build/cornell-cue.tex build/cornell-summary.tex
 python3 scripts/yaml_to_settings.py settings/page.yaml build/cornell-page-settings.tex
 ```
 
 ## Other Makefile targets
 
-- `make build-example` — builds `md/notes-example.md` / `yaml/header-example.yaml`
-  instead of `md/notes.md` / `yaml/header.yaml`, using its own `build/example/`
+- `make build-example` — builds `md/notes-example.md` / `yaml/notes-example.yaml`
+  instead of `md/notes.md` / `yaml/notes.yaml`, using its own `build/example/`
   scratch directory so it never collides with (or goes stale against) a
   regular `make build`. Useful for regenerating the reference PDF that
   demonstrates this pipeline's Markdown syntax without touching your own
@@ -335,7 +342,7 @@ content files above.
 
 ## Naming the output PDF
 
-The PDF is written to `pdf/` and named after `yaml/header.yaml`'s `topic`
+The PDF is written to `pdf/` and named after `yaml/notes.yaml`'s `topic`
 and `date` fields, not a fixed `cornell-notes.pdf`. `scripts/topic_slug.py`
 slugifies each field — collapsing any run of characters that aren't safe
 in a filename (spaces, punctuation, ...) to a single hyphen — and joins

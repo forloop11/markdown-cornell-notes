@@ -6,15 +6,7 @@ Welcome to the jungle. We've got fun and games.
 
 ^1 This is my question for Cue on page 1 on a new line
 
-^2 This is my question for Cue on page 2
-
 ^^1 This is my summary for page 1
-
-^^2 This is my summary for page 2
-
-^^2 Verified with scratch tests outside the repo: realistic short summaries stay in column A with no warnings; deliberately long text correctly overflows into column B; and an extreme stress case (6 long items, more than 2 columns can hold) still degrades gracefully — one benign "overfull" warning, no crash, no data loss beyond the documented 2-column limit.
-
-^^2 Verified with scratch tests outside the repo: realistic short summaries stay in column A with no warnings; deliberately long text correctly overflows into column B; and an extreme stress case (6 long items, more than 2 columns can hold) still degrades gracefully — one benign "overfull" warning, no crash, no data loss beyond the documented 2-column limit.
 
 
 
@@ -113,3 +105,10 @@ Superscript/subscript: H~2~O and x^2^.
      \vsplit-based pagination silently drops the footnote text -- the
      marker renders, the note text vanishes with no build error. This is
      an architectural limitation of cornellFlow, not a pandoc issue. -->
+
+^2 This is my question for Cue on page 2
+^^2 This is my summary for page 2
+
+^^2 Verified with scratch tests outside the repo: realistic short summaries stay in column A with no warnings; deliberately long text correctly overflows into column B; and an extreme stress case (6 long items, more than 2 columns can hold) still degrades gracefully — one benign "overfull" warning, no crash, no data loss beyond the documented 2-column limit.
+
+^^2 Verified with scratch tests outside the repo: realistic short summaries stay in column A with no warnings; deliberately long text correctly overflows into column B; and an extreme stress case (6 long items, more than 2 columns can hold) still degrades gracefully — one benign "overfull" warning, no crash, no data loss beyond the documented 2-column limit.

@@ -19,13 +19,19 @@ st.set_page_config(page_title="Cornell Notes", layout="wide")
 PANE_HEIGHT = 900
 
 
-def _init_state():
-    if "header_loaded" not in st.session_state:
-        fields = pipeline.read_header()
-        for name in pipeline.HEADER_FIELDS:
-            st.session_state[f"header_{name}"] = fields[name]
-        st.session_state.header_loaded = True
+def _header_field_key(filename, name):
+    return f"header__{filename}__{name}"
 
+
+def _ensure_header_loaded(filename):
+    probe_key = _header_field_key(filename, pipeline.HEADER_FIELDS[0])
+    if probe_key not in st.session_state:
+        fields = pipeline.read_header(filename)
+        for name in pipeline.HEADER_FIELDS:
+            st.session_state[_header_field_key(filename, name)] = fields[name]
+
+
+def _init_state():
     if "selected_file" not in st.session_state:
         files = pipeline.list_markdown_files()
         st.session_state.selected_file = files[0] if files else None
@@ -41,11 +47,12 @@ def _init_state():
     st.session_state.setdefault("render_awaiting_reply", False)
 
     # Opportunistically show a PDF that already exists on disk for the
-    # current header, so there's something in the right pane before the
-    # user has clicked Render at all.
-    if st.session_state.pdf_bytes is None:
+    # selected file's header, so there's something in the right pane
+    # before the user has clicked Render at all.
+    if st.session_state.pdf_bytes is None and st.session_state.selected_file:
         try:
-            slug = pipeline.topic_slug()
+            yaml_path = pipeline.yaml_path_for(st.session_state.selected_file)
+            slug = pipeline.topic_slug(yaml_path)
             existing = pipeline.PDF_DIR / f"{slug}.pdf"
             if existing.exists():
                 st.session_state.pdf_bytes = existing.read_bytes()
@@ -54,8 +61,11 @@ def _init_state():
             pass
 
 
-def _current_header_fields():
-    return {name: st.session_state[f"header_{name}"] for name in pipeline.HEADER_FIELDS}
+def _current_header_fields(filename):
+    return {
+        name: st.session_state[_header_field_key(filename, name)]
+        for name in pipeline.HEADER_FIELDS
+    }
 
 
 def _draft_for(filename):
@@ -64,31 +74,37 @@ def _draft_for(filename):
     return st.session_state.drafts[filename]
 
 
-def _render_header_fields():
+def _render_header_fields(filename):
     st.subheader("Header")
     cols = st.columns(4)
     labels = {"topic": "Topic", "date": "Date", "attendees": "Attendees", "time": "Time"}
     for col, name in zip(cols, pipeline.HEADER_FIELDS):
-        col.text_input(labels[name], key=f"header_{name}")
+        col.text_input(labels[name], key=_header_field_key(filename, name))
 
 
-def _render_file_controls():
+def _resolve_selected_file():
     # Streamlit forbids setting st.session_state[key] once that key's widget
-    # has been instantiated in the current run -- the selectbox below owns
-    # "selected_file" for the rest of this run as soon as it's created. The
-    # create/delete handlers further down (which need to change the
-    # selection) run *after* that point in the same run, so they can't set
-    # it directly; they stash the target filename here instead, applied
-    # before the selectbox is instantiated on the rerun they trigger.
+    # has been instantiated in the current run -- the selectbox in
+    # _render_file_controls owns "selected_file" for the rest of this run as
+    # soon as it's created. The create/delete handlers further down (which
+    # need to change the selection) run *after* that point in the same run,
+    # so they can't set it directly; they stash the target filename here
+    # instead, applied before the selectbox is instantiated on the rerun
+    # they trigger.
     if "pending_select" in st.session_state:
         st.session_state.selected_file = st.session_state.pop("pending_select")
 
     files = pipeline.list_markdown_files()
     if not files:
-        st.error("No markdown files in md/. Create one below.")
         st.session_state.selected_file = None
     elif st.session_state.selected_file not in files:
         st.session_state.selected_file = files[0]
+    return files
+
+
+def _render_file_controls(files):
+    if not files:
+        st.error("No markdown files in md/. Create one below.")
 
     select_col, buttons_col = st.columns([3, 5.6], vertical_alignment="bottom")
 
@@ -131,8 +147,11 @@ def _render_file_controls():
                     st.warning(f"Delete {st.session_state.selected_file}?")
                     if st.button("Yes, delete", key="confirm_delete_btn"):
                         try:
-                            pipeline.delete_markdown_file(st.session_state.selected_file)
-                            st.session_state.drafts.pop(st.session_state.selected_file, None)
+                            deleted = st.session_state.selected_file
+                            pipeline.delete_markdown_file(deleted)
+                            st.session_state.drafts.pop(deleted, None)
+                            for name in pipeline.HEADER_FIELDS:
+                                st.session_state.pop(_header_field_key(deleted, name), None)
                             st.session_state.confirm_delete = False
                             remaining = pipeline.list_markdown_files()
                             st.session_state.pending_select = remaining[0] if remaining else None
@@ -178,7 +197,7 @@ def _do_render():
         st.error("No markdown file selected.")
         return
 
-    pipeline.write_header(_current_header_fields())
+    pipeline.write_header(filename, _current_header_fields(filename))
     pipeline.write_markdown_file(filename, st.session_state.drafts.get(filename, ""))
 
     with st.spinner("Rendering PDF..."):
@@ -219,11 +238,15 @@ def _render_pdf_pane():
 
 def main():
     _init_state()
+    files = _resolve_selected_file()
+    if st.session_state.selected_file:
+        _ensure_header_loaded(st.session_state.selected_file)
 
     st.title("Cornell Notes")
-    _render_header_fields()
+    if st.session_state.selected_file:
+        _render_header_fields(st.session_state.selected_file)
     st.divider()
-    _render_file_controls()
+    _render_file_controls(files)
 
     if st.session_state.build_log is not None:
         (st.success if st.session_state.build_ok else st.error)(

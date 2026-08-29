@@ -8,7 +8,7 @@ page's cue column / summary band.
 pandoc converts Markdown to LaTeX; \\cornellFlow (defined in
 settings/template.tex) then measures that content with TeX's \\vsplit and
 automatically breaks it across as many pages as it actually needs, each
-carrying the same repeating header (see yaml/header.yaml) and the next page
+carrying the same repeating header (see yaml/notes.yaml) and the next page
 number.
 
 A line containing only

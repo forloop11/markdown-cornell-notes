@@ -12,7 +12,6 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 MD_DIR = REPO_ROOT / "md"
 YAML_DIR = REPO_ROOT / "yaml"
 PDF_DIR = REPO_ROOT / "pdf"
-HEADER_PATH = YAML_DIR / "header.yaml"
 BUILDDIR = "build/app"
 
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -33,12 +32,21 @@ class PipelineError(Exception):
     pass
 
 
-def read_header(path=HEADER_PATH):
+def yaml_path_for(md_filename):
+    """The header yaml paired with a markdown file: md/<stem>.md <-> yaml/<stem>.yaml."""
+    return YAML_DIR / f"{Path(md_filename).stem}.yaml"
+
+
+def read_header(md_filename):
+    path = yaml_path_for(md_filename)
+    if not path.exists():
+        return {name: "" for name in HEADER_FIELDS}
     fields = parse_yaml(path)
     return {name: fields.get(name, "") for name in HEADER_FIELDS}
 
 
-def write_header(fields, path=HEADER_PATH):
+def write_header(md_filename, fields):
+    path = yaml_path_for(md_filename)
     lines = [HEADER_COMMENT.rstrip("\n"), ""]
     for name in HEADER_FIELDS:
         value = fields.get(name, "").replace('"', '\\"')
@@ -64,6 +72,7 @@ def create_markdown_file(name):
     if path.exists():
         raise PipelineError(f"{filename} already exists.")
     path.write_text("# New notes\n", encoding="utf-8")
+    write_header(filename, {field: "" for field in HEADER_FIELDS})
     return filename
 
 
@@ -74,6 +83,7 @@ def delete_markdown_file(name):
     if len(files) <= 1:
         raise PipelineError("Can't delete the last remaining markdown file.")
     (MD_DIR / name).unlink()
+    yaml_path_for(name).unlink(missing_ok=True)
 
 
 def read_markdown_file(name):
@@ -84,7 +94,7 @@ def write_markdown_file(name, content):
     (MD_DIR / name).write_text(content, encoding="utf-8")
 
 
-def topic_slug(yaml_path=HEADER_PATH):
+def topic_slug(yaml_path):
     result = subprocess.run(
         [sys.executable, "scripts/topic_slug.py", str(yaml_path)],
         cwd=REPO_ROOT,
@@ -96,7 +106,7 @@ def topic_slug(yaml_path=HEADER_PATH):
     return result.stdout.strip()
 
 
-def render(md_filename, yaml_path=HEADER_PATH):
+def render(md_filename, yaml_path=None):
     """Run `make build` for the given markdown file, using a scratch
     BUILDDIR dedicated to the app so it never collides with (or goes stale
     against) a manual `make build`/`make build-example` run from the CLI.
@@ -104,6 +114,8 @@ def render(md_filename, yaml_path=HEADER_PATH):
     Returns (success, log, pdf_path). pdf_path is set even on failure when
     it could still be resolved, so the caller can show the previous PDF.
     """
+    if yaml_path is None:
+        yaml_path = yaml_path_for(md_filename)
     md_path = f"md/{md_filename}"
     proc = subprocess.run(
         [

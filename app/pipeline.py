@@ -3,6 +3,7 @@ the Streamlit app: header read/write, markdown file management, and
 `make build` invocation.
 """
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -96,34 +97,120 @@ def write_markdown_file(name, content):
 
 
 def list_asset_files():
-    return sorted(p.name for p in ASSETS_DIR.iterdir() if p.is_file())
+    """All files under assets/, recursively, as paths relative to assets/
+    (e.g. "diagrams/flow.png") -- used for the editor's link/image
+    autocompletion and the Assets panel's file count.
+    """
+    return sorted(str(p.relative_to(ASSETS_DIR)) for p in ASSETS_DIR.rglob("*") if p.is_file())
 
 
-def _sanitize_filename(name):
+def _resolve_asset_dir(subdir=""):
+    """Resolve a folder path within assets/, guarding against escaping it
+    (e.g. a subdir of "../../etc")."""
+    if not subdir:
+        return ASSETS_DIR
+    path = (ASSETS_DIR / subdir).resolve()
+    if path != ASSETS_DIR and ASSETS_DIR not in path.parents:
+        raise PipelineError("Invalid folder path.")
+    return path
+
+
+def _asset_display_dir(subdir=""):
+    return f"assets/{subdir}" if subdir else "assets"
+
+
+def list_asset_dir(subdir=""):
+    """Folders and files directly inside assets/<subdir> (not recursive), as
+    two sorted name lists."""
+    base = _resolve_asset_dir(subdir)
+    if not base.exists():
+        return [], []
+    folders = sorted(p.name for p in base.iterdir() if p.is_dir())
+    files = sorted(p.name for p in base.iterdir() if p.is_file())
+    return folders, files
+
+
+def list_asset_folder_paths():
+    """All folder paths under assets/, recursively, as slash-joined paths
+    relative to assets/ ("" for assets/ itself) -- used to populate a
+    "move to folder" picker."""
+    paths = sorted(str(p.relative_to(ASSETS_DIR)) for p in ASSETS_DIR.rglob("*") if p.is_dir())
+    return [""] + paths
+
+
+def _sanitize_name(name):
     # Path(name).name drops any directory components (e.g. from "../../etc/passwd"
     # or a browser sending a full path), then unsafe characters collapse to "-"
-    # same as markdown filenames -- but the extension is kept, since assets
-    # (unlike notes/header files) aren't all forced into one fixed suffix.
-    filename = _SAFE_STEM_RE.sub("-", Path(name).name.strip()).strip("-")
-    if not filename:
-        raise PipelineError("File name can't be empty.")
-    return filename
+    # same as markdown filenames -- but the extension (if any) is kept, since
+    # assets/folders (unlike notes/header files) aren't all forced into one
+    # fixed suffix.
+    name = _SAFE_STEM_RE.sub("-", Path(name).name.strip()).strip("-")
+    if not name:
+        raise PipelineError("Name can't be empty.")
+    return name
 
 
-def save_asset(filename, data):
-    safe_name = _sanitize_filename(filename)
-    path = ASSETS_DIR / safe_name
+def save_asset(filename, data, subdir=""):
+    safe_name = _sanitize_name(filename)
+    base = _resolve_asset_dir(subdir)
+    path = base / safe_name
     if path.exists():
-        raise PipelineError(f"{safe_name} already exists in assets/.")
+        raise PipelineError(f"{safe_name} already exists in {_asset_display_dir(subdir)}/.")
     path.write_bytes(data)
     return safe_name
 
 
-def delete_asset(name):
-    path = ASSETS_DIR / name
+def delete_asset(name, subdir=""):
+    base = _resolve_asset_dir(subdir)
+    path = base / name
     if not path.exists() or not path.is_file():
-        raise PipelineError(f"{name} not found in assets/.")
+        raise PipelineError(f"{name} not found in {_asset_display_dir(subdir)}/.")
     path.unlink()
+
+
+def move_asset(name, src_subdir, dest_subdir):
+    src_base = _resolve_asset_dir(src_subdir)
+    dest_base = _resolve_asset_dir(dest_subdir)
+    src_path = src_base / name
+    if not src_path.is_file():
+        raise PipelineError(f"{name} not found in {_asset_display_dir(src_subdir)}/.")
+    if not dest_base.is_dir():
+        raise PipelineError(f"{_asset_display_dir(dest_subdir)}/ not found.")
+    dest_path = dest_base / name
+    if dest_path.exists():
+        raise PipelineError(f"{name} already exists in {_asset_display_dir(dest_subdir)}/.")
+    src_path.rename(dest_path)
+
+
+def create_asset_folder(name, subdir=""):
+    folder_name = _sanitize_name(name)
+    base = _resolve_asset_dir(subdir)
+    path = base / folder_name
+    if path.exists():
+        raise PipelineError(f"{folder_name} already exists in {_asset_display_dir(subdir)}/.")
+    path.mkdir(parents=True)
+    return folder_name
+
+
+def rename_asset_folder(old_name, new_name, subdir=""):
+    base = _resolve_asset_dir(subdir)
+    old_path = base / old_name
+    if not old_path.is_dir():
+        raise PipelineError(f"{old_name} not found in {_asset_display_dir(subdir)}/.")
+    new_name = _sanitize_name(new_name)
+    new_path = base / new_name
+    if new_path != old_path and new_path.exists():
+        raise PipelineError(f"{new_name} already exists in {_asset_display_dir(subdir)}/.")
+    old_path.rename(new_path)
+    return new_name
+
+
+def delete_asset_folder(name, subdir=""):
+    base = _resolve_asset_dir(subdir)
+    path = base / name
+    if not path.is_dir():
+        raise PipelineError(f"{name} not found in {_asset_display_dir(subdir)}/.")
+    shutil.rmtree(path)
 
 
 def topic_slug(yaml_path):

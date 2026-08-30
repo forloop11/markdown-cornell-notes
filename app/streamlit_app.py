@@ -176,6 +176,8 @@ def _init_state():
     st.session_state.setdefault("pending_render", False)
     st.session_state.setdefault("render_awaiting_reply", False)
     st.session_state.setdefault("asset_uploader_version", 0)
+    st.session_state.setdefault("asset_current_dir", "")
+    st.session_state.setdefault("asset_folder_input_version", 0)
 
     # Opportunistically show a PDF that already exists on disk for the
     # selected file's header, so there's something in the right pane
@@ -353,7 +355,43 @@ def _render_file_controls(files):
             st.button("Download PDF", disabled=True, key="download_pdf_btn_disabled")
 
 
+def _render_asset_breadcrumbs(current_dir):
+    parts = current_dir.split("/") if current_dir else []
+    cols = st.columns(len(parts) + 1)
+    if cols[0].button("assets", key="asset_crumb_root", disabled=not current_dir):
+        st.session_state.asset_current_dir = ""
+        st.rerun()
+    accumulated = ""
+    for col, part in zip(cols[1:], parts):
+        accumulated = f"{accumulated}/{part}" if accumulated else part
+        target = accumulated
+        if col.button(part, key=f"asset_crumb_{target}", disabled=(target == current_dir)):
+            st.session_state.asset_current_dir = target
+            st.rerun()
+
+
 def _render_assets_panel():
+    current_dir = st.session_state.asset_current_dir
+    _render_asset_breadcrumbs(current_dir)
+
+    folder_col, folder_btn_col = st.columns([4, 1])
+    new_folder_name = folder_col.text_input(
+        "New folder name",
+        key=f"new_asset_folder_{st.session_state.asset_folder_input_version}",
+        label_visibility="collapsed",
+        placeholder="New folder name",
+    )
+    if folder_btn_col.button("Create folder", key="create_asset_folder_btn"):
+        try:
+            pipeline.create_asset_folder(new_folder_name, current_dir)
+        except pipeline.PipelineError as exc:
+            st.error(str(exc))
+        else:
+            # Bumping the widget's key remounts a fresh, empty input on the
+            # rerun below, the same trick used for the file uploader.
+            st.session_state.asset_folder_input_version += 1
+            st.rerun()
+
     uploaded = st.file_uploader(
         "Add files",
         accept_multiple_files=True,
@@ -362,7 +400,7 @@ def _render_assets_panel():
     if uploaded and st.button("Upload", key="upload_assets_btn"):
         for f in uploaded:
             try:
-                pipeline.save_asset(f.name, f.getvalue())
+                pipeline.save_asset(f.name, f.getvalue(), current_dir)
             except pipeline.PipelineError as exc:
                 st.error(str(exc))
         # Bumping the widget's key remounts a fresh, empty uploader on the
@@ -371,28 +409,83 @@ def _render_assets_panel():
         st.session_state.asset_uploader_version += 1
         st.rerun()
 
-    files = pipeline.list_asset_files()
-    if not files:
-        st.caption("No files in assets/ yet.")
-        return
+    folders, files = pipeline.list_asset_dir(current_dir)
+    if not folders and not files:
+        st.caption("No folders or files here yet.")
 
-    for name in files:
-        path = pipeline.ASSETS_DIR / name
-        thumb_col, name_col, size_col, delete_col = st.columns(
-            [1, 4, 1.5, 1], vertical_alignment="center"
-        )
-        if Path(name).suffix.lower() in IMAGE_SUFFIXES:
-            thumb_col.image(str(path), width=40)
-        name_col.code(f"assets/{name}", language=None)
-        size_col.caption(f"{path.stat().st_size / 1024:.1f} KB")
-        with delete_col.popover("Delete"):
-            st.write(f"Delete `{name}`?")
-            if st.button("Confirm", key=f"confirm_delete_asset_{name}"):
+    for name in folders:
+        open_col, rename_col, delete_col = st.columns([4, 1, 1], vertical_alignment="center")
+        target = f"{current_dir}/{name}" if current_dir else name
+        if open_col.button(name, key=f"open_asset_folder_{target}", icon=":material/folder:"):
+            st.session_state.asset_current_dir = target
+            st.rerun()
+        with rename_col.popover("Rename"):
+            new_name = st.text_input("New name", value=name, key=f"rename_asset_folder_input_{target}")
+            if st.button("Confirm", key=f"confirm_rename_asset_folder_{target}"):
                 try:
-                    pipeline.delete_asset(name)
+                    pipeline.rename_asset_folder(name, new_name, current_dir)
+                except pipeline.PipelineError as exc:
+                    st.error(str(exc))
+                else:
+                    st.rerun()
+        with delete_col.popover("Delete"):
+            st.write(f"Delete folder `{name}` and everything inside it?")
+            if st.button("Confirm", key=f"confirm_delete_asset_folder_{target}"):
+                try:
+                    pipeline.delete_asset_folder(name, current_dir)
                 except pipeline.PipelineError as exc:
                     st.error(str(exc))
                 st.rerun()
+
+    def _select_key(name):
+        return f"select_asset_{current_dir}/{name}"
+
+    for name in files:
+        path = pipeline.ASSETS_DIR / current_dir / name
+        select_col, thumb_col, name_col, size_col, delete_col = st.columns(
+            [0.4, 1, 4, 1.5, 1], vertical_alignment="center"
+        )
+        select_col.checkbox("Select", key=_select_key(name), label_visibility="collapsed")
+        if Path(name).suffix.lower() in IMAGE_SUFFIXES:
+            thumb_col.image(str(path), width=40)
+        display_path = f"assets/{current_dir}/{name}" if current_dir else f"assets/{name}"
+        name_col.code(display_path, language=None)
+        size_col.caption(f"{path.stat().st_size / 1024:.1f} KB")
+        with delete_col.popover("Delete"):
+            st.write(f"Delete `{name}`?")
+            if st.button("Confirm", key=f"confirm_delete_asset_{current_dir}/{name}"):
+                try:
+                    pipeline.delete_asset(name, current_dir)
+                except pipeline.PipelineError as exc:
+                    st.error(str(exc))
+                st.rerun()
+
+    selected_files = [name for name in files if st.session_state.get(_select_key(name))]
+    if selected_files:
+        dest_options = [p for p in pipeline.list_asset_folder_paths() if p != current_dir]
+        if dest_options:
+            move_col, move_btn_col = st.columns([4, 1])
+            dest = move_col.selectbox(
+                "Move to",
+                options=dest_options,
+                format_func=lambda p: f"assets/{p}" if p else "assets",
+                key=f"move_asset_dest_{current_dir}",
+                label_visibility="collapsed",
+            )
+            if move_btn_col.button(f"Move {len(selected_files)} selected", key="move_assets_btn"):
+                errors = []
+                for name in selected_files:
+                    try:
+                        pipeline.move_asset(name, current_dir, dest)
+                    except pipeline.PipelineError as exc:
+                        errors.append(str(exc))
+                    else:
+                        st.session_state.pop(_select_key(name), None)
+                for err in errors:
+                    st.error(err)
+                st.rerun()
+        else:
+            st.caption("Create another folder to move the selected files into.")
 
 
 def _do_render():

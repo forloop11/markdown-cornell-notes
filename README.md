@@ -1,10 +1,10 @@
 # Markdown Cornell Notes
 
-![screenshot](assets/screenshot.png)
+![screenshot](assets/README/screenshot.png)
 
 ---
 
-![screenshot_2](assets/screenshot_2.png)
+![screenshot_2](assets/README/screenshot_2.png)
 
 A Cornell-style meeting notes template for LaTeX. Each page has a header
 (topic, date, attendees, time), a large notes panel with a cue column
@@ -17,7 +17,7 @@ so day-to-day use is just editing `yaml/notes.yaml` / `md/notes.md` /
 `settings/page.yaml` and running `make`. The yaml file is paired with the
 markdown file by name: `md/<stem>.md` goes with `yaml/<stem>.yaml`.
 
-![](assets/page-layout.drawio.png)
+![](assets/README/page-layout.drawio.png)
 
 The page layout (notes panel, cue column, and summary band) follows the
 Cornell Note-Taking System, developed by Walter Pauk at Cornell

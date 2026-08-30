@@ -36,9 +36,6 @@ University or the Pauk estate.
   below needs `pip install -r requirements.txt`)
 - [pandoc](https://pandoc.org/), for converting `md/notes.md` to LaTeX
 
-Don't want to install any of that locally? Use the [Docker image](#docker)
-below instead.
-
 ## Quick start
 
 ```sh
@@ -52,48 +49,6 @@ afterward. The result lands in `pdf/`, named after `yaml/notes.yaml`'s
 `topic` and `date` fields (e.g. `pdf/Weekly-Sync_2026-08-23.pdf`) — see
 [Naming the output PDF](#naming-the-output-pdf) below.
 
-## Docker
-
-The `docker/Dockerfile` packages just the pieces this project's build
-actually uses (not a full `texlive-full` install, which runs several GB)
-— around 1GB total, mostly `pandoc` and the TeX Live packages themselves.
-The image's entrypoint is `make`, and its default command is `app` — see
-[Streamlit editor app](#streamlit-editor-app) below — so running it with no
-arguments launches the Streamlit app automatically.
-
-```sh
-make docker
-```
-
-which is equivalent to:
-
-```sh
-docker build -t cornell-notes -f docker/Dockerfile .
-docker run --rm -v "$(pwd)":/workspace -u "$(id -u):$(id -g)" cornell-notes build
-```
-
-The `-u "$(id -u):$(id -g)"` runs the container as your own user instead
-of root, so the output PDF and `build/` come out owned by you rather
-than root. `build` above overrides the image's default `app` command; you
-can run any other Makefile target the same way, e.g. `... cornell-notes
-clean`.
-
-### docker-compose
-
-`docker-compose.yml` deploys the Streamlit app (the image's default
-command) as a long-running service instead of a one-off `docker run`:
-
-```sh
-docker compose up -d
-```
-
-This builds the image, publishes port 8501, bind-mounts the repo into
-the container's `/workspace`, and runs as your own user (`UID`/`GID`
-env vars, defaulting to `1000:1000`) the same way `make docker` does.
-`docker compose logs -f` follows the app's output, and `docker compose
-down` stops and removes it. Run another Makefile target instead of the
-app with `docker compose run --rm app <target>`, e.g. `... app build`.
-
 ## Streamlit editor app
 
 A browser UI for the whole pipeline above — edit the header fields and a
@@ -105,16 +60,7 @@ make app
 ```
 
 then open the URL `streamlit` prints (defaults to
-[http://localhost:8501](http://localhost:8501)). Or, without installing
-anything locally:
-
-```sh
-make docker-app
-```
-
-which builds the same Docker image as `make docker` and runs it with its
-port published, `-p 8501:8501` — no command override needed, since `app`
-is the image's default.
+[http://localhost:8501](http://localhost:8501)).
 
 The page has a collapsible **Header** section (`topic`/`date`/`attendees`/
 `time`) at the top. Location lives under Topic, and start/end time (12-hour,
@@ -360,9 +306,7 @@ screenshot won't overflow the page. Links are real, clickable PDF links
 resolves it relative to the output PDF's own location on disk, which is
 `pdf/` rather than the repo root; `scripts/markdown_to_pages.py`
 rewrites each relative link with a `../` prefix so it still resolves
-correctly (web URLs are left untouched). This also works with `make
-docker`: the whole project directory, `assets/` included, is mounted
-into the container at build time.
+correctly (web URLs are left untouched).
 
 ## Project structure
 
@@ -411,16 +355,10 @@ into the container at build time.
 │       └── code_editor/      CodeMirror-based editor component
 │                             (markdown/HTML/LaTeX highlighting + native
 │                             browser spellcheck).
-├── docker/
-│   ├── Dockerfile           Container image with the build toolchain (+
-│   │                        the app); see Docker above.
-│   └── docker-compose.yml   Deploys the image as a long-running service;
-│                            see docker-compose above.
 ├── requirements.txt    Python deps for the app (`streamlit`); not needed for
                         `make build`.
-├── Makefile            `make build` / `make docker` / `make app` / `make
-                        docker-app` / `make clean` / `make distclean`.
-└── .dockerignore       Keeps .git and build/ out of the Docker build context.
+└── Makefile            `make build` / `make app` / `make clean` / `make
+                        distclean`.
 ```
 
 Everything under `build/` is generated, not source — don't hand-edit those
@@ -442,9 +380,7 @@ python3 scripts/yaml_to_settings.py settings/page.yaml build/cornell-page-settin
   regular `make build`. Useful for regenerating the reference PDF that
   demonstrates this pipeline's Markdown syntax without touching your own
   notes.
-- `make docker` — runs the same build inside Docker; see [Docker](#docker) above.
-- `make app` / `make docker-app` — runs the [Streamlit editor app](#streamlit-editor-app),
-  locally or in Docker.
+- `make app` — runs the [Streamlit editor app](#streamlit-editor-app).
 - `make clean` — removes pdflatex's intermediate files, keeps the PDF.
 - `make distclean` — also removes the generated `build/` files and the PDF.
 
@@ -475,8 +411,8 @@ border_inset: 2pt
   margin that keeps thick strokes inside the printable area, each a
   LaTeX length.
 
-Edit the file and run `make build` (or `make docker`) again; every page
-picks up the change automatically. Under the hood this generates
+Edit the file and run `make build` again; every page picks up the change
+automatically. Under the hood this generates
 `build/cornell-page-settings.tex`, the same pattern as the header and
 content files above.
 

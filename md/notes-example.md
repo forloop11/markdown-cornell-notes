@@ -82,7 +82,7 @@ $$\int_0^1 x^2\,dx = \frac{1}{3}$$
 
 <https://example.com>
 
-![Tux](assets/tux.jpg){width=50pt}
+![Tux](assets/tux.jpg){width=75px}
 
 # Misc
 

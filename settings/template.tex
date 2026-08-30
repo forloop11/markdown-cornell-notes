@@ -90,9 +90,9 @@
 }
 
 % pandoc emits \st{...} for ~~strikethrough~~, normally provided by the
-% `soul` package. Neither `soul` nor `ulem` is in the Docker image's
-% minimal texlive set (both live only in texlive-latex-extra, a large
-% pull), so this draws the strike line with tikz (already a dependency)
+% `soul` package. Neither `soul` nor `ulem` is in this project's minimal
+% texlive set (both live only in texlive-latex-extra, a large pull), so
+% this draws the strike line with tikz (already a dependency)
 % instead. Unlike soul's \st, this treats its argument as one unbreakable
 % box, so it won't line-wrap mid-phrase -- fine for a struck word or
 % short phrase, not for striking out a whole paragraph.

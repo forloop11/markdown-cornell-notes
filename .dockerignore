@@ -1,9 +1,0 @@
-.git
-build/
-__pycache__/
-*.aux
-*.log
-*.fls
-*.fdb_latexmk
-*.synctex.gz
-app/components/code_editor/frontend_src/node_modules/

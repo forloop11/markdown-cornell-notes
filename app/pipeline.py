@@ -8,12 +8,20 @@ import subprocess
 import sys
 from pathlib import Path
 
+# REPO_ROOT is where this file (and the rest of the pipeline -- scripts/,
+# the Makefile) lives, which for an installed package is the read-only
+# /usr/share/markdown-cornell-notes tree. PROJECT_ROOT is the user's actual
+# project -- the CWD `streamlit run` was launched from, matching `make
+# app`/the installed CLI's "operate on CWD" model (see Makefile's MCN_ROOT).
+# md/, yaml/, pdf/, assets/ are project data and live under PROJECT_ROOT;
+# scripts/ is library code and stays under REPO_ROOT.
 REPO_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path.cwd()
 SCRIPTS_DIR = REPO_ROOT / "scripts"
-MD_DIR = REPO_ROOT / "md"
-YAML_DIR = REPO_ROOT / "yaml"
-PDF_DIR = REPO_ROOT / "pdf"
-ASSETS_DIR = REPO_ROOT / "assets"
+MD_DIR = PROJECT_ROOT / "md"
+YAML_DIR = PROJECT_ROOT / "yaml"
+PDF_DIR = PROJECT_ROOT / "pdf"
+ASSETS_DIR = PROJECT_ROOT / "assets"
 BUILDDIR = "build/app"
 
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -32,6 +40,13 @@ _SAFE_STEM_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 class PipelineError(Exception):
     pass
+
+
+def project_initialized():
+    """Whether PROJECT_ROOT looks like a scaffolded project (see `make
+    init`) -- MD_DIR/YAML_DIR must exist before any read/write below is
+    safe to call."""
+    return MD_DIR.is_dir() and YAML_DIR.is_dir()
 
 
 def yaml_path_for(md_filename):
@@ -215,8 +230,8 @@ def delete_asset_folder(name, subdir=""):
 
 def topic_slug(yaml_path):
     result = subprocess.run(
-        [sys.executable, "scripts/topic_slug.py", str(yaml_path)],
-        cwd=REPO_ROOT,
+        [sys.executable, str(SCRIPTS_DIR / "topic_slug.py"), str(yaml_path)],
+        cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
     )
@@ -232,6 +247,11 @@ def render(md_filename, yaml_path=None):
 
     Returns (success, log, pdf_path). pdf_path is set even on failure when
     it could still be resolved, so the caller can show the previous PDF.
+
+    Runs `make` against REPO_ROOT/Makefile (the library copy -- read-only
+    when installed) but with PROJECT_ROOT as the CWD, so MD/YAML/BUILDDIR
+    below resolve against the user's project, the same as the `-f
+    .../Makefile` (no `-C`) invocation the installed CLI uses.
     """
     if yaml_path is None:
         yaml_path = yaml_path_for(md_filename)
@@ -239,12 +259,13 @@ def render(md_filename, yaml_path=None):
     proc = subprocess.run(
         [
             "make",
+            "-f", str(REPO_ROOT / "Makefile"),
             "build",
             f"MD={md_path}",
-            f"YAML={yaml_path.relative_to(REPO_ROOT)}",
+            f"YAML={yaml_path.relative_to(PROJECT_ROOT)}",
             f"BUILDDIR={BUILDDIR}",
         ],
-        cwd=REPO_ROOT,
+        cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
     )

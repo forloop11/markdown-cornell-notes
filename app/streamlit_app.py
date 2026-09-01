@@ -537,6 +537,14 @@ def _render_pdf_pane():
 
 
 def main():
+    if not pipeline.project_initialized():
+        st.title("Markdown Cornell Notes")
+        st.error(
+            f"No project found in `{pipeline.PROJECT_ROOT}`. Run "
+            "`markdown-cornell-notes init` (or `make init`) in that directory, "
+            "then restart this app from there."
+        )
+        st.stop()
     _init_state()
     files = _resolve_selected_file()
     if st.session_state.selected_file:

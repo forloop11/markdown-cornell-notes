@@ -383,6 +383,85 @@ python3 scripts/yaml_to_settings.py settings/page.yaml build/cornell-page-settin
 - `make app` — runs the [Streamlit editor app](#streamlit-editor-app).
 - `make clean` — removes pdflatex's intermediate files, keeps the PDF.
 - `make distclean` — also removes the generated `build/` files and the PDF.
+- `make deb` — packages this project as a `.deb`; see
+  [Installing as a system package](#installing-as-a-system-package) below.
+- `make init` — scaffolds a fresh `md/`, `yaml/`, `settings/page.yaml`,
+  `pdf/`, and `assets/` (with the `tux.jpg` the example note embeds) in the
+  current directory from the bundled defaults. Only needed when using the
+  installed `.deb` (a git checkout already has these); refuses to run if
+  any of them already exist.
+
+## Installing as a system package
+
+```sh
+make deb                      # -> dist/markdown-cornell-notes_<version>.deb
+sudo apt install ./dist/markdown-cornell-notes_*.deb
+```
+
+This stages the Makefile, scripts, `settings/template.tex`, and the app
+under `/usr/share/markdown-cornell-notes` (read-only, like any installed
+package) and drops a `markdown-cornell-notes` launcher in `/usr/bin`. Unlike
+a git checkout, that install has nowhere writable of its own for your notes,
+so each project lives in whatever directory you run the command from:
+
+```sh
+mkdir ~/notes && cd ~/notes
+markdown-cornell-notes init    # scaffolds md/, yaml/, settings/page.yaml, pdf/, assets/ here
+markdown-cornell-notes build   # same as `make build` above
+```
+
+`markdown-cornell-notes` is just `make` pointed at the installed Makefile —
+every target above (`build`, `build-example`, `clean`, `distclean`, `app`)
+works the same way from inside a project directory, e.g.:
+
+```sh
+cd ~/notes
+markdown-cornell-notes app
+```
+
+opens the [Streamlit editor app](#streamlit-editor-app) on that project;
+running it (or `build`) outside an initialized directory fails with a clear
+"run `markdown-cornell-notes init` first" message rather than a permission
+error.
+
+**Updating an existing install:** the package's version comes from `git
+describe`, so rebuilding `make deb` without a new commit/tag produces a
+`.deb` with the same filename and version as before. `sudo apt install` on
+that file is then a no-op even though its contents changed — use `sudo dpkg
+-i dist/markdown-cornell-notes_*.deb` instead, which reinstalls
+unconditionally, and restart any already-running `markdown-cornell-notes
+app` afterward (it keeps the old code loaded in memory until restarted).
+
+## Installing on macOS (Homebrew)
+
+`Formula/markdown-cornell-notes.rb` packages this the same way as the
+`.deb` above: everything lands in a private prefix (Homebrew's Cellar
+instead of `/usr/share`) and a thin `markdown-cornell-notes` wrapper on the
+`PATH` runs `make -f <prefix>/Makefile`, so builds happen in whatever
+directory you invoke it from.
+
+No tagged release includes the CWD-relative build fixes yet, so install
+straight from `main` for now:
+
+```sh
+brew install --HEAD ./Formula/markdown-cornell-notes.rb   # from a checkout of this repo
+```
+
+or, without cloning first:
+
+```sh
+brew install --HEAD https://raw.githubusercontent.com/forloop11/markdown-cornell-notes/main/Formula/markdown-cornell-notes.rb
+```
+
+This pulls in `pandoc` and `python@3.13` automatically, but not LaTeX
+itself — MacTeX/BasicTeX are Homebrew *casks*, not formulas, and MacTeX
+alone is several GB. `brew install` prints exact `tlmgr` instructions for
+the lightweight BasicTeX path after installing; see the formula's
+`caveats` (or run `brew info markdown-cornell-notes`) if you miss them.
+
+Once a release is tagged, `brew install markdown-cornell-notes` (no
+`--HEAD`) will work from a proper versioned tarball instead — the formula
+has a comment marking where to fill in the new `url`/`sha256`.
 
 ## Customizing the layout
 

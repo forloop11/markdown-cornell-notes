@@ -1,0 +1,12 @@
+Package: markdown-cornell-notes
+Version: 1.0.0-33-gb18a905
+Section: text
+Priority: optional
+Architecture: all
+Depends: python3, make, pandoc, latexmk, texlive-latex-extra, texlive-latex-recommended, texlive-pictures
+Suggests: python3-pip
+Maintainer: Todd C. Takala <todd.c.takala@gmail.com>
+Description: Cornell-style meeting notes generator (LaTeX/Markdown)
+ Generates Cornell-note-taking-system PDFs from YAML header files and
+ Markdown content, with an optional Streamlit editor UI (pip install
+ streamlit separately).

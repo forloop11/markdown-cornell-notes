@@ -1,0 +1,10 @@
+# Header details for the first \cornellpage in settings/template.tex.
+# Run `python3 scripts/yaml_to_header.py` to regenerate build/cornell-header.tex, then
+# compile settings/template.tex with pdflatex as usual.
+
+topic: "Testing 3"
+date: "2026-08-08"
+attendees: "Todd"
+time: "10:30--11:00 MST"
+timezone: "America/Phoenix"
+location: "Test Site"

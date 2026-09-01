@@ -1,0 +1,470 @@
+% !TEX program = pdflatex
+%
+% Cornell-style meeting notes template.
+%
+% Layout (per page):
+%   +----------------------------------------------------+
+%   |            Header: meeting details & metadata      |
+%   +----------------------------------------+-----------+
+%   |                                        |   Cue      |
+%   |           Main panel for notes         |  column    |
+%   |                                        |  (hand-    |
+%   |                                        |  writing)  |
+%   +----------------------------------------+-----------+
+%   |           Summary band (for hand writing)            |
+%   +----------------------------------------------------+
+%
+% Usage: call \cornellpage{notes} once per page (see example at bottom).
+% Header fields come from notes.yaml and apply to every page; page
+% numbers are automatic. Adjustable knobs are in the
+% "TEMPLATE CONFIGURATION" block below.
+%
+% Main content frame: written in notes.md and converted to
+% build/cornell-content.tex (one \cornellFlow{...} per section) by
+% `python3 scripts/markdown_to_pages.py` (or `make build`, which runs it
+% automatically). \cornellFlow measures its content and automatically
+% breaks it across as many pages as it needs. To force an extra break
+% between two sections regardless, put a line containing only
+%     <!-- pagebreak -->
+% between them in notes.md.
+
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[letterpaper,margin=0.5in]{geometry}
+\usepackage{tikz}
+\usepackage{xcolor}
+\usetikzlibrary{calc}
+% Support for notes.md/pandoc output: task-list checkboxes (amssymb's
+% \square/\boxtimes) and pipe tables (longtable/booktabs). All three are
+% already pulled in by texlive-latex-recommended, so this costs nothing
+% in image size.
+\usepackage{amssymb}
+\usepackage{longtable}
+\usepackage{booktabs}
+% Real clickable links/bookmarks for notes.md images and linked documents
+% (see assets/); loaded last, as is customary for hyperref. hidelinks
+% keeps the printed page free of colored/boxed link decoration.
+\usepackage[hidelinks]{hyperref}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+
+% pandoc's LaTeX output uses \tightlist in itemize/enumerate bodies; it's
+% normally defined by pandoc's own document template, which we bypass
+% since we only take fragment output (see scripts/markdown_to_pages.py).
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+% Bulleted list for cue-column entries (scripts/markdown_to_pages.py's
+% "^<page> <text>" directive; see \cnCueText below). itemize's default
+% leftmargin (~2.5em) eats too much of the narrow cue column, so this
+% uses a plain `list` with a much smaller one instead, hugging the
+% column's left edge.
+\newenvironment{cnCueList}{%
+  \begin{list}{\textbullet}{%
+    \setlength{\leftmargin}{1em}\setlength{\itemindent}{0pt}%
+    \setlength{\itemsep}{0pt}\setlength{\parsep}{0pt}%
+    \setlength{\topsep}{0pt}\setlength{\partopsep}{0pt}%
+  }%
+}{%
+  \end{list}%
+}
+
+% Numbered list for summary-band entries (scripts/markdown_to_pages.py's
+% "^^<page> <text>" directive; see \cnSummaryText below). Same tight,
+% narrow-column margin treatment as cnCueList above, but with an "N."
+% label instead of a bullet -- summary-band text is typeset one column
+% at a time (see \cnSummaryColW in \cornellpage), so it's just as narrow
+% as the cue column.
+\newcounter{cnSummaryListCtr}
+\newenvironment{cnSummaryList}{%
+  \begin{list}{\arabic{cnSummaryListCtr}.}{%
+    \usecounter{cnSummaryListCtr}%
+    \setlength{\leftmargin}{1.5em}\setlength{\itemindent}{0pt}%
+    \setlength{\itemsep}{0pt}\setlength{\parsep}{0pt}%
+    \setlength{\topsep}{0pt}\setlength{\partopsep}{0pt}%
+  }%
+}{%
+  \end{list}%
+}
+
+% pandoc emits \st{...} for ~~strikethrough~~, normally provided by the
+% `soul` package. Neither `soul` nor `ulem` is in this project's minimal
+% texlive set (both live only in texlive-latex-extra, a large pull), so
+% this draws the strike line with tikz (already a dependency)
+% instead. Unlike soul's \st, this treats its argument as one unbreakable
+% box, so it won't line-wrap mid-phrase -- fine for a struck word or
+% short phrase, not for striking out a whole paragraph.
+\providecommand{\st}[1]{%
+  \tikz[baseline=(cnStText.base)]{
+    \node[inner sep=0pt,outer sep=0pt] (cnStText) {#1};
+    \draw[line width=0.5pt]
+      ($(cnStText.west)+(0,0.55ex)$) -- ($(cnStText.east)+(0,0.55ex)$);
+  }%
+}
+
+% Images from notes.md (e.g. ![](assets/foo.png)) default-fit to the
+% notes panel width instead of overflowing it.
+\setkeys{Gin}{width=\linewidth}
+
+% When notes.md sizes an image with only one dimension (e.g.
+% ![](img.png){width=50pt}), pandoc pairs it with an explicit
+% height=\textheight/\textwidth rather than leaving height unset. Without
+% keepaspectratio, \includegraphics stretches to satisfy both dimensions
+% exactly, badly distorting the image. Force keepaspectratio on every
+% \includegraphics call so sized images scale instead of warping.
+\let\cnOrigIncludegraphics\includegraphics
+\renewcommand{\includegraphics}[2][]{\cnOrigIncludegraphics[#1,keepaspectratio]{#2}}
+
+\newbox\cnFlowBox
+\newbox\cnFlowSplit
+\newbox\cnCueBox
+\newbox\cnSummaryBox
+\newbox\cnSummaryColA
+\newbox\cnSummaryColB
+
+% Directory the generated cornell-*.tex fragments below live in. The
+% Makefile overrides this per invocation (via latexmk's -usepretex, which
+% runs before this \providecommand, so it wins) with BUILDDIR -- e.g.
+% build/example for `make build-example`, build/app for the Streamlit app
+% -- so that concurrent/isolated builds actually use their own generated
+% content instead of silently reading over each other's build/ directory.
+\providecommand{\cnBuildDir}{build}
+
+% ------------------------------------------------------------------
+% Header fields sourced from notes.yaml.
+% Run `python3 scripts/yaml_to_header.py` to (re)generate
+% build/cornell-header.tex from notes.yaml before compiling; these
+% \newcommand defaults keep the build working even if that hasn't been
+% done yet.
+% ------------------------------------------------------------------
+\newcommand{\cnHdrTopic}{}
+\newcommand{\cnHdrDate}{}
+\newcommand{\cnHdrAttendees}{}
+\newcommand{\cnHdrTime}{}
+% Not typeset directly -- round-trips the app's IANA zone name (e.g.
+% "America/Los_Angeles") through notes.yaml so its timezone dropdown can
+% restore the exact zone on reload. The zone abbreviation shown on the
+% page (e.g. "PDT") is baked into \cnHdrTime itself by the app.
+\newcommand{\cnHdrTimezone}{}
+% Typeset via \cnHdrTimeLine below, not appended to \cnHdrTime itself --
+% keeps notes.yaml's "time" and "location" fields independent, so the
+% Time row always reflects the current "location" value.
+\newcommand{\cnHdrLocation}{}
+\IfFileExists{\cnBuildDir/cornell-header.tex}{\input{\cnBuildDir/cornell-header.tex}}{}
+
+% The Time row's displayed text: \cnHdrTime plus \cnHdrLocation, joined by
+% ", " only when both are non-empty (mirrors the old single composed
+% "time" string, but reconstructed from the two fields at build time
+% instead of relying on the app to have concatenated them beforehand).
+\newcommand{\cnEmptyMarker}{}
+\newcommand{\cnHdrTimeLine}{%
+  \ifx\cnHdrTime\cnEmptyMarker
+    \cnHdrLocation%
+  \else
+    \ifx\cnHdrLocation\cnEmptyMarker
+      \cnHdrTime%
+    \else
+      \cnHdrTime, \cnHdrLocation%
+    \fi
+  \fi
+}
+
+% Cue-column text for a given page number, from notes.md's "^<page> <text>"
+% directive lines (see scripts/markdown_to_pages.py). \cnCueText{3} expands
+% to whatever notes.md targeted at page 3, or nothing if none did.
+\newcommand{\cnCueText}[1]{}
+\IfFileExists{\cnBuildDir/cornell-cue.tex}{\input{\cnBuildDir/cornell-cue.tex}}{}
+
+% Summary-band text for a given page number, from notes.md's
+% "^^<page> <text>" directive lines (see scripts/markdown_to_pages.py).
+\newcommand{\cnSummaryText}[1]{}
+\IfFileExists{\cnBuildDir/cornell-summary.tex}{\input{\cnBuildDir/cornell-summary.tex}}{}
+
+% ------------------------------------------------------------------
+% TEMPLATE CONFIGURATION
+% ------------------------------------------------------------------
+\newlength{\cnPageW}       % drawable width  (slightly under \textwidth)
+\newlength{\cnPageH}       % drawable height (slightly under \textheight)
+\newlength{\cnHeaderHeight}
+\newlength{\cnSummaryHeight} % the band at the bottom of the page
+\newlength{\cnBodyTop}     % y-coordinate of the body/header boundary
+\newlength{\cnCueWidth}
+\newlength{\cnCueTextX}    % x-coordinate of the cue column's text area
+\newlength{\cnCueTextW}    % usable text width of the cue column
+\newlength{\cnSummaryColW} % usable text width of one summary-band column
+\newlength{\cnSummaryColH} % usable text height of one summary-band column
+\newlength{\cnSummaryColBX} % x-coordinate of the summary band's second column
+\newlength{\cnNotesWidth}
+\newlength{\cnHalfWidth}
+\newlength{\cnPad}
+\newlength{\cnBorderInset} % safety margin so thick-stroke ink stays inside \textwidth/\textheight
+\newlength{\cnNotesPanelH} % usable height of the main notes panel, for \vsplit pagination
+
+% Header/cue-column/summary-band sizing, as fractions of the drawable page.
+\newcommand{\cnHeaderHeightFrac}{0.12}
+\newcommand{\cnCueWidthFrac}{0.25}
+\newcommand{\cnSummaryHeightFrac}{0.18}
+
+\setlength{\cnPad}{0.12in}                   % inner padding for text
+\setlength{\cnBorderInset}{2pt}
+
+% ------------------------------------------------------------------
+% Page geometry, header/cue-column/summary-band fractions, and spacing
+% sourced from settings/page.yaml. Run `python3 scripts/yaml_to_settings.py`
+% to (re)generate build/cornell-page-settings.tex from it before
+% compiling; the defaults just above keep the build working even if
+% that hasn't been done yet.
+% ------------------------------------------------------------------
+\IfFileExists{\cnBuildDir/cornell-page-settings.tex}{\input{\cnBuildDir/cornell-page-settings.tex}}{}
+
+% \textwidth/\textheight are only finalized by geometry at
+% \begin{document}, so the fractional lengths above must be computed
+% then, not in the preamble (where they'd still hold article's defaults).
+\AtBeginDocument{%
+  \setlength{\cnPageW}{\textwidth}\addtolength{\cnPageW}{-\cnBorderInset}
+  \setlength{\cnPageH}{\textheight}\addtolength{\cnPageH}{-\cnBorderInset}
+
+  \setlength{\cnHeaderHeight}{\cnHeaderHeightFrac\cnPageH}    % header band
+  \setlength{\cnSummaryHeight}{\cnSummaryHeightFrac\cnPageH}  % summary band
+  \setlength{\cnBodyTop}{\cnPageH}
+  \addtolength{\cnBodyTop}{-\cnHeaderHeight}
+
+  \setlength{\cnCueWidth}{\cnCueWidthFrac\cnPageW}        % right-hand column
+  \setlength{\cnNotesWidth}{\cnPageW}
+  \addtolength{\cnNotesWidth}{-\cnCueWidth}
+
+  \setlength{\cnCueTextX}{\cnNotesWidth}\addtolength{\cnCueTextX}{\cnPad}
+  \setlength{\cnCueTextW}{\cnCueWidth}\addtolength{\cnCueTextW}{-2\cnPad}
+
+  \setlength{\cnHalfWidth}{0.5\cnPageW}        % summary-band column width
+
+  % Summary band splits into two side-by-side columns (left then right)
+  % so a lot of "^^<page>" text grows sideways instead of vertically past
+  % the band -- see \cornellpage below, which \vsplits the typeset text
+  % at \cnSummaryColH into these two columns. Both columns are inset from
+  % the page edges and the shared \cnHalfWidth divider by \cnPad.
+  \setlength{\cnSummaryColW}{\cnHalfWidth}\addtolength{\cnSummaryColW}{-1.5\cnPad}
+  \setlength{\cnSummaryColH}{\cnSummaryHeight}\addtolength{\cnSummaryColH}{-2\cnPad}
+  \setlength{\cnSummaryColBX}{\cnHalfWidth}\addtolength{\cnSummaryColBX}{0.5\cnPad}
+
+  % usable size of the main notes panel, for \vsplit-based pagination
+  \setlength{\cnNotesTextW}{\cnNotesWidth}\addtolength{\cnNotesTextW}{-2\cnPad}
+  \setlength{\cnNotesPanelH}{\cnBodyTop}
+  \addtolength{\cnNotesPanelH}{-\cnSummaryHeight}
+  \addtolength{\cnNotesPanelH}{-2\cnPad}
+}
+
+% scratch registers used while laying out each page
+\newlength{\cnRowAY}
+\newlength{\cnRowBY}
+\newlength{\cnMeetW}
+\newlength{\cnDateX}
+\newlength{\cnDateW}
+\newlength{\cnAttW}
+\newlength{\cnTLX}
+\newlength{\cnTLW}
+\newlength{\cnCapMidX}
+\newlength{\cnCapRightX}
+\newlength{\cnNotesTextW}
+\newlength{\cnNotesTextY}
+\newlength{\cnSummaryTextY}    % y-coordinate of the summary band's text area
+
+% A labelled fill-in blank: label at top-left (x,y); an optional typed
+% value on the line below it, wrapped to width w so it can never spill
+% into a neighboring field; and a rule underneath for writing by hand.
+% x, y, w must be bare dimensions (no arithmetic).
+\newcommand{\cnField}[5]{% x, y (top-left), width, label, value
+  \cnFieldNoRule{#1}{#2}{#3}{#4}{#5}%
+  \draw[gray!70] ($(#1,#2)+(0pt,-34pt)$) -- ($(#1,#2)+(#3,-34pt)$);
+}
+
+% Same as \cnField but without the rule underneath.
+\newcommand{\cnFieldNoRule}[5]{% x, y (top-left), width, label, value
+  \node[anchor=north west,font=\bfseries\footnotesize,inner sep=0pt]
+    at (#1,#2) {#4};
+  \node[anchor=north west,align=left,font=\footnotesize,inner sep=0pt,
+        text width=#3] at ($(#1,#2)+(0pt,-11pt)$) {#5};
+}
+
+% ------------------------------------------------------------------
+% \cornellpage{Notes content}
+%
+% Call once per page. Header fields (Topic/Date/Attendees/Time)
+% come from \cnHdrTopic etc. (see notes.yaml) and are applied to every
+% page automatically. Pass an empty group ({}) for "Notes content" to
+% leave the main panel blank for handwriting instead of typed text.
+% The page number in the header's upper-right corner is automatic.
+% ------------------------------------------------------------------
+\newif\ifcnfirstpage
+\cnfirstpagetrue
+
+\newcommand{\cornellpage}[1]{%
+  % \global is required here: \cornellpage is always called from inside
+  % a \cornellFlow (see below), and \newenvironment wraps every
+  % environment's body in its own TeX group -- a plain (non-\global)
+  % \cnfirstpagefalse would only last until that \cornellFlow's
+  % \end{cornellFlow} closes the group, then silently revert to true.
+  % With a single \cornellFlow block (one notes.md section, the common
+  % case) that's invisible, since nothing rechecks it afterward; with a
+  % second \cornellFlow block (from a "<!-- pagebreak -->" in notes.md),
+  % its first \cornellpage call would wrongly see \cnfirstpage as true
+  % again, skip \newpage, and every page from there on would render
+  % with the previous page's already-typeset \thepage value.
+  \ifcnfirstpage\global\cnfirstpagefalse\else\newpage\fi
+  % --- precompute header field geometry -------------------------------
+  \setlength{\cnRowAY}{\cnPageH}\addtolength{\cnRowAY}{-8pt}
+  \setlength{\cnRowBY}{\cnRowAY}\addtolength{\cnRowBY}{-0.5\cnHeaderHeight}
+
+  \setlength{\cnMeetW}{0.62\cnPageW}\addtolength{\cnMeetW}{-2\cnPad}
+  \setlength{\cnDateX}{0.64\cnPageW}
+  \setlength{\cnDateW}{0.36\cnPageW}\addtolength{\cnDateW}{-\cnPad}
+
+  % Attendees/Time mirror Topic/Date's column split so Time lands
+  % directly below Date.
+  \setlength{\cnAttW}{\cnMeetW}
+  \setlength{\cnTLX}{\cnDateX}
+  \setlength{\cnTLW}{\cnDateW}
+
+  \setlength{\cnCapMidX}{\cnHalfWidth}\addtolength{\cnCapMidX}{\cnPad}
+  \setlength{\cnCapRightX}{\cnPageW}\addtolength{\cnCapRightX}{-\cnPad}
+
+  \setlength{\cnNotesTextW}{\cnNotesWidth}\addtolength{\cnNotesTextW}{-2\cnPad}
+  \setlength{\cnNotesTextY}{\cnBodyTop}\addtolength{\cnNotesTextY}{-\cnPad}
+  \setlength{\cnSummaryTextY}{\cnSummaryHeight}\addtolength{\cnSummaryTextY}{-\cnPad}
+
+  % Typeset this page's cue text.
+  \setbox\cnCueBox=\vbox{\hsize=\the\cnCueTextW\linewidth=\hsize\footnotesize\noindent\cnCueText{\thepage}}%
+
+  % Summary text is typeset at one column's width, then \vsplit at one
+  % column's height: whatever fits lands in column 1, and any overflow
+  % (rather than running past the band) lands in column 2 instead. A
+  % page with little/no summary text ends up with an empty (\ifvoid)
+  % column 2.
+  \setbox\cnSummaryBox=\vbox{\hsize=\the\cnSummaryColW\linewidth=\hsize\footnotesize
+    \noindent\cnSummaryText{\thepage}\par\vfil\penalty-10000}%
+  \setbox\cnSummaryColA=\vsplit\cnSummaryBox to \cnSummaryColH\relax
+  \ifvoid\cnSummaryBox
+    % Nothing overflowed into column 2 -- clear it explicitly, since
+    % otherwise it would still hold column 2's box from whichever
+    % earlier page last had overflow (box registers are global and
+    % persist across \cornellpage calls until reassigned).
+    \setbox\cnSummaryColB=\hbox{}%
+  \else
+    \setbox\cnSummaryColB=\vsplit\cnSummaryBox to \cnSummaryColH\relax
+  \fi
+
+  \noindent
+  \begin{tikzpicture}
+    % --- outer border + row/column dividers (table skeleton) ---
+    \draw[black,thick] (0,0) rectangle (\the\cnPageW,\the\cnPageH);
+    \draw[black,thick] (0,\the\cnSummaryHeight) -- (\the\cnPageW,\the\cnSummaryHeight); % summary / body
+    \draw[black,thick] (0,\the\cnBodyTop) -- (\the\cnPageW,\the\cnBodyTop);             % body / header
+    \draw[black,thick] (\the\cnNotesWidth,\the\cnSummaryHeight) -- (\the\cnNotesWidth,\the\cnBodyTop); % notes / cue
+    % No visible divider between the summary band's two columns (see
+    % \cnHalfWidth/\cnSummaryColBX below) -- they're a layout/wrap detail,
+    % not a boundary meant to be seen.
+
+    % --- header fields (label + optional typed value) --------------------
+    \cnField{\the\cnPad}{\the\cnRowAY}{\the\cnMeetW}{Topic:}{\cnHdrTopic}
+    \cnField{\the\cnDateX}{\the\cnRowAY}{\the\cnDateW}{Date:}{\cnHdrDate}
+
+    \cnFieldNoRule{\the\cnPad}{\the\cnRowBY}{\the\cnAttW}{Attendees:}{\cnHdrAttendees}
+    \cnFieldNoRule{\the\cnTLX}{\the\cnRowBY}{\the\cnTLW}{Time:}{\cnHdrTimeLine}
+
+    % --- region captions --------------------------------------------------
+    \node[anchor=south west,font=\itshape\scriptsize,gray,inner sep=2pt]
+      at (\the\cnPad,0pt) {};
+    \node[anchor=south west,font=\itshape\scriptsize,gray,inner sep=2pt]
+      at (\the\cnCapMidX,0pt) {};
+    \node[anchor=south east,font=\itshape\scriptsize,gray,inner sep=2pt]
+      at (\the\cnCapRightX,\the\cnSummaryHeight) {};
+
+    % --- auto page number: upper-right corner of the header box ---------
+    \node[anchor=north east,font=\itshape\scriptsize,gray,inner sep=2pt]
+      at (\the\cnCapRightX,\the\cnPageH) {Page \thepage};
+
+    % --- main notes panel (typed content, or blank for handwriting) -----
+    \node[anchor=north west,align=left,
+          text width=\the\cnNotesTextW,
+          inner sep=0pt] at (\the\cnPad,\the\cnNotesTextY) {#1};
+
+    % --- cue column text for this page (notes.md's "^<page> <text>") ----
+    \node[anchor=north west,inner sep=0pt]
+      at (\the\cnCueTextX,\the\cnNotesTextY) {\box\cnCueBox};
+
+    % --- summary band text for this page (notes.md's "^^<page> <text>"),
+    % column 1 then column 2 (overflow from column 1) ---
+    \node[anchor=north west,inner sep=0pt]
+      at (\the\cnPad,\the\cnSummaryTextY) {\box\cnSummaryColA};
+    \node[anchor=north west,inner sep=0pt]
+      at (\the\cnSummaryColBX,\the\cnSummaryTextY) {\box\cnSummaryColB};
+  \end{tikzpicture}%
+  \par
+}
+
+% ------------------------------------------------------------------
+% \begin{cornellFlow} content \end{cornellFlow}
+%
+% Typesets content into the notes panel and, unlike \cornellpage, breaks
+% it across as many pages as it actually needs: content is measured into
+% a single tall box, then repeatedly \vsplit at the panel height, calling
+% \cornellpage once per resulting chunk (each with the header and page
+% number applied automatically, as usual).
+%
+% This is an environment rather than a \newcommand argument so that
+% verbatim-family environments (pandoc's rendering of Markdown code
+% blocks) can appear inside it: verbatim needs to read its body live,
+% off the main input stream, which a macro argument's pre-scan would
+% prevent.
+%
+% \cnfinalflow marks the very last cornellFlow block in the document
+% (set by scripts/markdown_to_pages.py, which is the only thing that
+% knows how many cornellFlow blocks notes.md produces); \cnlastpage is
+% then true only for that block's own last \vsplit'd page -- i.e. the
+% document's actual final page. \cnCueText/\cnSummaryText (see
+% scripts/markdown_to_pages.py's render_directive_tex) check \cnlastpage
+% to render a "^<page>"/"^^<page>" directive whose target page is beyond
+% the document's real length there, instead of it silently never
+% appearing.
+% ------------------------------------------------------------------
+\newif\ifcnfinalflow
+\cnfinalflowfalse
+\newif\ifcnlastpage
+\cnlastpagefalse
+
+\newenvironment{cornellFlow}{%
+  \setbox\cnFlowBox=\vbox\bgroup
+    \hsize=\cnNotesTextW
+    \linewidth=\hsize
+    \footnotesize
+    \noindent
+}{%
+    \par\vfil\penalty-10000
+  \egroup
+  \cnFlowLoop
+}
+\def\cnFlowLoop{%
+  \ifvoid\cnFlowBox
+  \else
+    \setbox\cnFlowSplit=\vsplit\cnFlowBox to \cnNotesPanelH\relax
+    \cnlastpagefalse
+    \ifvoid\cnFlowBox\ifcnfinalflow\cnlastpagetrue\fi\fi
+    \cornellpage{\box\cnFlowSplit}%
+    \cnFlowLoop
+  \fi
+}
+
+\begin{document}
+
+% ------------------------------------------------------------------
+% One \cornellpage per page of notes.md (split on "<!-- pagebreak -->");
+% see build/cornell-content.tex generation notes above. Each page
+% automatically gets the same header (from notes.yaml) and the next
+% page number.
+% ------------------------------------------------------------------
+
+\input{\cnBuildDir/cornell-content.tex}
+
+\end{document}

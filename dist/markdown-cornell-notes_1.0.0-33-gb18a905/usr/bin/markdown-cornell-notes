@@ -1,0 +1,4 @@
+#!/bin/sh
+# No -C: keep the caller's CWD as the project directory (see "make init")
+# instead of running in place inside the root-owned /usr/share tree.
+exec make -f /usr/share/markdown-cornell-notes/Makefile "$@"

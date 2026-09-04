@@ -463,6 +463,62 @@ Once a release is tagged, `brew install markdown-cornell-notes` (no
 `--HEAD`) will work from a proper versioned tarball instead — the formula
 has a comment marking where to fill in the new `url`/`sha256`.
 
+## Running with Docker
+
+`Dockerfile` packages this the same way as the `.deb`/Homebrew formula
+above (see [Installing as a system package](#installing-as-a-system-package)):
+everything lands under `/usr/share/markdown-cornell-notes` and a thin
+`markdown-cornell-notes` wrapper on `PATH` runs `make -f <that>/Makefile`.
+Unlike the other two, it bundles the [Streamlit editor app](#streamlit-editor-app)'s
+`pip install` too, since there's no Debian/Homebrew-style "system package
+manager" constraint to keep it out of Depends.
+
+Build the image, then bind-mount a project directory at `/project` (the
+image's `WORKDIR`) and pass `--user "$(id -u):$(id -g)"` so generated files
+are owned by you, not root:
+
+```sh
+docker build -t markdown-cornell-notes .
+
+mkdir ~/notes && cd ~/notes
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/project markdown-cornell-notes init
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/project markdown-cornell-notes build
+```
+
+The image's `ENTRYPOINT` is `markdown-cornell-notes` itself, so any command
+works the same way `make <target>` does above (`build`, `build-example`,
+`clean`, `distclean`, `app`) — just append it after the image name, e.g.:
+
+```sh
+docker run --rm --user "$(id -u):$(id -g)" -p 8501:8501 -v "$PWD":/project markdown-cornell-notes app
+```
+
+opens the Streamlit editor on `http://localhost:8501` for that project
+(the `-p` publishes the container's port; `app`'s `--server.address=0.0.0.0`
+in the Makefile is what makes it reachable at all from outside the
+container).
+
+Typing the full `docker run --rm --user ... -v "$PWD":/project` prefix for
+every command gets old fast — an `mcn` alias in your shell rc file
+(`~/.bashrc`, `~/.zshrc`) collapses it down to the same `init`/`build`/`app`
+commands as the `.deb`/Homebrew install:
+
+```sh
+alias mcn='docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/project markdown-cornell-notes'
+alias mcn-app='docker run --rm --user "$(id -u):$(id -g)" -p 8501:8501 -v "$PWD":/project markdown-cornell-notes app'
+```
+
+```sh
+mkdir ~/notes && cd ~/notes
+mcn init
+mcn build
+mcn-app     # opens http://localhost:8501
+```
+
+`-v "$PWD":/project` means these only work from inside a project
+directory (or a fresh one you're about to `init`) — same CWD-relative
+requirement as the `.deb`'s `markdown-cornell-notes` launcher.
+
 ## Customizing the layout
 
 `settings/page.yaml` controls the page geometry and layout proportions —

@@ -244,10 +244,14 @@ def topic_slug(yaml_path):
     return result.stdout.strip()
 
 
-def render(md_filename, yaml_path=None):
+def render(md_filename, yaml_path=None, builddir=None):
     """Run `make build` for the given markdown file, using a scratch
     BUILDDIR dedicated to the app so it never collides with (or goes stale
     against) a manual `make build`/`make build-example` run from the CLI.
+    Pass a caller-specific `builddir` (e.g. one keyed off the Streamlit
+    session) when two renders could otherwise run concurrently -- two
+    sessions sharing the default BUILDDIR would race on the same
+    intermediate `.tex`/`.aux` files.
 
     Returns (success, log, pdf_path). pdf_path is set even on failure when
     it could still be resolved, so the caller can show the previous PDF.
@@ -259,6 +263,8 @@ def render(md_filename, yaml_path=None):
     """
     if yaml_path is None:
         yaml_path = yaml_path_for(md_filename)
+    if builddir is None:
+        builddir = BUILDDIR
     md_path = f"md/{md_filename}"
     proc = subprocess.run(
         [
@@ -267,7 +273,7 @@ def render(md_filename, yaml_path=None):
             "build",
             f"MD={md_path}",
             f"YAML={yaml_path.relative_to(PROJECT_ROOT)}",
-            f"BUILDDIR={BUILDDIR}",
+            f"BUILDDIR={builddir}",
         ],
         cwd=PROJECT_ROOT,
         capture_output=True,

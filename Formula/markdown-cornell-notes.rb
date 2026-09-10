@@ -13,6 +13,7 @@ class MarkdownCornellNotes < Formula
 
   depends_on "pandoc"
   depends_on "python@3.13"
+  depends_on "pytest" => :test
 
   # No `depends_on` for LaTeX itself -- MacTeX/BasicTeX ship as Homebrew
   # casks, not formulas, and MacTeX alone is several GB. See caveats below.
@@ -71,5 +72,18 @@ class MarkdownCornellNotes < Formula
     assert_path_exists testpath/"yaml/notes.yaml"
     assert_path_exists testpath/"md/notes.md"
     assert_path_exists testpath/"settings/page.yaml"
+
+    # Runs the app/pipeline.py + scripts/simple_yaml.py unit test suite
+    # (see tests/, pytest.ini) via the Homebrew-provided `pytest` binary
+    # rather than the Makefile's own `test` target (`python3 -m pytest`):
+    # that needs pytest importable by the depends_on "python@3.13"
+    # interpreter specifically, which the separate `pytest` formula
+    # doesn't provide -- it's a self-contained binary, not a module
+    # installed into some other formula's site-packages. pytest.ini's
+    # `pythonpath = app scripts` still makes `pipeline`/`simple_yaml`
+    # importable no matter which interpreter built the pytest binary.
+    cd libexec do
+      system "pytest"
+    end
   end
 end

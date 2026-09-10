@@ -38,7 +38,7 @@ LATEXMK  := latexmk
 # in that recursive call) -- checking the *default* $(MD)/$(YAML) here would
 # wrongly demand a project the example build never touches. It still needs
 # $(SETTINGS_YAML) though, since that one isn't overridden.
-NO_PROJECT_NEEDED := init deb clean distclean app
+NO_PROJECT_NEEDED := init deb clean distclean app test
 NEEDS_PROJECT := $(filter-out $(NO_PROJECT_NEEDED),$(or $(MAKECMDGOALS),build))
 NEEDS_MD_YAML := $(filter-out build-example,$(NEEDS_PROJECT))
 ifneq ($(NEEDS_MD_YAML),)
@@ -70,7 +70,7 @@ EXAMPLE_MD       := $(MCN_ROOT)md/notes-example.md
 EXAMPLE_YAML     := $(MCN_ROOT)yaml/notes-example.yaml
 EXAMPLE_BUILDDIR := build/example
 
-.PHONY: build clean distclean build-example app deb init
+.PHONY: build clean distclean build-example app deb init test
 
 build: $(PDF)
 	$(LATEXMK) -c -jobname=$(JOBNAME) -outdir=$(OUTDIR) $(TEX)
@@ -88,6 +88,16 @@ build-example:
 # network, not just localhost.
 app:
 	streamlit run $(MCN_ROOT)app/streamlit_app.py --server.address=0.0.0.0
+
+# Unit tests for app/pipeline.py and scripts/simple_yaml.py's pure functions
+# (requires `pip install -r requirements-dev.txt` first) -- runs against a
+# tmp_path project (see tests/conftest.py), never the CWD's own md/yaml/
+# assets, so it doesn't need (or touch) a scaffolded project. Covers
+# topic_slug() (a cheap pure-Python subprocess) but not pipeline.render()
+# itself, which needs the full pandoc/TeX Live toolchain rather than a
+# quick unit test.
+test:
+	cd $(MCN_ROOT) && python3 -m pytest
 
 # Packages this project as a .deb (dist/markdown-cornell-notes_<version>.deb)
 # for Debian/Ubuntu -- see scripts/build_deb.sh for what it stages and which

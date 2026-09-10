@@ -7,6 +7,8 @@ the browser. Run with `make app` (see ../Makefile) or directly:
 import base64
 import datetime
 import re
+import shutil
+import uuid
 import zoneinfo
 from pathlib import Path
 
@@ -168,6 +170,23 @@ def _ensure_header_loaded(filename):
         st.session_state[time_keys["location"]] = fields["location"] or location
 
 
+@st.cache_resource
+def _prune_stale_build_dirs():
+    # st.cache_resource caches across every session of this server process,
+    # so this body runs exactly once, on whichever session calls it first --
+    # before any session has had a chance to create its own build/app-<id>
+    # (see _do_render's per-session BUILDDIR). Anything matching app-* found
+    # here must be left over from a *previous* run of the app (the process
+    # was restarted, e.g. `make app` re-run after a crash or a plain
+    # Ctrl-C), since otherwise nothing would have created it yet.
+    build_root = pipeline.PROJECT_ROOT / "build"
+    if not build_root.is_dir():
+        return
+    for child in build_root.iterdir():
+        if child.is_dir() and child.name.startswith("app-"):
+            shutil.rmtree(child, ignore_errors=True)
+
+
 def _init_state():
     if "selected_file" not in st.session_state:
         files = pipeline.list_markdown_files()
@@ -175,6 +194,7 @@ def _init_state():
 
     st.session_state.setdefault("drafts", {})
     st.session_state.setdefault("last_saved", {})
+    st.session_state.setdefault("rendered_snapshot", {})
     st.session_state.setdefault("pdf_bytes", None)
     st.session_state.setdefault("pdf_name", None)
     st.session_state.setdefault("build_ok", None)
@@ -186,13 +206,26 @@ def _init_state():
     st.session_state.setdefault("asset_uploader_version", 0)
     st.session_state.setdefault("asset_current_dir", "")
     st.session_state.setdefault("asset_folder_input_version", 0)
+    st.session_state.setdefault("checked_existing_pdf", set())
+    # Keys a per-session BUILDDIR (see _do_render) so two sessions rendering
+    # around the same time never race on the same scratch directory.
+    st.session_state.setdefault("build_id", uuid.uuid4().hex)
 
     # Opportunistically show a PDF that already exists on disk for the
-    # selected file's header, so there's something in the right pane
-    # before the user has clicked Render at all.
-    if st.session_state.pdf_bytes is None and st.session_state.selected_file:
+    # selected file's header, so there's something in the right pane before
+    # the user has clicked Render at all. Only worth checking once per file
+    # per session -- topic_slug() shells out to a subprocess, and if no PDF
+    # exists yet, nothing changes that fact until an actual Render (which
+    # sets pdf_bytes directly in _do_render(), bypassing this check anyway).
+    filename = st.session_state.selected_file
+    if (
+        st.session_state.pdf_bytes is None
+        and filename
+        and filename not in st.session_state.checked_existing_pdf
+    ):
+        st.session_state.checked_existing_pdf.add(filename)
         try:
-            yaml_path = pipeline.yaml_path_for(st.session_state.selected_file)
+            yaml_path = pipeline.yaml_path_for(filename)
             slug = pipeline.topic_slug(yaml_path)
             existing = pipeline.PDF_DIR / f"{slug}.pdf"
             if existing.exists():
@@ -222,16 +255,29 @@ def _autosave(filename):
     # typed. last_saved's snapshot lets this run every rerun (main() calls
     # it after every keystroke-triggered header update and every editor
     # sync) without rewriting identical content each time.
+    #
+    # Returns whether the save succeeded. A write failure (permissions,
+    # disk full) is caught rather than left to crash the whole script run
+    # with a traceback -- previously a disk write only happened on an
+    # explicit Render click, so such a failure was rare and isolated; now
+    # that this runs on nearly every rerun, an uncaught one would repeat on
+    # almost every keystroke instead. last_saved is deliberately not
+    # updated on failure, so the next rerun retries the same save.
     if not filename:
-        return
+        return True
     header_fields = _current_header_fields(filename)
     markdown_value = st.session_state.drafts.get(filename, "")
     snapshot = (tuple(header_fields.items()), markdown_value)
     if st.session_state.last_saved.get(filename) == snapshot:
-        return
-    pipeline.write_header(filename, header_fields)
-    pipeline.write_markdown_file(filename, markdown_value)
+        return True
+    try:
+        pipeline.write_header(filename, header_fields)
+        pipeline.write_markdown_file(filename, markdown_value)
+    except OSError as exc:
+        st.warning(f"Couldn't autosave {filename}: {exc}")
+        return False
     st.session_state.last_saved[filename] = snapshot
+    return True
 
 
 def _render_header_fields(filename, files):
@@ -347,6 +393,8 @@ def _render_file_controls(files):
                             pipeline.delete_markdown_file(deleted)
                             st.session_state.drafts.pop(deleted, None)
                             st.session_state.last_saved.pop(deleted, None)
+                            st.session_state.rendered_snapshot.pop(deleted, None)
+                            st.session_state.checked_existing_pdf.discard(deleted)
                             for name in pipeline.HEADER_FIELDS:
                                 st.session_state.pop(_header_field_key(deleted, name), None)
                             st.session_state.pop(_date_picker_key(deleted), None)
@@ -531,16 +579,53 @@ def _do_render():
         st.error("No markdown file selected.")
         return
 
-    _autosave(filename)
+    if not _autosave(filename):
+        st.session_state.build_ok = False
+        st.session_state.build_log = "Render skipped: couldn't save changes to disk."
+        return
+
+    header_fields = _current_header_fields(filename)
+    missing = [name for name in ("topic", "date") if not header_fields.get(name, "").strip()]
+    if missing:
+        st.session_state.build_ok = False
+        st.session_state.build_log = (
+            f"Render skipped: {' and '.join(missing)} field(s) empty.\n"
+            "Fill in the header before rendering, or the output PDF's name "
+            "and header row will end up mostly blank."
+        )
+        return
 
     with st.spinner("Rendering PDF..."):
-        success, log, pdf_path = pipeline.render(filename)
+        # A per-session BUILDDIR (see pipeline.render) so two sessions
+        # rendering around the same time never race on the same scratch
+        # directory.
+        success, log, pdf_path = pipeline.render(
+            filename, builddir=f"build/app-{st.session_state.build_id}"
+        )
 
     st.session_state.build_ok = success
     st.session_state.build_log = log
     if pdf_path is not None:
         st.session_state.pdf_bytes = pdf_path.read_bytes()
         st.session_state.pdf_name = pdf_path.name
+    if success:
+        # Recorded so _is_preview_stale can tell whether the PDF pane still
+        # reflects the header/markdown as they stood at this render, or the
+        # user has since changed something.
+        st.session_state.rendered_snapshot[filename] = (
+            tuple(header_fields.items()),
+            st.session_state.drafts.get(filename, ""),
+        )
+
+
+def _is_preview_stale(filename):
+    if not filename or st.session_state.pdf_bytes is None:
+        return False
+    current_snapshot = (
+        tuple(_current_header_fields(filename).items()),
+        st.session_state.drafts.get(filename, ""),
+    )
+    return st.session_state.rendered_snapshot.get(filename) != current_snapshot
 
 
 def _render_pdf_pane():
@@ -582,6 +667,7 @@ def main():
             "then restart this app from there."
         )
         st.stop()
+    _prune_stale_build_dirs()
     _init_state()
     files = _resolve_selected_file()
     if st.session_state.selected_file:
@@ -609,6 +695,8 @@ def main():
             (st.success if st.session_state.build_ok else st.error)(
                 "Build succeeded." if st.session_state.build_ok else "Build failed."
             )
+        if _is_preview_stale(st.session_state.selected_file):
+            st.caption(":material/warning: Preview may be out of date")
 
     if st.session_state.build_ok is False and st.session_state.build_log:
         with st.expander("Build log", expanded=True):
@@ -623,6 +711,11 @@ def main():
 
         _render_file_controls(files)
 
+        # Computed once and reused below (for the editor's autocomplete list
+        # and the Assets expander's file-count label) rather than walking
+        # assets/ from disk twice every rerun.
+        asset_files = pipeline.list_asset_files()
+
         if st.session_state.selected_file:
             left, right = st.columns(2)
             with left:
@@ -632,7 +725,7 @@ def main():
                     key=st.session_state.selected_file,
                     height=PANE_HEIGHT,
                     flush_token=st.session_state.flush_token,
-                    assets=pipeline.list_asset_files(),
+                    assets=asset_files,
                 )
                 st.session_state.drafts[st.session_state.selected_file] = value
                 _autosave(st.session_state.selected_file)
@@ -660,7 +753,7 @@ def main():
             with right:
                 _render_pdf_pane()
 
-        with st.expander(f"Assets ({len(pipeline.list_asset_files())})"):
+        with st.expander(f"Assets ({len(asset_files)})"):
             _render_assets_panel()
 
 

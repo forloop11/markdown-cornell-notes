@@ -142,7 +142,13 @@ def _ensure_header_loaded(filename):
         fields = pipeline.read_header(filename)
         for name in pipeline.HEADER_FIELDS:
             st.session_state[_header_field_key(filename, name)] = fields[name]
-        st.session_state[_date_picker_key(filename)] = _parse_iso_date(fields["date"])
+        # A file with no date yet (freshly created) starts the picker on
+        # today rather than blank -- _render_header_fields writes whatever
+        # the picker holds back into the "date" field on every run, so this
+        # also becomes the saved value the first time the file is rendered.
+        st.session_state[_date_picker_key(filename)] = (
+            _parse_iso_date(fields["date"]) or datetime.date.today()
+        )
 
         start, end, tz_hint, location = _parse_time_field(fields["time"])
         time_keys = _time_field_keys(filename)
@@ -550,63 +556,76 @@ def main():
     if st.session_state.selected_file:
         _ensure_header_loaded(st.session_state.selected_file)
 
-    # Streamlit's default block container reserves ~6rem of top padding for
-    # a header that this single-page app doesn't use.
+    # Streamlit's default block container reserves ~6rem of top padding to
+    # clear the fixed-position toolbar header, which this single-page app
+    # doesn't use. Just shrinking that padding (without also hiding the
+    # header) would leave the header's fixed overlay covering the same
+    # space, clipping the top of whatever now renders there -- so the
+    # header itself is hidden here too.
     st.markdown(
-        "<style>.block-container{padding-top:2rem;}</style>",
+        "<style>"
+        '[data-testid="stHeader"]{display:none;}'
+        ".block-container{padding-top:1rem;}"
+        "</style>",
         unsafe_allow_html=True,
     )
-    st.title("Markdown Cornell Notes")
-    if st.session_state.selected_file:
-        _render_header_fields(st.session_state.selected_file, files)
-
-    with st.expander(f"Assets ({len(pipeline.list_asset_files())})"):
-        _render_assets_panel()
-
-    _render_file_controls(files)
-
-    if st.session_state.build_ok is not None:
-        (st.success if st.session_state.build_ok else st.error)(
-            "Build succeeded." if st.session_state.build_ok else "Build failed."
-        )
-
-    st.divider()
-
-    if st.session_state.selected_file:
-        left, right = st.columns(2)
-        with left:
-            st.caption(st.session_state.selected_file)
-            value = code_editor(
-                value=_draft_for(st.session_state.selected_file),
-                key=st.session_state.selected_file,
-                height=PANE_HEIGHT,
-                flush_token=st.session_state.flush_token,
-                assets=pipeline.list_asset_files(),
+    # Centered so the build status (appended right after the title once a
+    # render has happened) reads as part of the same header line rather than
+    # a separate banner further down the page.
+    with st.container(horizontal=True, gap="small", horizontal_alignment="center", vertical_alignment="center"):
+        st.title("Markdown Cornell Notes")
+        if st.session_state.build_ok is not None:
+            (st.success if st.session_state.build_ok else st.error)(
+                "Build succeeded." if st.session_state.build_ok else "Build failed."
             )
-            st.session_state.drafts[st.session_state.selected_file] = value
 
-            if st.session_state.pending_render:
-                if st.session_state.render_awaiting_reply:
-                    # This run was triggered by the editor's reply to our
-                    # flush request (or, in the unlikely case that reply
-                    # never arrives, some later unrelated widget update --
-                    # either way code_editor() above just returned the
-                    # freshest value Streamlit has for this file, so it's
-                    # safe to save and build now).
-                    st.session_state.pending_render = False
-                    st.session_state.render_awaiting_reply = False
-                    _do_render()
-                    st.rerun()  # so the build-log/success banner (rendered
-                    # earlier in this same script, before _do_render() set
-                    # it) actually shows up
-                else:
-                    # First pass after the click: the code_editor() call
-                    # just above sent the bumped flush_token, so the
-                    # frontend now knows to reply -- wait for that reply's
-                    # rerun before building.
-                    st.session_state.render_awaiting_reply = True
-        with right:
-            _render_pdf_pane()
+    # A tighter gap than the default between every top-level element below --
+    # this is a dense, single-page app (editor/PDF panes plus everything
+    # else) rather than a series of loosely related sections.
+    with st.container(gap="small"):
+        if st.session_state.selected_file:
+            _render_header_fields(st.session_state.selected_file, files)
+
+        _render_file_controls(files)
+
+        if st.session_state.selected_file:
+            left, right = st.columns(2)
+            with left:
+                st.caption(st.session_state.selected_file)
+                value = code_editor(
+                    value=_draft_for(st.session_state.selected_file),
+                    key=st.session_state.selected_file,
+                    height=PANE_HEIGHT,
+                    flush_token=st.session_state.flush_token,
+                    assets=pipeline.list_asset_files(),
+                )
+                st.session_state.drafts[st.session_state.selected_file] = value
+
+                if st.session_state.pending_render:
+                    if st.session_state.render_awaiting_reply:
+                        # This run was triggered by the editor's reply to our
+                        # flush request (or, in the unlikely case that reply
+                        # never arrives, some later unrelated widget update --
+                        # either way code_editor() above just returned the
+                        # freshest value Streamlit has for this file, so it's
+                        # safe to save and build now).
+                        st.session_state.pending_render = False
+                        st.session_state.render_awaiting_reply = False
+                        _do_render()
+                        st.rerun()  # so the build-log/success banner (rendered
+                        # earlier in this same script, before _do_render() set
+                        # it) actually shows up
+                    else:
+                        # First pass after the click: the code_editor() call
+                        # just above sent the bumped flush_token, so the
+                        # frontend now knows to reply -- wait for that reply's
+                        # rerun before building.
+                        st.session_state.render_awaiting_reply = True
+            with right:
+                _render_pdf_pane()
+
+        with st.expander(f"Assets ({len(pipeline.list_asset_files())})"):
+            _render_assets_panel()
 
 
 if __name__ == "__main__":

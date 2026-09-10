@@ -28,11 +28,15 @@ ENV PKG_NAME=markdown-cornell-notes
 ENV MCN_ROOT=/usr/share/markdown-cornell-notes
 
 # Same file set as build_deb.sh's rsync, staged straight into the image
-# instead of a .deb payload.
-COPY Makefile README.md LICENSE requirements.txt "$MCN_ROOT"/
+# instead of a .deb payload. requirements-dev.txt/pytest.ini/tests/ are
+# staged (not installed -- see below) so `make test` at least has
+# something to run if invoked, the same "pip install the extra
+# requirements file yourself first" pattern as the app's requirements.txt.
+COPY Makefile README.md LICENSE requirements.txt requirements-dev.txt pytest.ini "$MCN_ROOT"/
 COPY scripts "$MCN_ROOT"/scripts/
 COPY settings "$MCN_ROOT"/settings/
 COPY app "$MCN_ROOT"/app/
+COPY tests "$MCN_ROOT"/tests/
 COPY md "$MCN_ROOT"/md/
 COPY yaml "$MCN_ROOT"/yaml/
 COPY assets "$MCN_ROOT"/assets/

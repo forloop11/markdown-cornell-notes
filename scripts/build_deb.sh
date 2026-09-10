@@ -29,7 +29,9 @@ rsync -a \
   --exclude 'pdf/*.pdf' \
   "$REPO_ROOT/Makefile" "$REPO_ROOT/README.md" "$REPO_ROOT/LICENSE" \
   "$REPO_ROOT/scripts" "$REPO_ROOT/settings" "$REPO_ROOT/app" \
-  "$REPO_ROOT/requirements.txt" "$REPO_ROOT/md" "$REPO_ROOT/yaml" \
+  "$REPO_ROOT/requirements.txt" "$REPO_ROOT/requirements-dev.txt" \
+  "$REPO_ROOT/pytest.ini" "$REPO_ROOT/tests" \
+  "$REPO_ROOT/md" "$REPO_ROOT/yaml" \
   "$REPO_ROOT/assets" "$REPO_ROOT/docs" \
   "$STAGE/usr/share/$PKG_NAME/"
 

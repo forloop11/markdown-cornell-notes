@@ -79,8 +79,19 @@ build: $(PDF)
 # md/notes.md / yaml/notes.yaml, using its own build/example/ scratch dir so it
 # never collides with (or goes stale against) the regular build's
 # intermediate files.
+#
+# -f $(lastword $(MAKEFILE_LIST)) (the same expression MCN_ROOT is derived
+# from above) re-passes whichever Makefile this recursive call's parent was
+# invoked with. Without it, the installed wrapper's `-f
+# /usr/share/markdown-cornell-notes/Makefile` doesn't carry over to this
+# child `$(MAKE)` -- it falls back to make's default of looking for a
+# Makefile in the caller's CWD (the user's project directory), which
+# doesn't have one, failing with "No rule to make target 'build'." A git
+# checkout's bare `make build-example` (no -f, implicit ./Makefile) isn't
+# affected either way, since $(lastword $(MAKEFILE_LIST)) there just
+# resolves to that same implicit Makefile.
 build-example:
-	$(MAKE) build MD=$(EXAMPLE_MD) YAML=$(EXAMPLE_YAML) BUILDDIR=$(EXAMPLE_BUILDDIR)
+	$(MAKE) -f $(lastword $(MAKEFILE_LIST)) build MD=$(EXAMPLE_MD) YAML=$(EXAMPLE_YAML) BUILDDIR=$(EXAMPLE_BUILDDIR)
 
 # Runs the Streamlit editor app (requires `pip install -r requirements.txt`
 # first; see README.md). Binds 0.0.0.0 rather than Streamlit's usual

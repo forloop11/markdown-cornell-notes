@@ -334,8 +334,29 @@
   \setlength{\cnNotesTextY}{\cnBodyTop}\addtolength{\cnNotesTextY}{-\cnPad}
   \setlength{\cnSummaryTextY}{\cnSummaryHeight}\addtolength{\cnSummaryTextY}{-\cnPad}
 
-  % Typeset this page's cue text.
-  \setbox\cnCueBox=\vbox{\hsize=\the\cnCueTextW\linewidth=\hsize\footnotesize\noindent\cnCueText{\thepage}}%
+  % Typeset this page's cue text, then \vsplit it to the same height
+  % available to the main notes panel (\cnNotesPanelH -- the cue column
+  % sits in the same row, just narrower) so a page with a lot of cue
+  % entries can't visually overflow past the body/summary divider (or
+  % worse: an unconstrained \vbox that's taller than one page can trigger
+  % TeX's own automatic page breaking, producing a stray blank page before
+  % the real content, confirmed empirically). Unlike the summary band
+  % (which has a second column to overflow into, see \cnSummaryBox
+  % below), the cue column has nowhere else for extra text to go, so
+  % anything past one column's height is silently dropped here -- the
+  % same graceful-degradation trade-off already made for the summary
+  % band's own 2-column limit, just with one column instead of two.
+  %
+  % \vfil\penalty-10000 (mirroring \cnSummaryBox) guarantees a legal,
+  % forced break point right at the true end of the content, so \vsplit
+  % behaves correctly even when the cue text is shorter than
+  % \cnNotesPanelH. Splitting \cnCueBox back into itself is intentional,
+  % not a typo: \vsplit's side effect of writing back whatever didn't fit
+  % into its argument register happens before \setbox's own assignment
+  % completes, so this discards the overflow in one line instead of
+  % needing a second scratch register just to throw it away.
+  \setbox\cnCueBox=\vbox{\hsize=\the\cnCueTextW\linewidth=\hsize\footnotesize\noindent\cnCueText{\thepage}\par\vfil\penalty-10000}%
+  \setbox\cnCueBox=\vsplit\cnCueBox to \cnNotesPanelH\relax
 
   % Summary text is typeset at one column's width, then \vsplit at one
   % column's height: whatever fits lands in column 1, and any overflow

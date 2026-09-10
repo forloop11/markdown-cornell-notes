@@ -255,7 +255,75 @@ def render_summary_tex(entries):
     return render_directive_tex("\\cnSummaryText", "cnSummaryList", entries)
 
 
+# A backslash pandoc's LaTeX writer would otherwise leave completely
+# unescaped -- confirmed empirically: pandoc correctly escapes a backslash
+# inside a code span/fenced code block (as \textbackslash{} inside
+# \texttt{}, or verbatim, respectively) and a valid "\<punctuation>"
+# markdown escape (e.g. "\*" -> "*"), but a bare backslash in plain prose
+# (e.g. a Windows path like "C:\Users\...", or describing a regex like
+# "\d+") passes straight through as a real -- and usually undefined --
+# LaTeX control sequence, crashing the whole build with "Undefined control
+# sequence" and producing no PDF at all. Matches a lone backslash NOT
+# already followed by one of CommonMark's escapable punctuation characters
+# (which pandoc already renders safely) and not the second half of an
+# existing "\\" pair (also already safe, rendered as \textbackslash).
+_ESCAPABLE_PUNCTUATION = r"""!"#$%&'()*+,\-./:;<=>?@\[\]^_`{|}~"""
+STRAY_BACKSLASH_RE = re.compile(rf"\\\\|\\(?![{_ESCAPABLE_PUNCTUATION}])")
+
+# Recognizes inline code spans (`...`/``...``) and math spans ($...$/$$...$$)
+# so escape_stray_backslashes can skip their content -- pandoc already
+# handles backslashes inside both safely, and a raw command in math is
+# often intentional there (see notes-example.md's own $\int_0^1 x^2\,dx$).
+_CODE_OR_MATH_SPAN_RE = re.compile(r"``.*?``|`[^`\n]*?`|\$\$.*?\$\$|\$[^$\n]*?\$")
+
+_FENCE_RE = re.compile(r"^\s*```")
+
+
+def _double_stray_backslash(match):
+    return match.group() if match.group() == "\\\\" else "\\\\"
+
+
+def escape_stray_backslashes(markdown):
+    """Doubles up (escapes) every stray backslash in `markdown` (see
+    STRAY_BACKSLASH_RE) so it survives pandoc as a literal character
+    instead of an unescaped, often-undefined LaTeX control sequence.
+    Doubling turns it into "\\\\", a *valid* CommonMark escape for a
+    literal backslash, which pandoc already round-trips safely.
+
+    Left untouched: backslashes already inside a fenced or inline code
+    span or a math span (skipped entirely -- pandoc handles those safely
+    on its own), and a backslash at the very end of a line, which is
+    pandoc's hard-line-break syntax rather than a literal character.
+    """
+    out_lines = []
+    in_fence = False
+    for line in markdown.split("\n"):
+        if _FENCE_RE.match(line):
+            in_fence = not in_fence
+            out_lines.append(line)
+            continue
+        if in_fence:
+            out_lines.append(line)
+            continue
+
+        trailing = ""
+        if line.endswith("\\") and not line.endswith("\\\\"):
+            line, trailing = line[:-1], "\\"
+
+        pos = 0
+        parts = []
+        for m in _CODE_OR_MATH_SPAN_RE.finditer(line):
+            parts.append(STRAY_BACKSLASH_RE.sub(_double_stray_backslash, line[pos : m.start()]))
+            parts.append(m.group())
+            pos = m.end()
+        parts.append(STRAY_BACKSLASH_RE.sub(_double_stray_backslash, line[pos:]))
+        out_lines.append("".join(parts) + trailing)
+
+    return "\n".join(out_lines)
+
+
 def markdown_to_latex(markdown):
+    markdown = escape_stray_backslashes(markdown)
     result = subprocess.run(
         # --no-highlight: without it, a fenced code block with a language
         # tag (e.g. ```python) emits \begin{Shaded}/\Highlighting, which

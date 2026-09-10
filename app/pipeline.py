@@ -39,7 +39,10 @@ _SAFE_STEM_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 class PipelineError(Exception):
-    pass
+    """A user-facing error from this module (e.g. a name collision or an
+    invalid path) -- the Streamlit app catches this and shows its
+    message directly, unlike an unexpected exception.
+    """
 
 
 def project_initialized():
@@ -55,6 +58,10 @@ def yaml_path_for(md_filename):
 
 
 def read_header(md_filename):
+    """Read md_filename's paired header yaml, returning a dict with every
+    name in HEADER_FIELDS (each "" if the yaml file doesn't exist, or
+    doesn't set that field).
+    """
     path = yaml_path_for(md_filename)
     if not path.exists():
         return {name: "" for name in HEADER_FIELDS}
@@ -63,6 +70,9 @@ def read_header(md_filename):
 
 
 def write_header(md_filename, fields):
+    """Write `fields` (a dict covering every name in HEADER_FIELDS) to
+    md_filename's paired header yaml, quoting and escaping each value.
+    """
     path = yaml_path_for(md_filename)
     lines = [HEADER_COMMENT.rstrip("\n"), ""]
     for name in HEADER_FIELDS:
@@ -76,10 +86,15 @@ def write_header(md_filename, fields):
 
 
 def list_markdown_files():
+    """All *.md filenames directly inside md/, sorted."""
     return sorted(p.name for p in MD_DIR.glob("*.md"))
 
 
 def _sanitize_stem(name):
+    """Derive a safe *.md stem from `name`: drop any directory components,
+    collapse unsafe characters to "-", and strip leading/trailing "-".
+    Raises PipelineError if nothing safe is left.
+    """
     stem = Path(name).stem.strip()
     stem = _SAFE_STEM_RE.sub("-", stem).strip("-")
     if not stem:
@@ -88,6 +103,11 @@ def _sanitize_stem(name):
 
 
 def create_markdown_file(name):
+    """Create a new, blank markdown file (and its paired, blank header
+    yaml) named after the sanitized stem of `name`, returning the
+    filename actually used. Raises PipelineError if a file with that
+    name already exists.
+    """
     filename = f"{_sanitize_stem(name)}.md"
     path = MD_DIR / filename
     if path.exists():
@@ -98,6 +118,10 @@ def create_markdown_file(name):
 
 
 def delete_markdown_file(name):
+    """Delete `name` (a filename from list_markdown_files()) and its
+    paired header yaml. Raises PipelineError if `name` doesn't exist or
+    is the last remaining markdown file.
+    """
     files = list_markdown_files()
     if name not in files:
         raise PipelineError(f"{name} not found.")
@@ -108,10 +132,12 @@ def delete_markdown_file(name):
 
 
 def read_markdown_file(name):
+    """Return the full text content of md/<name>."""
     return (MD_DIR / name).read_text(encoding="utf-8")
 
 
 def write_markdown_file(name, content):
+    """Overwrite md/<name> with `content`."""
     (MD_DIR / name).write_text(content, encoding="utf-8")
 
 
@@ -135,6 +161,7 @@ def _resolve_asset_dir(subdir=""):
 
 
 def _asset_display_dir(subdir=""):
+    """The user-facing "assets/..." path for `subdir`, for error messages."""
     return f"assets/{subdir}" if subdir else "assets"
 
 
@@ -158,11 +185,13 @@ def list_asset_folder_paths():
 
 
 def _sanitize_name(name):
-    # Path(name).name drops any directory components (e.g. from "../../etc/passwd"
-    # or a browser sending a full path), then unsafe characters collapse to "-"
-    # same as markdown filenames -- but the extension (if any) is kept, since
-    # assets/folders (unlike notes/header files) aren't all forced into one
-    # fixed suffix.
+    """Derive a safe asset/folder name from `name`. Path(name).name drops
+    any directory components (e.g. from "../../etc/passwd" or a browser
+    sending a full path), then unsafe characters collapse to "-" same as
+    markdown filenames -- but the extension (if any) is kept, since
+    assets/folders (unlike notes/header files) aren't all forced into one
+    fixed suffix. Raises PipelineError if nothing safe is left.
+    """
     name = _SAFE_STEM_RE.sub("-", Path(name).name.strip()).strip("-")
     if not name:
         raise PipelineError("Name can't be empty.")
@@ -170,6 +199,11 @@ def _sanitize_name(name):
 
 
 def save_asset(filename, data, subdir=""):
+    """Write `data` (bytes) as a new file named after the sanitized stem
+    of `filename`, inside assets/<subdir>, returning the name actually
+    used. Raises PipelineError if a file with that name already exists
+    there.
+    """
     safe_name = _sanitize_name(filename)
     base = _resolve_asset_dir(subdir)
     path = base / safe_name
@@ -180,6 +214,9 @@ def save_asset(filename, data, subdir=""):
 
 
 def delete_asset(name, subdir=""):
+    """Delete the file assets/<subdir>/<name>. Raises PipelineError if it
+    doesn't exist (or isn't a file).
+    """
     base = _resolve_asset_dir(subdir)
     path = base / name
     if not path.exists() or not path.is_file():
@@ -188,6 +225,11 @@ def delete_asset(name, subdir=""):
 
 
 def move_asset(name, src_subdir, dest_subdir):
+    """Move the file assets/<src_subdir>/<name> to assets/<dest_subdir>/,
+    keeping its name. Raises PipelineError if `name` doesn't exist in
+    `src_subdir`, `dest_subdir` doesn't exist, or `name` already exists
+    there.
+    """
     src_base = _resolve_asset_dir(src_subdir)
     dest_base = _resolve_asset_dir(dest_subdir)
     src_path = src_base / name
@@ -202,6 +244,10 @@ def move_asset(name, src_subdir, dest_subdir):
 
 
 def create_asset_folder(name, subdir=""):
+    """Create a new, empty folder named after the sanitized form of `name`
+    inside assets/<subdir>, returning the name actually used. Raises
+    PipelineError if a folder with that name already exists there.
+    """
     folder_name = _sanitize_name(name)
     base = _resolve_asset_dir(subdir)
     path = base / folder_name
@@ -212,6 +258,11 @@ def create_asset_folder(name, subdir=""):
 
 
 def rename_asset_folder(old_name, new_name, subdir=""):
+    """Rename assets/<subdir>/<old_name> to the sanitized form of
+    `new_name`, returning the name actually used. Raises PipelineError if
+    `old_name` doesn't exist there, or the sanitized `new_name` already
+    exists there under a different name.
+    """
     base = _resolve_asset_dir(subdir)
     old_path = base / old_name
     if not old_path.is_dir():
@@ -225,6 +276,9 @@ def rename_asset_folder(old_name, new_name, subdir=""):
 
 
 def delete_asset_folder(name, subdir=""):
+    """Recursively delete assets/<subdir>/<name> and everything inside
+    it. Raises PipelineError if it doesn't exist (or isn't a folder).
+    """
     base = _resolve_asset_dir(subdir)
     path = base / name
     if not path.is_dir():
@@ -233,6 +287,10 @@ def delete_asset_folder(name, subdir=""):
 
 
 def topic_slug(yaml_path):
+    """Return the output PDF's base filename (the latexmk jobname) for
+    `yaml_path`, by running scripts/topic_slug.py. Raises PipelineError
+    if that script fails.
+    """
     result = subprocess.run(
         [sys.executable, str(SCRIPTS_DIR / "topic_slug.py"), str(yaml_path)],
         cwd=PROJECT_ROOT,

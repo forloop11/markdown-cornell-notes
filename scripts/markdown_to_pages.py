@@ -103,6 +103,9 @@ def delongtable(latex):
     """
 
     def convert(m):
+        """re.sub callback for LONGTABLE_RE: rewrite one matched longtable
+        into the equivalent plain tabular (see delongtable's docstring).
+        """
         spec = m.group("spec")
         body = m.group("body")
 
@@ -171,7 +174,17 @@ RELATIVE_LINK_PREFIX = "../"
 
 
 def rebase_relative_links(latex):
+    """Prefix every local (non-absolute, non-fragment) \\href target in
+    `latex` with "../" (see RELATIVE_LINK_PREFIX), so links to local
+    files still resolve correctly from the compiled PDF's own location
+    in pdf/, one directory below where the link target was resolved at
+    compile time.
+    """
+
     def rebase(match):
+        """re.sub callback for HREF_RE: prefix one matched \\href target
+        with RELATIVE_LINK_PREFIX, unless it's absolute/a fragment.
+        """
         target = match.group(1)
         if ABSOLUTE_LINK_RE.match(target):
             return match.group(0)
@@ -195,6 +208,9 @@ def extract_directive_entries(markdown, pattern):
     entries = []
 
     def collect(m):
+        """re.sub callback for `pattern`: record one matched directive's
+        (clamped page, text) into `entries`, then blank out the line.
+        """
         entries.append((max(int(m.group("page")), 1), m.group("text")))
         return ""
 
@@ -280,6 +296,9 @@ _FENCE_RE = re.compile(r"^\s*```")
 
 
 def _double_stray_backslash(match):
+    """re.sub callback for STRAY_BACKSLASH_RE: leave an already-safe "\\\\"
+    pair alone, otherwise double up the stray backslash matched.
+    """
     return match.group() if match.group() == "\\\\" else "\\\\"
 
 
@@ -323,6 +342,12 @@ def escape_stray_backslashes(markdown):
 
 
 def markdown_to_latex(markdown):
+    """Convert a chunk of `markdown` to LaTeX via pandoc, then apply this
+    module's post-processing (stray-backslash escaping beforehand;
+    relative-link rebasing, longtable-to-tabular, and standalone-image
+    centering on pandoc's output). Raises RuntimeError if pandoc itself
+    fails.
+    """
     markdown = escape_stray_backslashes(markdown)
     result = subprocess.run(
         # --no-highlight: without it, a fenced code block with a language
@@ -357,6 +382,10 @@ def markdown_to_latex(markdown):
 
 
 def write_generated(out_path, in_path, body):
+    """Write `body` to `out_path` (creating its parent directory first if
+    needed), preceded by a generated-file header naming `in_path` as the
+    source this file was generated from.
+    """
     out_dir = os.path.dirname(out_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
@@ -366,6 +395,12 @@ def write_generated(out_path, in_path, body):
 
 
 def main():
+    """Convert the markdown file named on the command line (default
+    "md/notes.md") into the three generated .tex files named on the
+    command line (defaults "build/cornell-content.tex",
+    "build/cornell-cue.tex", "build/cornell-summary.tex") -- see this
+    module's docstring for the full format this reads.
+    """
     in_path = sys.argv[1] if len(sys.argv) > 1 else "md/notes.md"
     content_path = sys.argv[2] if len(sys.argv) > 2 else "build/cornell-content.tex"
     cue_path = sys.argv[3] if len(sys.argv) > 3 else "build/cornell-cue.tex"

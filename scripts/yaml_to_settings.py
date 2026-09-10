@@ -28,6 +28,12 @@ KNOWN_FIELDS = set(GEOMETRY_FIELDS) | set(FRAC_MACROS) | set(LENGTH_MACROS)
 
 
 def main():
+    """Generate a page-settings .tex file from the yaml file named on the
+    command line (default "settings/page.yaml"), writing it to the output
+    path named on the command line (default
+    "build/cornell-page-settings.tex"). Raises ValueError if the yaml
+    file has a field this module doesn't know how to translate.
+    """
     in_path = sys.argv[1] if len(sys.argv) > 1 else "settings/page.yaml"
     out_path = sys.argv[2] if len(sys.argv) > 2 else "build/cornell-page-settings.tex"
 

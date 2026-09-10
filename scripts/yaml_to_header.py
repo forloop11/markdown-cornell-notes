@@ -36,10 +36,17 @@ LATEX_SPECIALS = {
 
 
 def escape_latex(value):
+    """Escape every LaTeX-special character in `value` (see LATEX_SPECIALS)
+    so it can be typeset as literal text.
+    """
     return "".join(LATEX_SPECIALS.get(ch, ch) for ch in value)
 
 
 def main():
+    """Generate a header .tex file from the yaml file named on the
+    command line (default "yaml/notes.yaml"), writing it to the output
+    path named on the command line (default "build/cornell-header.tex").
+    """
     in_path = sys.argv[1] if len(sys.argv) > 1 else "yaml/notes.yaml"
     out_path = sys.argv[2] if len(sys.argv) > 2 else "build/cornell-header.tex"
 

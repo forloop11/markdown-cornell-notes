@@ -57,18 +57,26 @@ TIME_RANGE_RE = re.compile(
 
 
 def _header_field_key(filename, name):
+    """The st.session_state key holding filename's `name` header field
+    (one of pipeline.HEADER_FIELDS)."""
     return f"header__{filename}__{name}"
 
 
 def _date_picker_key(filename):
-    # st.date_input's widget state is a datetime.date (or None), not the
-    # "YYYY-MM-DD" string the yaml file and _current_header_fields() need
-    # -- so the picker gets its own key, synced into the string-valued
-    # header_field_key("date") after every render (see _render_header_fields).
+    """The st.session_state key for filename's Date picker widget.
+
+    st.date_input's widget state is a datetime.date (or None), not the
+    "YYYY-MM-DD" string the yaml file and _current_header_fields() need
+    -- so the picker gets its own key, synced into the string-valued
+    header_field_key("date") after every render (see _render_header_fields).
+    """
     return _header_field_key(filename, "date") + "__picker"
 
 
 def _parse_iso_date(value):
+    """Parse a "YYYY-MM-DD" string into a datetime.date, or None if
+    `value` isn't one.
+    """
     try:
         return datetime.datetime.strptime(value, DATE_FORMAT).date()
     except (TypeError, ValueError):
@@ -76,10 +84,14 @@ def _parse_iso_date(value):
 
 
 def _time_field_keys(filename):
-    # Same reasoning as _date_picker_key: the widgets' own state (times, a
-    # zone name, free text) isn't the "time" field's string, so each piece
-    # gets its own key, composed into header_field_key("time") after every
-    # render (see _render_header_fields / _compose_time_field).
+    """The st.session_state keys for filename's Start/End/Timezone
+    widgets, and its parsed timezone-hint/location text.
+
+    Same reasoning as _date_picker_key: the widgets' own state (times, a
+    zone name, free text) isn't the "time" field's string, so each piece
+    gets its own key, composed into header_field_key("time") after every
+    render (see _render_header_fields / _compose_time_field).
+    """
     base = _header_field_key(filename, "time")
     return {
         "start": f"{base}__start",
@@ -91,11 +103,17 @@ def _time_field_keys(filename):
 
 
 def _parse_time_field(value):
+    """Parse a "time" header field (TIME_RANGE_RE's legacy
+    "HH:MM--HH:MM TZ, location" convention, or anything looser) into
+    (start, end, tz_hint, location) -- start/end as datetime.time (or
+    None), tz_hint/location as strings.
+    """
     match = TIME_RANGE_RE.match(value or "")
     if not match:
         return None, None, "", (value or "").strip()
 
     def to_time(s):
+        """Parse an "HH:MM" string into a datetime.time, or None if blank."""
         return datetime.datetime.strptime(s, "%H:%M").time() if s else None
 
     return (
@@ -107,6 +125,11 @@ def _parse_time_field(value):
 
 
 def _tz_abbrev(tz_name, ref_date, ref_time):
+    """The abbreviation (e.g. "PDT") for IANA zone `tz_name` at
+    `ref_date`/`ref_time` (today/noon if either is None, since only the
+    date determines DST for most zones) -- or `tz_name` itself if it
+    isn't a recognized zone.
+    """
     try:
         zone = zoneinfo.ZoneInfo(tz_name)
     except (zoneinfo.ZoneInfoNotFoundError, ValueError):
@@ -118,6 +141,10 @@ def _tz_abbrev(tz_name, ref_date, ref_time):
 
 
 def _compose_time_field(start, end, tz_name, ref_date, tz_hint=""):
+    """Compose the "time" header field's string (e.g. "10:00--10:30 PDT")
+    from the Start/End time widgets and the timezone dropdown (see
+    _render_header_fields).
+    """
     # Location is no longer folded in here -- it's written to its own
     # "location" field (see _render_header_fields) and recombined with
     # this field for display by settings/template.tex's \cnHdrTimeLine.
@@ -139,6 +166,11 @@ def _compose_time_field(start, end, tz_name, ref_date, tz_hint=""):
 
 
 def _ensure_header_loaded(filename):
+    """Populate st.session_state with filename's header fields and widget
+    state (date, time, timezone, location) the first time filename is
+    used this session, so the widgets in _render_header_fields have
+    something to bind to. A no-op on later calls, once already loaded.
+    """
     probe_key = _header_field_key(filename, pipeline.HEADER_FIELDS[0])
     if probe_key not in st.session_state:
         fields = pipeline.read_header(filename)
@@ -172,13 +204,17 @@ def _ensure_header_loaded(filename):
 
 @st.cache_resource
 def _prune_stale_build_dirs():
-    # st.cache_resource caches across every session of this server process,
-    # so this body runs exactly once, on whichever session calls it first --
-    # before any session has had a chance to create its own build/app-<id>
-    # (see _do_render's per-session BUILDDIR). Anything matching app-* found
-    # here must be left over from a *previous* run of the app (the process
-    # was restarted, e.g. `make app` re-run after a crash or a plain
-    # Ctrl-C), since otherwise nothing would have created it yet.
+    """Remove any build/app-<id> directories left over from a previous
+    run of the app (see _do_render's per-session BUILDDIR).
+
+    st.cache_resource caches across every session of this server process,
+    so this body runs exactly once, on whichever session calls it first --
+    before any session has had a chance to create its own build/app-<id>.
+    Anything matching app-* found here must be left over from a
+    *previous* run of the app (the process was restarted, e.g. `make
+    app` re-run after a crash or a plain Ctrl-C), since otherwise nothing
+    would have created it yet.
+    """
     build_root = pipeline.PROJECT_ROOT / "build"
     if not build_root.is_dir():
         return
@@ -188,6 +224,11 @@ def _prune_stale_build_dirs():
 
 
 def _init_state():
+    """Initialize every st.session_state key this app relies on, the
+    first time each is needed (via setdefault, or an explicit "not in"
+    check where the initial value takes some computing) -- safe to call
+    on every rerun.
+    """
     if "selected_file" not in st.session_state:
         files = pipeline.list_markdown_files()
         st.session_state.selected_file = files[0] if files else None
@@ -236,6 +277,10 @@ def _init_state():
 
 
 def _current_header_fields(filename):
+    """filename's current header fields, read back out of
+    st.session_state (see _header_field_key), as a dict covering every
+    name in pipeline.HEADER_FIELDS.
+    """
     return {
         name: st.session_state[_header_field_key(filename, name)]
         for name in pipeline.HEADER_FIELDS
@@ -243,26 +288,33 @@ def _current_header_fields(filename):
 
 
 def _draft_for(filename):
+    """filename's current (possibly unsaved) markdown content, loading it
+    from disk into st.session_state.drafts the first time filename is
+    used this session.
+    """
     if filename not in st.session_state.drafts:
         st.session_state.drafts[filename] = pipeline.read_markdown_file(filename)
     return st.session_state.drafts[filename]
 
 
 def _autosave(filename):
-    # Writes the header/markdown to disk whenever either has changed since
-    # the last write -- previously that only happened on Render, so a
-    # closed tab or crashed session between renders lost whatever had been
-    # typed. last_saved's snapshot lets this run every rerun (main() calls
-    # it after every keystroke-triggered header update and every editor
-    # sync) without rewriting identical content each time.
-    #
-    # Returns whether the save succeeded. A write failure (permissions,
-    # disk full) is caught rather than left to crash the whole script run
-    # with a traceback -- previously a disk write only happened on an
-    # explicit Render click, so such a failure was rare and isolated; now
-    # that this runs on nearly every rerun, an uncaught one would repeat on
-    # almost every keystroke instead. last_saved is deliberately not
-    # updated on failure, so the next rerun retries the same save.
+    """Write filename's header/markdown to disk whenever either has
+    changed since the last write, returning whether the save succeeded.
+
+    Previously a disk write only happened on Render, so a closed tab or
+    crashed session between renders lost whatever had been typed.
+    last_saved's snapshot lets this run every rerun (main() calls it
+    after every keystroke-triggered header update and every editor sync)
+    without rewriting identical content each time.
+
+    A write failure (permissions, disk full) is caught rather than left
+    to crash the whole script run with a traceback -- previously a disk
+    write only happened on an explicit Render click, so such a failure
+    was rare and isolated; now that this runs on nearly every rerun, an
+    uncaught one would repeat on almost every keystroke instead.
+    last_saved is deliberately not updated on failure, so the next rerun
+    retries the same save.
+    """
     if not filename:
         return True
     header_fields = _current_header_fields(filename)
@@ -281,6 +333,11 @@ def _autosave(filename):
 
 
 def _render_header_fields(filename, files):
+    """Render the collapsible Header section (Topic/Location, Date/
+    Start/End/Timezone, Attendees/markdown-file picker) for filename, and
+    write the composed "time"/"timezone"/"location" fields back to
+    st.session_state from the widgets' current values.
+    """
     time_keys = _time_field_keys(filename)
 
     with st.expander("Header", expanded=True):
@@ -330,14 +387,20 @@ def _render_header_fields(filename, files):
 
 
 def _resolve_selected_file():
-    # Streamlit forbids setting st.session_state[key] once that key's widget
-    # has been instantiated in the current run -- the selectbox in
-    # _render_file_controls owns "selected_file" for the rest of this run as
-    # soon as it's created. The create/delete handlers further down (which
-    # need to change the selection) run *after* that point in the same run,
-    # so they can't set it directly; they stash the target filename here
-    # instead, applied before the selectbox is instantiated on the rerun
-    # they trigger.
+    """Apply any pending selection change, then make sure
+    st.session_state.selected_file names a file that actually exists
+    (falling back to the first available one, or None), returning the
+    current list of markdown files.
+
+    Streamlit forbids setting st.session_state[key] once that key's
+    widget has been instantiated in the current run -- the selectbox in
+    _render_file_controls owns "selected_file" for the rest of this run
+    as soon as it's created. The create/delete handlers further down
+    (which need to change the selection) run *after* that point in the
+    same run, so they can't set it directly; they stash the target
+    filename here instead, applied before the selectbox is instantiated
+    on the rerun they trigger.
+    """
     if "pending_select" in st.session_state:
         st.session_state.selected_file = st.session_state.pop("pending_select")
 
@@ -350,6 +413,7 @@ def _resolve_selected_file():
 
 
 def _render_file_controls(files):
+    """Render the New file/Delete file/Render/Download PDF button row."""
     # A render is in flight from the moment Render is clicked until
     # _do_render() finishes and reruns (see the flush-token comment below) --
     # disable actions that would race it or duplicate the click across that
@@ -441,6 +505,10 @@ def _render_file_controls(files):
 
 
 def _render_asset_breadcrumbs(current_dir):
+    """Render a clickable "assets / <folder> / <subfolder>" breadcrumb
+    trail for `current_dir`, letting the user jump back to any ancestor
+    folder.
+    """
     parts = current_dir.split("/") if current_dir else []
     cols = st.columns(len(parts) + 1)
     if cols[0].button("assets", key="asset_crumb_root", disabled=not current_dir):
@@ -456,6 +524,10 @@ def _render_asset_breadcrumbs(current_dir):
 
 
 def _render_assets_panel():
+    """Render the Assets expander's contents for the current folder:
+    breadcrumbs, new-folder/upload controls, the folder/file listing
+    (with rename/delete/move actions), and bulk-move for selected files.
+    """
     current_dir = st.session_state.asset_current_dir
     _render_asset_breadcrumbs(current_dir)
 
@@ -523,6 +595,8 @@ def _render_assets_panel():
                 st.rerun()
 
     def _select_key(name):
+        """The st.session_state key for `name`'s bulk-move checkbox in
+        the current folder."""
         return f"select_asset_{current_dir}/{name}"
 
     for name in files:
@@ -574,6 +648,11 @@ def _render_assets_panel():
 
 
 def _do_render():
+    """Autosave, validate, and build the selected file's PDF via
+    pipeline.render(), updating st.session_state's build/PDF/preview
+    status. A no-op (with an error/skip message) if there's no selected
+    file, autosave fails, or Topic/Date are empty.
+    """
     filename = st.session_state.selected_file
     if not filename:
         st.error("No markdown file selected.")
@@ -619,6 +698,11 @@ def _do_render():
 
 
 def _is_preview_stale(filename):
+    """Whether the PDF pane's current content no longer reflects
+    filename's header/markdown -- either because they've changed since
+    the last successful render, or filename has never been rendered this
+    session. False whenever there's no PDF to compare against yet.
+    """
     if not filename or st.session_state.pdf_bytes is None:
         return False
     current_snapshot = (
@@ -629,6 +713,10 @@ def _is_preview_stale(filename):
 
 
 def _render_pdf_pane():
+    """Render the right-hand PDF pane: a filename caption plus the
+    current PDF (as a data-URI iframe), or a placeholder if there's no
+    PDF yet.
+    """
     if st.session_state.pdf_bytes is None:
         st.info("No PDF yet -- click Render.")
         return
@@ -659,6 +747,10 @@ def _render_pdf_pane():
 
 
 def main():
+    """Entry point: lay out the whole page (title/status, Header
+    expander, file controls, editor/PDF panes, Assets expander) for the
+    currently selected file, driving a render when one's been requested.
+    """
     if not pipeline.project_initialized():
         st.title("Markdown Cornell Notes")
         st.error(

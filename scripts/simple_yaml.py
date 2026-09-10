@@ -8,9 +8,10 @@ import os
 
 
 def _unescape_double_quoted(inner):
-    # Reverses the `\\` -> `\\\\`, `"` -> `\"` escaping applied by
-    # pipeline.write_header. A backslash before any other character isn't
-    # an escape sequence this format produces, so it's left as-is.
+    r"""Reverse the `\` -> `\\`, `"` -> `\"` escaping applied by
+    pipeline.write_header. A backslash before any other character isn't
+    an escape sequence this format produces, so it's left as-is.
+    """
     result = []
     i = 0
     while i < len(inner):
@@ -25,6 +26,10 @@ def _unescape_double_quoted(inner):
 
 
 def strip_quotes(value):
+    """Strip a matching pair of surrounding quotes from `value`, if any,
+    unescaping backslash-escapes for a double-quoted value. Returns
+    `value` unchanged if it isn't quoted.
+    """
     if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
         inner = value[1:-1]
         return _unescape_double_quoted(inner) if value[0] == '"' else inner
@@ -32,6 +37,11 @@ def strip_quotes(value):
 
 
 def parse_yaml(path):
+    """Parse `path` as a flat "key: value" mapping and return it as a
+    dict of strings. Blank lines and "#"-prefixed comments (including a
+    trailing "# comment" on a value line) are ignored. Raises ValueError
+    on a line that isn't blank/a comment and doesn't contain ":".
+    """
     fields = {}
     with open(path, encoding="utf-8") as f:
         for lineno, raw_line in enumerate(f, start=1):
@@ -46,6 +56,9 @@ def parse_yaml(path):
 
 
 def write_generated(out_path, lines):
+    """Write `lines` (joined with newlines, plus a trailing newline) to
+    `out_path`, creating its parent directory first if needed.
+    """
     out_dir = os.path.dirname(out_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)

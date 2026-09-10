@@ -21,10 +21,16 @@ UNSAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 def slugify(value):
+    """Collapse runs of filename-unsafe characters in `value` to a single
+    hyphen, and strip any leading/trailing hyphens left over.
+    """
     return UNSAFE_RE.sub("-", value.strip()).strip("-")
 
 
 def main():
+    """Print the output PDF's base filename, derived from the yaml file
+    named on the command line (default "yaml/notes.yaml").
+    """
     in_path = sys.argv[1] if len(sys.argv) > 1 else "yaml/notes.yaml"
     fields = parse_yaml(in_path)
 

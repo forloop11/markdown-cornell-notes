@@ -69,7 +69,10 @@ notes panel — handy for questions or keywords next to the notes they
 relate to. The directive line itself isn't printed. `<text>` goes through
 the same Markdown/LaTeX pipeline as the main content, so it can use
 inline formatting (`**bold**`, etc.); multiple entries targeting the same
-page each become their own bullet, in document order.
+page each become their own bullet, in document order. Unlike the summary
+band below, the cue column doesn't have a second column to overflow
+into — more entries than fit in one page's column are dropped rather than
+running past the page.
 
 ## Summary-band text
 

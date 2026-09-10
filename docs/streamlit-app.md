@@ -12,11 +12,17 @@ make app
 then open the URL `streamlit` prints (defaults to
 [http://localhost:8501](http://localhost:8501)).
 
+Along the top, the page title doubles as the status line: once you've
+clicked Render, a success/failure pill appears right next to it, and on
+failure a **Build log** expander (the raw `make build` output) opens
+underneath so you can see what went wrong.
+
 The page has a collapsible **Header** section (`topic`/`date`/`attendees`/
 `time`) at the top. Location lives under Topic, and start/end time (12-hour,
 with an AM/PM toggle) + a searchable IANA timezone dropdown live under Date,
 all stacked below their respective field; the dropdown to switch between the
-files in `md/` lives under Attendees. `date` is a calendar date picker, still stored in
+files in `md/` lives under Attendees. `date` is a calendar date picker
+(defaulting to today for an entry that doesn't have one yet), still stored in
 `yaml/<stem>.yaml` as a plain `YYYY-MM-DD` string, same as editing it by
 hand. The start/end/timezone group composes into the `time` field's usual
 `"HH:MM--HH:MM"` string, now with the zone's abbreviation appended (e.g.
@@ -37,23 +43,28 @@ paired `yaml/<stem>.yaml`, so switching files in the dropdown also switches
 the header fields shown, and creating a file creates a blank paired yaml
 alongside it (deleting a file removes its yaml too).
 
-Below the **Header** section is an **Assets** expander (labeled with the
-current file count) that manages the `assets/` folder used for images and
-linked documents (see [Images and linked documents](editing-notes.md#images-and-linked-documents)):
+Below the **Header** section is a centered row of **New file**/**Delete
+file** buttons (to create or delete a file) alongside **Render** and
+**Download PDF** — all four disable for as long as a render is running, so
+a fast double-click can't submit twice. Render saves both the selected
+file's header and its markdown content to disk and runs `make build` for
+you; the title's status pill (see above) reports success or failure.
+Download PDF (disabled until a PDF exists) downloads the current one under
+its actual output filename.
+
+Below that, the markdown editor (left) and the resulting PDF (right) sit
+side by side, matched in height so their tops and bottoms align. Header
+fields and markdown content both autosave to disk continuously as you
+edit — a debounce/blur from the markdown editor, immediately for header
+fields — rather than only on Render, so switching files or closing the tab
+doesn't lose unsaved work.
+
+At the bottom is an **Assets** expander (labeled with the current file
+count) that manages the `assets/` folder used for images and linked
+documents (see [Images and linked documents](editing-notes.md#images-and-linked-documents)):
 it lists each file with an image thumbnail (where applicable), a
 copyable `assets/<name>` path to paste into your Markdown, and its size, plus
 an uploader to add new files and a delete confirmation per file.
-
-Below that, a centered row of **New file**/**Delete file** buttons (to
-create or delete a file) sits next to **Render** and **Download PDF**.
-Render saves both the selected file's header and its markdown content to
-disk and runs `make build` for you, showing a success/failure message once
-it's done. Download PDF (disabled until a PDF exists) downloads the current
-one under its actual output filename. Below that, the markdown editor
-(left) and the resulting PDF (right) sit side by side,
-matched in height so their tops and bottoms align; switching files preserves
-each file's unsaved edits for the rest of the session, though only Render
-writes them to disk.
 
 The editor itself is [CodeMirror](https://codemirror.net/), with syntax
 highlighting for Markdown, inline/raw HTML, and fenced ` ```html `/

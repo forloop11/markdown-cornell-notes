@@ -174,9 +174,11 @@ def _init_state():
         st.session_state.selected_file = files[0] if files else None
 
     st.session_state.setdefault("drafts", {})
+    st.session_state.setdefault("last_saved", {})
     st.session_state.setdefault("pdf_bytes", None)
     st.session_state.setdefault("pdf_name", None)
     st.session_state.setdefault("build_ok", None)
+    st.session_state.setdefault("build_log", "")
     st.session_state.setdefault("confirm_delete", False)
     st.session_state.setdefault("flush_token", 0)
     st.session_state.setdefault("pending_render", False)
@@ -211,6 +213,25 @@ def _draft_for(filename):
     if filename not in st.session_state.drafts:
         st.session_state.drafts[filename] = pipeline.read_markdown_file(filename)
     return st.session_state.drafts[filename]
+
+
+def _autosave(filename):
+    # Writes the header/markdown to disk whenever either has changed since
+    # the last write -- previously that only happened on Render, so a
+    # closed tab or crashed session between renders lost whatever had been
+    # typed. last_saved's snapshot lets this run every rerun (main() calls
+    # it after every keystroke-triggered header update and every editor
+    # sync) without rewriting identical content each time.
+    if not filename:
+        return
+    header_fields = _current_header_fields(filename)
+    markdown_value = st.session_state.drafts.get(filename, "")
+    snapshot = (tuple(header_fields.items()), markdown_value)
+    if st.session_state.last_saved.get(filename) == snapshot:
+        return
+    pipeline.write_header(filename, header_fields)
+    pipeline.write_markdown_file(filename, markdown_value)
+    st.session_state.last_saved[filename] = snapshot
 
 
 def _render_header_fields(filename, files):
@@ -283,6 +304,12 @@ def _resolve_selected_file():
 
 
 def _render_file_controls(files):
+    # A render is in flight from the moment Render is clicked until
+    # _do_render() finishes and reruns (see the flush-token comment below) --
+    # disable actions that would race it or duplicate the click across that
+    # window's two-plus reruns.
+    busy = st.session_state.pending_render
+
     if not files:
         st.error("No markdown files in md/. Create one below.")
 
@@ -294,8 +321,10 @@ def _render_file_controls(files):
 
     with button_row:
         with st.popover("New file"):
-            new_name = st.text_input("File name", placeholder="my-notes", key="new_file_name")
-            if st.button("Create", key="create_file_btn"):
+            new_name = st.text_input(
+                "File name", placeholder="my-notes", key="new_file_name", disabled=busy
+            )
+            if st.button("Create", key="create_file_btn", disabled=busy):
                 try:
                     created = pipeline.create_markdown_file(new_name)
                     st.session_state.pending_select = created
@@ -306,17 +335,18 @@ def _render_file_controls(files):
 
         if files and st.session_state.selected_file:
             if not st.session_state.confirm_delete:
-                if st.button("Delete file", key="delete_file_btn"):
+                if st.button("Delete file", key="delete_file_btn", disabled=busy):
                     st.session_state.confirm_delete = True
                     st.rerun()
             else:
                 with st.container(horizontal=True, gap="small"):
                     st.warning(f"Delete {st.session_state.selected_file}?")
-                    if st.button("Yes, delete", key="confirm_delete_btn"):
+                    if st.button("Yes, delete", key="confirm_delete_btn", disabled=busy):
                         try:
                             deleted = st.session_state.selected_file
                             pipeline.delete_markdown_file(deleted)
                             st.session_state.drafts.pop(deleted, None)
+                            st.session_state.last_saved.pop(deleted, None)
                             for name in pipeline.HEADER_FIELDS:
                                 st.session_state.pop(_header_field_key(deleted, name), None)
                             st.session_state.pop(_date_picker_key(deleted), None)
@@ -344,7 +374,7 @@ def _render_file_controls(files):
         # *right now*; main() waits for that reply (a guaranteed second
         # rerun, since a component's setComponentValue always triggers one)
         # before actually building, so the save is never stale.
-        if st.button("Render", type="primary", key="render_btn"):
+        if st.button("Render", type="primary", key="render_btn", disabled=busy):
             st.session_state.pending_render = True
             st.session_state.render_awaiting_reply = False
             st.session_state.flush_token += 1
@@ -356,6 +386,7 @@ def _render_file_controls(files):
                 file_name=st.session_state.pdf_name,
                 mime="application/pdf",
                 key="download_pdf_btn",
+                disabled=busy,
             )
         else:
             st.button("Download PDF", disabled=True, key="download_pdf_btn_disabled")
@@ -500,13 +531,13 @@ def _do_render():
         st.error("No markdown file selected.")
         return
 
-    pipeline.write_header(filename, _current_header_fields(filename))
-    pipeline.write_markdown_file(filename, st.session_state.drafts.get(filename, ""))
+    _autosave(filename)
 
     with st.spinner("Rendering PDF..."):
-        success, _log, pdf_path = pipeline.render(filename)
+        success, log, pdf_path = pipeline.render(filename)
 
     st.session_state.build_ok = success
+    st.session_state.build_log = log
     if pdf_path is not None:
         st.session_state.pdf_bytes = pdf_path.read_bytes()
         st.session_state.pdf_name = pdf_path.name
@@ -579,6 +610,10 @@ def main():
                 "Build succeeded." if st.session_state.build_ok else "Build failed."
             )
 
+    if st.session_state.build_ok is False and st.session_state.build_log:
+        with st.expander("Build log", expanded=True):
+            st.code(st.session_state.build_log, language=None)
+
     # A tighter gap than the default between every top-level element below --
     # this is a dense, single-page app (editor/PDF panes plus everything
     # else) rather than a series of loosely related sections.
@@ -600,6 +635,7 @@ def main():
                     assets=pipeline.list_asset_files(),
                 )
                 st.session_state.drafts[st.session_state.selected_file] = value
+                _autosave(st.session_state.selected_file)
 
                 if st.session_state.pending_render:
                     if st.session_state.render_awaiting_reply:

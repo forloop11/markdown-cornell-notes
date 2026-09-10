@@ -7,9 +7,27 @@ dependency for something this simple.
 import os
 
 
+def _unescape_double_quoted(inner):
+    # Reverses the `\\` -> `\\\\`, `"` -> `\"` escaping applied by
+    # pipeline.write_header. A backslash before any other character isn't
+    # an escape sequence this format produces, so it's left as-is.
+    result = []
+    i = 0
+    while i < len(inner):
+        ch = inner[i]
+        if ch == "\\" and i + 1 < len(inner) and inner[i + 1] in "\\\"":
+            result.append(inner[i + 1])
+            i += 2
+        else:
+            result.append(ch)
+            i += 1
+    return "".join(result)
+
+
 def strip_quotes(value):
     if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-        return value[1:-1]
+        inner = value[1:-1]
+        return _unescape_double_quoted(inner) if value[0] == '"' else inner
     return value
 
 

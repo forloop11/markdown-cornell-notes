@@ -66,7 +66,11 @@ def write_header(md_filename, fields):
     path = yaml_path_for(md_filename)
     lines = [HEADER_COMMENT.rstrip("\n"), ""]
     for name in HEADER_FIELDS:
-        value = fields.get(name, "").replace('"', '\\"')
+        # Backslash first, then quote -- otherwise a value containing a
+        # literal backslash would corrupt the quote-escaping below (and,
+        # since simple_yaml.strip_quotes unescapes in the same order,
+        # doing it any other way here would break the round-trip).
+        value = fields.get(name, "").replace("\\", "\\\\").replace('"', '\\"')
         lines.append(f'{name}: "{value}"')
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

@@ -21,14 +21,14 @@ st.set_page_config(page_title="Markdown Cornell Notes", layout="wide")
 
 # Shared by both panes so their bottoms line up, not just their tops (which
 # already match since both start with a single caption line -- see
-# _render_pdf_pane and the Markdown pane's st.caption in main()). Tall
-# enough that a full-width, letter-size page (aspect ratio 11/8.5 ~= 1.29 --
-# see settings/page.yaml's `paper`) fits without an inner scrollbar at the
-# ~775px a half-width column comes out to in a typical wide-layout browser
-# window (775 * 1.29 ~= 1000); a narrower window's column still fills the
-# frame's width via #view=FitH (see _render_pdf_pane), just with some
-# scrolling needed to see the bottom of the page.
-PANE_HEIGHT = 1000
+# _render_pdf_pane and the Markdown pane's st.caption in main()). Deliberately
+# shorter than a full-width, letter-size page (aspect ratio 11/8.5 ~= 1.29 --
+# see settings/page.yaml's `paper`) fits at the ~775px a half-width column
+# comes out to in a typical wide-layout browser window (775 * 1.29 ~= 1000),
+# so both panes fit more comfortably on screen; the PDF frame still fills its
+# full width via #view=FitH (see _render_pdf_pane) regardless of column
+# width, just with some scrolling needed to see the bottom of the page.
+PANE_HEIGHT = 600
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 

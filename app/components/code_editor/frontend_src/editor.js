@@ -120,6 +120,7 @@ const codeLanguages = (info) => {
 let view = null;
 let lastKey = null;
 let lastFlushToken = null;
+let lastHeight = null;
 let debounceTimer = null;
 let lastSentDoc = null;
 // Filenames from assets/ (see pipeline.list_asset_files() in the Python
@@ -133,7 +134,13 @@ function sendToStreamlit(message) {
 }
 
 function setFrameHeight() {
-  const height = document.documentElement.scrollHeight;
+  // body.scrollHeight, not documentElement's: with no explicit height set on
+  // <html>, its scrollHeight floors at the iframe's *current* viewport size
+  // (its previous setFrameHeight value) rather than shrinking to match
+  // actually-shorter content -- confirmed by hand, growing works either way
+  // but shrinking (e.g. via the pane-height dropdown in streamlit_app.py)
+  // silently no-ops with documentElement. body has no such floor.
+  const height = document.body.scrollHeight;
   sendToStreamlit({ type: "streamlit:setFrameHeight", height });
 }
 
@@ -618,16 +625,23 @@ function buildToolbar() {
   return toolbar;
 }
 
+// Subtracts the toolbar's own rendered height from the editor's so the two
+// together still add up to `height` -- the value Python passed in, which is
+// also used for the PDF pane's iframe height (see _pane_height() in
+// streamlit_app.py), so the two panes are expected to end up the same total
+// height so their bottoms line up.
+function applyHeight(height) {
+  const container = document.getElementById("editor");
+  const toolbar = document.getElementById("toolbar");
+  container.style.height = `${height - toolbar.offsetHeight}px`;
+  lastHeight = height;
+}
+
 function mount(initialDoc, height) {
   const container = document.getElementById("editor");
   const toolbar = buildToolbar();
   container.parentElement.insertBefore(toolbar, container);
-  // Subtract the toolbar's own rendered height from the editor's so the
-  // two together still add up to the `height` Python passed in -- that
-  // value is also used for the PDF pane's iframe height (see PANE_HEIGHT
-  // in streamlit_app.py), and the two panes are expected to end up the
-  // same total height so their bottoms line up.
-  container.style.height = `${height - toolbar.offsetHeight}px`;
+  applyHeight(height);
   lastSentDoc = initialDoc;
   view = new EditorView({
     state: makeState(initialDoc),
@@ -651,6 +665,15 @@ function onRender(event) {
     lastFlushToken = flushToken;
     setFrameHeight();
     return;
+  }
+
+  // Re-applied on every render, independent of the key/flushToken branches
+  // below, so the pane-height dropdown in streamlit_app.py's button row
+  // (which reruns without changing the file's key) actually resizes an
+  // already-mounted editor instead of only taking effect on next mount.
+  if (height !== lastHeight) {
+    applyHeight(height);
+    setFrameHeight();
   }
 
   // Only reload the document when the *file identity* changed. Every

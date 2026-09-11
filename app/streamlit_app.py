@@ -28,7 +28,13 @@ st.set_page_config(page_title="Markdown Cornell Notes", layout="wide")
 # so both panes fit more comfortably on screen; the PDF frame still fills its
 # full width via #view=FitH (see _render_pdf_pane) regardless of column
 # width, just with some scrolling needed to see the bottom of the page.
-PANE_HEIGHT = 600
+# This is the "100%" value of the pane-height dropdown in the button row --
+# see PANE_HEIGHT_OPTIONS and _pane_height().
+BASE_PANE_HEIGHT = 600
+
+# Offered in the button row so the editor/PDF panes can be shrunk (e.g. on a
+# smaller screen) or grown beyond BASE_PANE_HEIGHT's default.
+PANE_HEIGHT_OPTIONS = ["30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"]
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 
@@ -248,6 +254,7 @@ def _init_state():
     st.session_state.setdefault("asset_current_dir", "")
     st.session_state.setdefault("asset_folder_input_version", 0)
     st.session_state.setdefault("checked_existing_pdf", set())
+    st.session_state.setdefault("pane_height_pct", "100%")
     # Keys a per-session BUILDDIR (see _do_render) so two sessions rendering
     # around the same time never race on the same scratch directory.
     st.session_state.setdefault("build_id", uuid.uuid4().hex)
@@ -412,8 +419,18 @@ def _resolve_selected_file():
     return files
 
 
+def _pane_height():
+    """The editor/PDF pane height in pixels: BASE_PANE_HEIGHT scaled by the
+    button row's pane-height dropdown (st.session_state.pane_height_pct).
+    """
+    percent = int(st.session_state.pane_height_pct.rstrip("%"))
+    return round(BASE_PANE_HEIGHT * percent / 100)
+
+
 def _render_file_controls(files):
-    """Render the New file/Delete file/Render/Download PDF button row."""
+    """Render the New file/Delete file/Render/Download PDF/pane-height
+    button row.
+    """
     # A render is in flight from the moment Render is clicked until
     # _do_render() finishes and reruns (see the flush-token comment below) --
     # disable actions that would race it or duplicate the click across that
@@ -502,6 +519,14 @@ def _render_file_controls(files):
             )
         else:
             st.button("Download PDF", disabled=True, key="download_pdf_btn_disabled")
+
+        st.selectbox(
+            "Pane Height",
+            PANE_HEIGHT_OPTIONS,
+            key="pane_height_pct",
+            width=110,
+            label_visibility="collapsed",
+        )
 
 
 def _render_asset_breadcrumbs(current_dir):
@@ -737,11 +762,11 @@ def _render_pdf_pane():
     # wider than the page it picked height as the binding constraint,
     # letterboxing the page down narrower than the frame instead of filling
     # it -- FitH always fills the frame's width, at the cost of a vertical
-    # scrollbar inside the frame if PANE_HEIGHT is shorter than a
-    # full-width page (see PANE_HEIGHT's own comment).
+    # scrollbar inside the frame if the pane height is shorter than a
+    # full-width page (see BASE_PANE_HEIGHT's own comment).
     st.markdown(
         f'<iframe src="data:application/pdf;base64,{b64}#view=FitH" '
-        f'width="100%" height="{PANE_HEIGHT}" style="border:none;"></iframe>',
+        f'width="100%" height="{_pane_height()}" style="border:none;"></iframe>',
         unsafe_allow_html=True,
     )
 
@@ -815,7 +840,7 @@ def main():
                 value = code_editor(
                     value=_draft_for(st.session_state.selected_file),
                     key=st.session_state.selected_file,
-                    height=PANE_HEIGHT,
+                    height=_pane_height(),
                     flush_token=st.session_state.flush_token,
                     assets=asset_files,
                 )

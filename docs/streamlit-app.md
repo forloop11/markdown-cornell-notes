@@ -50,14 +50,16 @@ a fast double-click can't submit twice. Render saves both the selected
 file's header and its markdown content to disk and runs `make build` for
 you; the title's status pill (see above) reports success or failure.
 Download PDF (disabled until a PDF exists) downloads the current one under
-its actual output filename.
+its actual output filename. A dropdown at the end of the row (30%–100%,
+100% by default) scales the editor/PDF pane height below — pick a smaller
+value to fit both panes on a shorter screen without scrolling.
 
 Below that, the markdown editor (left) and the resulting PDF (right) sit
-side by side, matched in height so their tops and bottoms align. Header
-fields and markdown content both autosave to disk continuously as you
-edit — a debounce/blur from the markdown editor, immediately for header
-fields — rather than only on Render, so switching files or closing the tab
-doesn't lose unsaved work.
+side by side, matched in height (per the pane-height dropdown above) so
+their tops and bottoms align. Header fields and markdown content both
+autosave to disk continuously as you edit — a debounce/blur from the
+markdown editor, immediately for header fields — rather than only on
+Render, so switching files or closing the tab doesn't lose unsaved work.
 
 At the bottom is an **Assets** expander (labeled with the current file
 count) that manages the `assets/` folder used for images and linked

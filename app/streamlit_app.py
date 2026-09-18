@@ -34,7 +34,11 @@ BASE_PANE_HEIGHT = 600
 
 # Offered in the button row so the editor/PDF panes can be shrunk (e.g. on a
 # smaller screen) or grown beyond BASE_PANE_HEIGHT's default.
-PANE_HEIGHT_OPTIONS = ["30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"]
+PANE_HEIGHT_OPTIONS = [
+    "30%", "40%", "50%", "60%",
+    "70%", "80%", "90%", "100%",
+    "110%", "120%", "130%", "140%", "150%",
+    "160%", "170%", "180%", "190%", "200%"]
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 

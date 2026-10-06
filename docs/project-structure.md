@@ -38,14 +38,18 @@
 ├── pdf/                Output PDF (see Naming the output PDF in
                         editing-notes.md).
 ├── app/
-│   ├── streamlit_app.py  The Streamlit editor app; see streamlit-app.md.
+│   ├── flask_app.py      The Flask editor app's server + JSON API; see
+│   │                     editor-app.md.
+│   ├── header_form.py    Converts between the yaml header fields and the
+│   │                     app's header form (date/time/timezone pickers).
 │   ├── pipeline.py       Header/markdown file I/O + `make build`
 │   │                     invocation for the app.
-│   └── components/
-│       └── code_editor/      CodeMirror-based editor component
-│                             (markdown/HTML/LaTeX highlighting + native
-│                             browser spellcheck).
-├── requirements.txt    Python deps for the app (`streamlit`); not needed for
+│   ├── templates/        The app's HTML page.
+│   ├── static/           The app's CSS/JS, including editor.js, the built
+│   │                     CodeMirror bundle (markdown/HTML/LaTeX
+│   │                     highlighting + native browser spellcheck).
+│   └── frontend_src/     Source for static/editor.js (npm + esbuild).
+├── requirements.txt    Python deps for the app (`flask`); not needed for
 │                       `make build`.
 └── Makefile            `make build` / `make app` / `make clean` / `make
                         distclean`.

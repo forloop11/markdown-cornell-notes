@@ -2,9 +2,9 @@
   "name": "cornell-notes-code-editor",
   "private": true,
   "version": "1.0.0",
-  "description": "CodeMirror 6 editor bundle for the Cornell notes Streamlit app's code_editor component. Rebuild with `npm install && npm run build`.",
+  "description": "CodeMirror 6 editor bundle for the Cornell notes Flask app (exposes window.CodeEditor). Rebuild with `npm install && npm run build`.",
   "scripts": {
-    "build": "esbuild editor.js --bundle --minify --format=iife --outfile=../frontend/bundle.js"
+    "build": "esbuild editor.js --bundle --minify --format=iife --outfile=../static/editor.js"
   },
   "devDependencies": {
     "esbuild": "^0.24.0"

@@ -16,7 +16,7 @@ location: "Zoom"
 ```
 
 `timezone` and `location` are both optional. `timezone` is only meaningful
-to the app's picker (see [Streamlit editor app](streamlit-app.md)) —
+to the app's picker (see [editor app](editor-app.md)) —
 it holds the IANA zone name behind `time`'s abbreviation and isn't typeset
 itself. `location` *is* typeset: `settings/template.tex` appends it to
 `time` (as `"10:00--10:30, Zoom"`) on the Time row, and
@@ -107,7 +107,7 @@ page count changed or was miscounted.
 which holds one `cornellFlow` environment per `md/notes.md` section.
 (`\cnBuildDir` defaults to `build`, overridden per-invocation by the
 Makefile's `BUILDDIR` — see `make build-example` (in the
-[project structure](project-structure.md) notes) and the Streamlit app's
+[project structure](project-structure.md) notes) and the editor app's
 own scratch directory — so isolated builds actually compile their own
 generated content instead of whatever's currently in the default `build/`.)
 Every resulting page shares the same header from `yaml/notes.yaml` and

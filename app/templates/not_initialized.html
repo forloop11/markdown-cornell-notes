@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markdown Cornell Notes</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<main>
+  <h1>Markdown Cornell Notes</h1>
+  <p class="msg error">
+    No project found in <code>{{ project_root }}</code>. Run
+    <code>markdown-cornell-notes init</code> (or <code>make init</code>) in that
+    directory, then restart this app from there.
+  </p>
+</main>
+</body>
+</html>

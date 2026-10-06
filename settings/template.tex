@@ -89,6 +89,23 @@
   \end{list}%
 }
 
+% Paragraph setup for the narrow cue column and summary-band columns
+% (see \cornellpage). Justified text at this width regularly can't find
+% acceptable line breaks, so TeX gives up and lets a line run a few pt
+% past \hsize -- straight over the column's border line. Ragged-right
+% gives every line slack to break short instead (hyphenation still
+% applies), and \emergencystretch covers any paragraph that still can't
+% be set. \_ gets a break point after it so a long identifier in inline
+% code (pandoc's \texttt{some\_long\_name}, which never hyphenates) can
+% wrap instead of overflowing. A single unbreakable token wider than the
+% column (e.g. a bare URL with no spaces) can still overflow; writing it
+% as <https://...> makes pandoc emit \url, which breaks after slashes.
+\newcommand{\cnNarrowColumnSetup}{%
+  \raggedright\emergencystretch=1em
+  \let\cnOrigUnderscore\_%
+  \def\_{\cnOrigUnderscore\allowbreak}%
+}
+
 % pandoc emits \st{...} for ~~strikethrough~~, normally provided by the
 % `soul` package. Neither `soul` nor `ulem` is in this project's minimal
 % texlive set (both live only in texlive-latex-extra, a large pull), so
@@ -127,7 +144,7 @@
 % Directory the generated cornell-*.tex fragments below live in. The
 % Makefile overrides this per invocation (via latexmk's -usepretex, which
 % runs before this \providecommand, so it wins) with BUILDDIR -- e.g.
-% build/example for `make build-example`, build/app for the Streamlit app
+% build/example for `make build-example`, build/app-<id> for the editor app
 % -- so that concurrent/isolated builds actually use their own generated
 % content instead of silently reading over each other's build/ directory.
 \providecommand{\cnBuildDir}{build}
@@ -355,7 +372,7 @@
   % into its argument register happens before \setbox's own assignment
   % completes, so this discards the overflow in one line instead of
   % needing a second scratch register just to throw it away.
-  \setbox\cnCueBox=\vbox{\hsize=\the\cnCueTextW\linewidth=\hsize\footnotesize\noindent\cnCueText{\thepage}\par\vfil\penalty-10000}%
+  \setbox\cnCueBox=\vbox{\hsize=\the\cnCueTextW\linewidth=\hsize\footnotesize\cnNarrowColumnSetup\noindent\cnCueText{\thepage}\par\vfil\penalty-10000}%
   \setbox\cnCueBox=\vsplit\cnCueBox to \cnNotesPanelH\relax
 
   % Summary text is typeset at one column's width, then \vsplit at one
@@ -363,7 +380,7 @@
   % (rather than running past the band) lands in column 2 instead. A
   % page with little/no summary text ends up with an empty (\ifvoid)
   % column 2.
-  \setbox\cnSummaryBox=\vbox{\hsize=\the\cnSummaryColW\linewidth=\hsize\footnotesize
+  \setbox\cnSummaryBox=\vbox{\hsize=\the\cnSummaryColW\linewidth=\hsize\footnotesize\cnNarrowColumnSetup
     \noindent\cnSummaryText{\thepage}\par\vfil\penalty-10000}%
   \setbox\cnSummaryColA=\vsplit\cnSummaryBox to \cnSummaryColH\relax
   \ifvoid\cnSummaryBox

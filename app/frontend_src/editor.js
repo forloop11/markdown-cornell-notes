@@ -1,11 +1,10 @@
-// CodeMirror 6 editor for the Cornell notes Streamlit app.
+// CodeMirror 6 editor for the Cornell notes Flask app.
 //
-// This is a hand-rolled Streamlit component instead of one built on
-// streamlit-component-lib/React: the Streamlit <-> iframe protocol is just
-// postMessage with a handful of message types, small enough to implement
-// directly and avoid pulling in an npm/React build pipeline for something
-// this size. See https://docs.streamlit.io/develop/concepts/custom-components
-// for the (React-oriented) reference implementation this mirrors.
+// Bundled (see package.json's build script) into a single IIFE at
+// ../static/editor.js that exposes window.CodeEditor -- a small imperative
+// API (mount/setDoc/getDoc/setHeight/setAssets) that app/static/app.js
+// drives directly. It mounts straight into the page rather than inside an
+// iframe, so there's no cross-frame message protocol between the two.
 import { EditorState, EditorSelection } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers, highlightActiveLine } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
@@ -18,12 +17,9 @@ import { autocompletion, startCompletion } from "@codemirror/autocomplete";
 
 const DEBOUNCE_MS = 500;
 
-// Dracula (https://draculatheme.com/) -- fixed rather than following
-// Streamlit's light/dark setting: this editor lives in its own iframe, a
-// separate document that doesn't inherit the outer page's theme at all, so
-// "adapt to Streamlit's theme" would need its own plumbing. A fixed dark
-// theme is simpler and also just directly fixes the actual complaint
-// (default/unstyled text being unreadable against a dark background).
+// Dracula (https://draculatheme.com/) -- fixed rather than following the
+// page's light/dark setting: a fixed dark theme keeps syntax colors
+// readable without maintaining a second palette.
 const dracula = {
   background: "#282a36",
   currentLine: "#44475a",
@@ -118,68 +114,38 @@ const codeLanguages = (info) => {
 };
 
 let view = null;
-let lastKey = null;
-let lastFlushToken = null;
-let lastHeight = null;
+let container = null;
+let toolbar = null;
 let debounceTimer = null;
-let lastSentDoc = null;
-// Filenames from assets/ (see pipeline.list_asset_files() in the Python
-// side), used by assetPathCompletions below. Updated on every render event
-// rather than only when the doc/key changes, since the asset list can
-// change (upload/delete) without the selected file changing.
+let lastNotifiedDoc = null;
+// mount()'s onChange callback -- called with the full document text after
+// edits settle (DEBOUNCE_MS) or immediately on blur.
+let onChange = () => {};
+// Filenames from assets/ (see pipeline.list_asset_files() on the Python
+// side), used by assetPathCompletions below. Set via setAssets(), since the
+// asset list can change (upload/delete) without the open file changing.
 let assetFiles = [];
 
-function sendToStreamlit(message) {
-  window.parent.postMessage({ isStreamlitMessage: true, ...message }, "*");
+function notify(doc) {
+  if (doc === lastNotifiedDoc) return;
+  lastNotifiedDoc = doc;
+  onChange(doc);
 }
 
-function setFrameHeight() {
-  // body.scrollHeight, not documentElement's: with no explicit height set on
-  // <html>, its scrollHeight floors at the iframe's *current* viewport size
-  // (its previous setFrameHeight value) rather than shrinking to match
-  // actually-shorter content -- confirmed by hand, growing works either way
-  // but shrinking (e.g. via the pane-height dropdown in streamlit_app.py)
-  // silently no-ops with documentElement. body has no such floor.
-  const height = document.body.scrollHeight;
-  sendToStreamlit({ type: "streamlit:setFrameHeight", height });
-}
-
-function sendValue(doc) {
-  if (doc === lastSentDoc) return;
-  lastSentDoc = doc;
-  sendToStreamlit({ type: "streamlit:setComponentValue", value: doc });
-}
-
-function scheduleSendValue(doc) {
+function scheduleNotify(doc) {
   if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => sendValue(doc), DEBOUNCE_MS);
+  debounceTimer = setTimeout(() => notify(doc), DEBOUNCE_MS);
 }
 
-// Send immediately rather than waiting out the debounce, and cancel any
-// pending debounced send (it would just be a redundant no-op once this
-// runs, since sendValue() no-ops on an unchanged doc anyway).
+// Notify immediately rather than waiting out the debounce, and cancel any
+// pending debounced notification (it would just be a redundant no-op once
+// this runs, since notify() no-ops on an unchanged doc anyway).
 function flushNow(doc) {
   if (debounceTimer) {
     clearTimeout(debounceTimer);
     debounceTimer = null;
   }
-  sendValue(doc);
-}
-
-// Unconditional version of flushNow, used only for a Python-requested
-// flush (see the flush_token handling in onRender below): always sends,
-// even if the doc looks unchanged from the last thing we sent. This is
-// what Python's Render handler blocks on to know the save actually landed
-// -- if this used the same dedup as flushNow/sendValue, an unchanged doc
-// would never produce a new Streamlit widget value, and Python would have
-// nothing to react to.
-function forceSend(doc) {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-    debounceTimer = null;
-  }
-  lastSentDoc = doc;
-  sendToStreamlit({ type: "streamlit:setComponentValue", value: doc });
+  notify(doc);
 }
 
 // Tab isn't bound by @codemirror/commands' defaultKeymap (that's what
@@ -220,18 +186,12 @@ function makeState(doc) {
       EditorView.lineWrapping,
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
-          scheduleSendValue(update.state.doc.toString());
-        }
-        if (update.heightChanged || update.docChanged) {
-          setFrameHeight();
+          scheduleNotify(update.state.doc.toString());
         }
       }),
       // Flush immediately on blur rather than leaving the last edit(s)
-      // sitting in the debounce window. Clicking Render (or any other
-      // Streamlit control) blurs this editor first, as part of the same
-      // click -- so this is what guarantees the file on disk actually
-      // reflects what's in the editor at the moment Render runs, instead
-      // of racing the debounce timer.
+      // sitting in the debounce window, so the autosave fires as soon as
+      // the user clicks away (e.g. to switch files or close the tab).
       EditorView.domEventHandlers({
         blur: (_event, editorView) => flushNow(editorView.state.doc.toString()),
       }),
@@ -455,8 +415,8 @@ function fenceLangCompletions(context) {
 }
 
 // Matches inside the target parens of a link or image -- "](assets/tux|" --
-// and offers files from assets/ (see assetFiles, populated from Python's
-// pipeline.list_asset_files() in onRender). Deliberately not anchored to
+// and offers files from assets/ (see assetFiles, set via setAssets() from
+// pipeline.list_asset_files() on the Python side). Deliberately not anchored to
 // "![" specifically: a plain [text](...) link pointing at an asset (e.g.
 // linking out to a PDF handout) is just as valid as an image embed.
 function assetPathCompletions(context) {
@@ -626,80 +586,48 @@ function buildToolbar() {
 }
 
 // Subtracts the toolbar's own rendered height from the editor's so the two
-// together still add up to `height` -- the value Python passed in, which is
-// also used for the PDF pane's iframe height (see _pane_height() in
-// streamlit_app.py), so the two panes are expected to end up the same total
-// height so their bottoms line up.
-function applyHeight(height) {
-  const container = document.getElementById("editor");
-  const toolbar = document.getElementById("toolbar");
+// together still add up to `height` -- the same value app.js uses for the
+// PDF pane's iframe, so the two panes' bottoms line up. The toolbar can wrap
+// onto a second row in a narrow pane, so this is re-run on window resize.
+function setHeight(height) {
+  if (!container) return;
+  container.dataset.height = String(height);
   container.style.height = `${height - toolbar.offsetHeight}px`;
-  lastHeight = height;
 }
 
-function mount(initialDoc, height) {
-  const container = document.getElementById("editor");
-  const toolbar = buildToolbar();
-  container.parentElement.insertBefore(toolbar, container);
-  applyHeight(height);
-  lastSentDoc = initialDoc;
-  view = new EditorView({
-    state: makeState(initialDoc),
-    parent: container,
-  });
+// Mounts the toolbar + editor into `el` (an empty element), showing `doc`.
+// `onChange(doc)` is called with the full text once edits settle.
+function mount(el, { doc = "", height = 600, assets = [], onChange: callback } = {}) {
+  container = document.createElement("div");
+  container.id = "editor";
+  toolbar = buildToolbar();
+  el.replaceChildren(toolbar, container);
+  assetFiles = assets;
+  onChange = callback || (() => {});
+  lastNotifiedDoc = doc;
+  view = new EditorView({ state: makeState(doc), parent: container });
+  setHeight(height);
+  window.addEventListener("resize", () => setHeight(Number(container.dataset.height)));
 }
 
-function onRender(event) {
-  const data = event.data;
-  if (!data || data.type !== "streamlit:render") return;
-  const args = data.args || {};
-  const doc = typeof args.value === "string" ? args.value : "";
-  const key = args.doc_id;
-  const height = typeof args.height === "number" ? args.height : 700;
-  const flushToken = args.flush_token;
-  assetFiles = Array.isArray(args.assets) ? args.assets : [];
-
-  if (!view) {
-    mount(doc, height);
-    lastKey = key;
-    lastFlushToken = flushToken;
-    setFrameHeight();
-    return;
+// Replaces the whole document (e.g. after switching files), resetting undo
+// history and cancelling any pending change notification for the old one.
+function setDoc(doc) {
+  if (!view) return;
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
   }
-
-  // Re-applied on every render, independent of the key/flushToken branches
-  // below, so the pane-height dropdown in streamlit_app.py's button row
-  // (which reruns without changing the file's key) actually resizes an
-  // already-mounted editor instead of only taking effect on next mount.
-  if (height !== lastHeight) {
-    applyHeight(height);
-    setFrameHeight();
-  }
-
-  // Only reload the document when the *file identity* changed. Every
-  // Streamlit rerun re-sends a render event, including the one triggered by
-  // our own setComponentValue() call echoing back through Python -- if we
-  // reset the doc on every render, typing would get its cursor/selection
-  // clobbered mid-edit on each debounce tick.
-  if (key !== lastKey) {
-    lastKey = key;
-    lastFlushToken = flushToken;
-    lastSentDoc = doc;
-    view.setState(makeState(doc));
-    setFrameHeight();
-    return;
-  }
-
-  // Python bumps flush_token right when Render is clicked and blocks on
-  // seeing a reply before it actually builds -- see the "Render" comment
-  // in streamlit_app.py for why relying on the debounce/blur alone isn't
-  // enough (postMessage delivery to the parent frame isn't guaranteed to
-  // finish before the click's own Streamlit rerun request goes out).
-  if (flushToken !== undefined && flushToken !== lastFlushToken) {
-    lastFlushToken = flushToken;
-    forceSend(view.state.doc.toString());
-  }
+  lastNotifiedDoc = doc;
+  view.setState(makeState(doc));
 }
 
-window.addEventListener("message", onRender);
-sendToStreamlit({ type: "streamlit:componentReady", apiVersion: 1 });
+function getDoc() {
+  return view ? view.state.doc.toString() : "";
+}
+
+function setAssets(assets) {
+  assetFiles = Array.isArray(assets) ? assets : [];
+}
+
+window.CodeEditor = { mount, setDoc, getDoc, setHeight, setAssets };

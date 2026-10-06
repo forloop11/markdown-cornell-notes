@@ -32,7 +32,7 @@ cd ~/notes
 markdown-cornell-notes app
 ```
 
-opens the [Streamlit editor app](streamlit-app.md) on that project;
+opens the [editor app](editor-app.md) on that project;
 running it (or `build`) outside an initialized directory fails with a clear
 "run `markdown-cornell-notes init` first" message rather than a permission
 error.
@@ -82,7 +82,7 @@ has a comment marking where to fill in the new `url`/`sha256`.
 above (see [Installing as a system package](#installing-as-a-system-package)):
 everything lands under `/usr/share/markdown-cornell-notes` and a thin
 `markdown-cornell-notes` wrapper on `PATH` runs `make -f <that>/Makefile`.
-Unlike the other two, it bundles the [Streamlit editor app](streamlit-app.md)'s
+Unlike the other two, it bundles the [editor app](editor-app.md)'s
 `pip install` too, since there's no Debian/Homebrew-style "system package
 manager" constraint to keep it out of Depends.
 
@@ -106,10 +106,9 @@ works the same way `make <target>` does above (`build`, `build-example`,
 docker run --rm --user "$(id -u):$(id -g)" -p 8501:8501 -v "$PWD":/project markdown-cornell-notes app
 ```
 
-opens the Streamlit editor on `http://localhost:8501` for that project
-(the `-p` publishes the container's port; `app`'s `--server.address=0.0.0.0`
-in the Makefile is what makes it reachable at all from outside the
-container).
+opens the editor app on `http://localhost:8501` for that project
+(the `-p` publishes the container's port; `app`'s `--host 0.0.0.0` in the
+Makefile is what makes it reachable at all from outside the container).
 
 Typing the full `docker run --rm --user ... -v "$PWD":/project` prefix for
 every command gets old fast — an `mcn` alias in your shell rc file

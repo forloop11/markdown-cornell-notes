@@ -3,8 +3,9 @@
 # No compiled code here -- this just stages the pipeline (Makefile, scripts,
 # settings, app) under /usr/share, drops a /usr/bin launcher, and declares
 # the system deps (texlive, pandoc, latexmk) apt already knows about.
-# Streamlit is pip-only in Debian, so it's left out of Depends -- see
-# README.md's Streamlit editor app section.
+# The optional editor app's only Python dependency, Flask, is packaged in
+# Debian as python3-flask -- Recommends rather than Depends, since `make
+# build` itself doesn't need it.
 set -eu
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -50,12 +51,11 @@ Section: text
 Priority: optional
 Architecture: all
 Depends: python3, make, pandoc, latexmk, texlive-latex-extra, texlive-latex-recommended, texlive-pictures
-Suggests: python3-pip
+Recommends: python3-flask
 Maintainer: Todd C. Takala <todd.c.takala@gmail.com>
 Description: Cornell-style meeting notes generator (LaTeX/Markdown)
  Generates Cornell-note-taking-system PDFs from YAML header files and
- Markdown content, with an optional Streamlit editor UI (pip install
- streamlit separately).
+ Markdown content, with an optional browser-based editor UI (Flask).
 EOF
 
 DEB_FILE="$DIST_DIR/${PKG_NAME}_${VERSION}.deb"

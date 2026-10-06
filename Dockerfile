@@ -42,9 +42,8 @@ COPY yaml "$MCN_ROOT"/yaml/
 COPY assets "$MCN_ROOT"/assets/
 COPY docs "$MCN_ROOT"/docs/
 
-# Streamlit is pip-only in Debian (see build_deb.sh) but there's no reason
-# to leave it out of a container image the way the .deb's Depends does --
-# install it here so `markdown-cornell-notes app` works out of the box.
+# The editor app's Python deps (Flask -- see requirements.txt), installed
+# here so `markdown-cornell-notes app` works out of the box.
 RUN pip install --no-cache-dir --break-system-packages -r "$MCN_ROOT/requirements.txt"
 
 RUN printf '#!/bin/sh\nexec make -f %s/Makefile "$@"\n' "$MCN_ROOT" \

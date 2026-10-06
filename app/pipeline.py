@@ -1,6 +1,11 @@
 """Thin wrapper around the Cornell notes CLI pipeline (see ../Makefile) for
-the Streamlit app: header read/write, markdown file management, and
+the Flask app: header read/write, markdown file management, and
 `make build` invocation.
+
+File, folder, and asset names passed in here come straight from HTTP
+requests (see flask_app.py), so every function that takes one checks it
+can't escape its own directory (see _check_plain_name) rather than
+trusting the caller.
 """
 import re
 import shutil
@@ -11,7 +16,7 @@ from pathlib import Path
 # REPO_ROOT is where this file (and the rest of the pipeline -- scripts/,
 # the Makefile) lives, which for an installed package is the read-only
 # /usr/share/markdown-cornell-notes tree. PROJECT_ROOT is the user's actual
-# project -- the CWD `streamlit run` was launched from, matching `make
+# project -- the CWD the app was launched from, matching `make
 # app`/the installed CLI's "operate on CWD" model (see Makefile's MCN_ROOT).
 # md/, yaml/, pdf/, assets/ are project data and live under PROJECT_ROOT;
 # scripts/ is library code and stays under REPO_ROOT.
@@ -40,8 +45,8 @@ _SAFE_STEM_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 class PipelineError(Exception):
     """A user-facing error from this module (e.g. a name collision or an
-    invalid path) -- the Streamlit app catches this and shows its
-    message directly, unlike an unexpected exception.
+    invalid path) -- the Flask app catches this and returns its
+    message to the browser, unlike an unexpected exception.
     """
 
 
@@ -131,14 +136,41 @@ def delete_markdown_file(name):
     yaml_path_for(name).unlink(missing_ok=True)
 
 
+def _check_plain_name(name):
+    """Raise PipelineError unless `name` is a single path component (no
+    "/" or "\\" separators, and not "", "." or "..") -- i.e. something
+    that, joined onto a directory, can only name an entry directly inside
+    it.
+    """
+    if (
+        not isinstance(name, str)
+        or name in ("", ".", "..")
+        or "/" in name
+        or "\\" in name
+        or "\0" in name
+    ):
+        raise PipelineError(f"Invalid name: {name!r}.")
+
+
+def _markdown_path(name):
+    """md/<name>, for an existing markdown file `name`. Raises
+    PipelineError if `name` isn't one of list_markdown_files().
+    """
+    _check_plain_name(name)
+    path = MD_DIR / name
+    if path.suffix != ".md" or not path.is_file():
+        raise PipelineError(f"{name} not found.")
+    return path
+
+
 def read_markdown_file(name):
     """Return the full text content of md/<name>."""
-    return (MD_DIR / name).read_text(encoding="utf-8")
+    return _markdown_path(name).read_text(encoding="utf-8")
 
 
 def write_markdown_file(name, content):
-    """Overwrite md/<name> with `content`."""
-    (MD_DIR / name).write_text(content, encoding="utf-8")
+    """Overwrite md/<name> (which must already exist) with `content`."""
+    _markdown_path(name).write_text(content, encoding="utf-8")
 
 
 def list_asset_files():
@@ -217,6 +249,7 @@ def delete_asset(name, subdir=""):
     """Delete the file assets/<subdir>/<name>. Raises PipelineError if it
     doesn't exist (or isn't a file).
     """
+    _check_plain_name(name)
     base = _resolve_asset_dir(subdir)
     path = base / name
     if not path.exists() or not path.is_file():
@@ -230,6 +263,7 @@ def move_asset(name, src_subdir, dest_subdir):
     `src_subdir`, `dest_subdir` doesn't exist, or `name` already exists
     there.
     """
+    _check_plain_name(name)
     src_base = _resolve_asset_dir(src_subdir)
     dest_base = _resolve_asset_dir(dest_subdir)
     src_path = src_base / name
@@ -263,6 +297,7 @@ def rename_asset_folder(old_name, new_name, subdir=""):
     `old_name` doesn't exist there, or the sanitized `new_name` already
     exists there under a different name.
     """
+    _check_plain_name(old_name)
     base = _resolve_asset_dir(subdir)
     old_path = base / old_name
     if not old_path.is_dir():
@@ -279,6 +314,7 @@ def delete_asset_folder(name, subdir=""):
     """Recursively delete assets/<subdir>/<name> and everything inside
     it. Raises PipelineError if it doesn't exist (or isn't a folder).
     """
+    _check_plain_name(name)
     base = _resolve_asset_dir(subdir)
     path = base / name
     if not path.is_dir():
@@ -306,8 +342,8 @@ def render(md_filename, yaml_path=None, builddir=None):
     """Run `make build` for the given markdown file, using a scratch
     BUILDDIR dedicated to the app so it never collides with (or goes stale
     against) a manual `make build`/`make build-example` run from the CLI.
-    Pass a caller-specific `builddir` (e.g. one keyed off the Streamlit
-    session) when two renders could otherwise run concurrently -- two
+    Pass a caller-specific `builddir` (e.g. one keyed off the browser
+    tab) when two renders could otherwise run concurrently -- two
     sessions sharing the default BUILDDIR would race on the same
     intermediate `.tex`/`.aux` files.
 

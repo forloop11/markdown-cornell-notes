@@ -1,16 +1,25 @@
-# Streamlit editor app
+# Editor app
 
 A browser UI for the whole pipeline described in the [main README](../README.md)
 — edit the header fields and a markdown file side by side with a rendered
-PDF, without touching the CLI.
+PDF, without touching the CLI. It's a small [Flask](https://flask.palletsprojects.com/)
+app (`app/flask_app.py`) serving one page plus a JSON API over the same
+`md/`, `yaml/`, `pdf/`, and `assets/` files the CLI uses.
 
 ```sh
 pip install -r requirements.txt
 make app
 ```
 
-then open the URL `streamlit` prints (defaults to
-[http://localhost:8501](http://localhost:8501)).
+then open [http://localhost:8501](http://localhost:8501). `make app` listens
+on every network interface (`--host 0.0.0.0`) so other machines on your
+network can reach it too; it has no login, so only run it on a network you
+trust. To keep it local-only, or to use another port, run the app directly
+from your project directory:
+
+```sh
+python3 app/flask_app.py --host 127.0.0.1 --port 8000
+```
 
 Along the top, the page title doubles as the status line: once you've
 clicked Render, a success/failure pill appears right next to it, and on
@@ -18,8 +27,8 @@ failure a **Build log** expander (the raw `make build` output) opens
 underneath so you can see what went wrong.
 
 The page has a collapsible **Header** section (`topic`/`date`/`attendees`/
-`time`) at the top. Location lives under Topic, and start/end time (12-hour,
-with an AM/PM toggle) + a searchable IANA timezone dropdown live under Date,
+`time`) at the top. Location lives under Topic, and start/end time pickers
++ a searchable IANA timezone field (type to filter, then pick a zone) live under Date,
 all stacked below their respective field; the dropdown to switch between the
 files in `md/` lives under Attendees. `date` is a calendar date picker
 (defaulting to today for an entry that doesn't have one yet), still stored in
@@ -50,15 +59,19 @@ a fast double-click can't submit twice. Render saves both the selected
 file's header and its markdown content to disk and runs `make build` for
 you; the title's status pill (see above) reports success or failure.
 Download PDF (disabled until a PDF exists) downloads the current one under
-its actual output filename. A dropdown at the end of the row (30%–100%,
+its actual output filename. A dropdown at the end of the row (30%–200%,
 100% by default) scales the editor/PDF pane height below — pick a smaller
-value to fit both panes on a shorter screen without scrolling.
+value to fit both panes on a shorter screen without scrolling. The browser
+remembers that choice, and the last file you had open, for next time.
 
 Below that, the markdown editor (left) and the resulting PDF (right) sit
 side by side, matched in height (per the pane-height dropdown above) so
-their tops and bottoms align. Header fields and markdown content both
-autosave to disk continuously as you edit — a debounce/blur from the
-markdown editor, immediately for header fields — rather than only on
+their tops and bottoms align. The PDF pane shows the selected file's PDF
+if one has already been built from its current header, and a "Preview may be out of
+date" note appears next to the title whenever the header or markdown has
+changed since that file's last render in this tab. Header fields and markdown content
+both autosave to disk continuously as you edit (about half a second after
+you stop typing, or as soon as the editor loses focus) rather than only on
 Render, so switching files or closing the tab doesn't lose unsaved work.
 
 At the bottom is an **Assets** expander (labeled with the current file
@@ -66,7 +79,9 @@ count) that manages the `assets/` folder used for images and linked
 documents (see [Images and linked documents](editing-notes.md#images-and-linked-documents)):
 it lists each file with an image thumbnail (where applicable), a
 copyable `assets/<name>` path to paste into your Markdown, and its size, plus
-an uploader to add new files and a delete confirmation per file.
+an uploader to add new files and a delete confirmation per file. Folders
+can be created, opened (with a breadcrumb trail back up), renamed, and
+deleted, and checked files can be moved into another folder in bulk.
 
 The editor itself is [CodeMirror](https://codemirror.net/), with syntax
 highlighting for Markdown, inline/raw HTML, and fenced ` ```html `/
@@ -75,12 +90,12 @@ more typical embedded code-editor widget — real support for the browser's
 own spellcheck: misspelled words get the usual squiggly underline, and
 right-click → "Add to dictionary" uses the browser's own per-profile
 dictionary, so it's remembered on future visits with no app-side state at
-all. Its JS is vendored (`app/components/code_editor/frontend/bundle.js`)
-rather than loaded from a CDN, so the app works offline; if you edit
-`app/components/code_editor/frontend_src/editor.js`, rebuild it with:
+all. Its JS is vendored (`app/static/editor.js`) rather than loaded from
+a CDN, so the app works offline; if you edit `app/frontend_src/editor.js`,
+rebuild it with:
 
 ```sh
-cd app/components/code_editor/frontend_src
+cd app/frontend_src
 npm install
 npm run build
 ```

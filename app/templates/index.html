@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markdown Cornell Notes</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script id="config" type="application/json">{{ config | tojson }}</script>
+<script src="{{ url_for('static', filename='editor.js') }}" defer></script>
+<script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+<main>
+  <div class="title-row">
+    <h1>Markdown Cornell Notes</h1>
+    <span id="build-status" class="pill" hidden></span>
+    <span id="stale-warning" class="muted" hidden>&#9888; Preview may be out of date</span>
+  </div>
+
+  <div id="messages" aria-live="polite"></div>
+
+  <details id="build-log-box" class="card" open hidden>
+    <summary>Build log</summary>
+    <pre id="build-log"></pre>
+  </details>
+
+  <p id="no-files" class="msg error" hidden>No markdown files in md/. Create one below.</p>
+
+  <details id="header-box" class="card" open>
+    <summary>Header</summary>
+    <div class="header-grid">
+      <div class="stack">
+        <label>Topic <input data-field="topic"></label>
+        <label>Location <input data-field="location"></label>
+      </div>
+      <div class="stack">
+        <label>Date <input type="date" data-field="date"></label>
+        <div class="time-row">
+          <label>Start <input type="time" data-field="start"></label>
+          <label>End <input type="time" data-field="end"></label>
+          <label>Timezone
+            <input id="tz-input" data-field="timezone" list="tz-list" placeholder="(none)"
+                   autocomplete="off" spellcheck="false">
+          </label>
+        </div>
+      </div>
+      <div class="stack">
+        <label>Attendees <input data-field="attendees"></label>
+        <label>Markdown file <select id="file-select"></select></label>
+      </div>
+    </div>
+    <datalist id="tz-list"></datalist>
+  </details>
+
+  <div class="button-row">
+    <button type="button" id="new-file-btn" popovertarget="new-file-pop">New file</button>
+    <div popover id="new-file-pop" class="pop">
+      <label>File name <input id="new-file-name" placeholder="my-notes"></label>
+      <p id="new-file-error" class="msg error" hidden></p>
+      <button type="button" id="create-file-btn">Create</button>
+    </div>
+
+    <button type="button" id="delete-file-btn">Delete file</button>
+    <span id="delete-confirm" class="button-row" hidden>
+      <span class="msg warning">Delete <span id="delete-name"></span>?</span>
+      <button type="button" id="confirm-delete-btn" class="danger">Yes, delete</button>
+      <button type="button" id="cancel-delete-btn">Cancel</button>
+    </span>
+
+    <button type="button" id="render-btn" class="primary">Render</button>
+    <a id="download-btn" class="button" aria-disabled="true">Download PDF</a>
+    <select id="pane-height" aria-label="Pane height"></select>
+  </div>
+
+  <div id="panes" class="panes">
+    <section>
+      <div id="editor-caption" class="caption"></div>
+      <div id="editor-host"></div>
+    </section>
+    <section>
+      <div id="pdf-caption" class="caption"></div>
+      <div id="pdf-host"></div>
+    </section>
+  </div>
+
+  <details id="assets-box" class="card">
+    <summary id="assets-summary">Assets</summary>
+    <div id="assets-panel"></div>
+  </details>
+</main>
+</body>
+</html>

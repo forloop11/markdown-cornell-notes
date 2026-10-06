@@ -58,7 +58,7 @@ endif
 # calls) before the document loads, so a BUILDDIR override on the command
 # line actually reaches the .tex fragments latexmk compiles -- without
 # this, template.tex's \input paths are effectively hardcoded to plain
-# build/, so build-example/the Streamlit app's isolated BUILDDIR would
+# build/, so build-example/the editor app's isolated BUILDDIR would
 # generate fragments latexmk never actually reads, silently recompiling
 # whatever's left in build/ from the last plain `make build` instead.
 LATEXOPTS := -pdf -interaction=nonstopmode -halt-on-error -jobname=$(JOBNAME) -outdir=$(OUTDIR) -usepretex='\def\cnBuildDir{$(BUILDDIR)}'
@@ -93,12 +93,12 @@ build: $(PDF)
 build-example:
 	$(MAKE) -f $(lastword $(MAKEFILE_LIST)) build MD=$(EXAMPLE_MD) YAML=$(EXAMPLE_YAML) BUILDDIR=$(EXAMPLE_BUILDDIR)
 
-# Runs the Streamlit editor app (requires `pip install -r requirements.txt`
-# first; see README.md). Binds 0.0.0.0 rather than Streamlit's usual
-# localhost-only default so it's reachable from other machines on the
-# network, not just localhost.
+# Runs the Flask editor app on port 8501 (requires `pip install -r
+# requirements.txt` first; see README.md). Binds 0.0.0.0 rather than the
+# app's own localhost-only default so it's reachable from other machines on
+# the network, not just localhost.
 app:
-	streamlit run $(MCN_ROOT)app/streamlit_app.py --server.address=0.0.0.0
+	python3 $(MCN_ROOT)app/flask_app.py --host 0.0.0.0 --port 8501
 
 # Unit tests for app/pipeline.py and scripts/simple_yaml.py's pure functions
 # (requires `pip install -r requirements-dev.txt` first) -- runs against a

@@ -1,1 +1,1 @@
-streamlit>=1.38
+flask>=3.0

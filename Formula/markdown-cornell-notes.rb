@@ -56,7 +56,7 @@ class MarkdownCornellNotes < Formula
         markdown-cornell-notes init
         markdown-cornell-notes build
 
-      The optional Streamlit editor app needs one extra pip install:
+      The optional editor app needs Flask, one extra pip install:
 
         pip install -r #{libexec}/requirements.txt
         cd ~/notes && markdown-cornell-notes app

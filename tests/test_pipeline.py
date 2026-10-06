@@ -263,3 +263,34 @@ class TestAssetFiles:
         """
         with pytest.raises(pipeline.PipelineError):
             pipeline.create_asset_folder("evil", "../../../../etc")
+
+    @pytest.mark.parametrize("name", ["..", ".", "", "../outside", "sub/file.jpg", "..\\outside"])
+    def test_asset_entry_names_cannot_escape_their_folder(self, project, name):
+        """Asset/folder names now come straight from HTTP requests (see
+        flask_app.py), so every function taking one must reject anything
+        that isn't a single path component -- deleting folder ".." would
+        otherwise rmtree the whole project.
+        """
+        (project / "outside").mkdir()
+        for call in (
+            lambda: pipeline.delete_asset(name),
+            lambda: pipeline.delete_asset_folder(name),
+            lambda: pipeline.rename_asset_folder(name, "renamed"),
+            lambda: pipeline.move_asset(name, "", ""),
+        ):
+            with pytest.raises(pipeline.PipelineError):
+                call()
+        assert (project / "outside").is_dir()
+        assert (project / "md").is_dir()
+
+
+@pytest.mark.parametrize("name", ["../yaml/notes.yaml", "..", "missing.md", "notes.txt"])
+def test_markdown_read_write_reject_other_paths(project, name):
+    """read/write_markdown_file() only touch existing md/*.md files."""
+    pipeline.create_markdown_file("notes")
+    (project / "md" / "notes.txt").write_text("x", encoding="utf-8")
+    with pytest.raises(pipeline.PipelineError):
+        pipeline.read_markdown_file(name)
+    with pytest.raises(pipeline.PipelineError):
+        pipeline.write_markdown_file(name, "overwritten")
+    assert (project / "yaml" / "notes.yaml").read_text(encoding="utf-8") != "overwritten"

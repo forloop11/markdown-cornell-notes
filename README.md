@@ -42,7 +42,7 @@ University or the Pauk estate.
   `tikz`, `xcolor`, `geometry`, `hyperref`, `amssymb`, `longtable`, and
   `booktabs` packages
 - Python 3 (standard library only, no pip packages required, for `make
-  build` itself — the optional [Streamlit editor app](docs/streamlit-app.md)
+  build` itself — the optional [editor app](docs/editor-app.md)
   needs `pip install -r requirements.txt`)
 - [pandoc](https://pandoc.org/), for converting `md/notes.md` to LaTeX
 
@@ -61,12 +61,12 @@ afterward. The result lands in `pdf/`, named after `yaml/notes.yaml`'s
 
 To customize the header fields and notes content, see
 [Editing notes](docs/editing-notes.md), or use the
-[Streamlit editor app](docs/streamlit-app.md) for a browser UI over the
+[editor app](docs/editor-app.md) for a browser UI over the
 same files.
 
 ## Documentation
 
-- **[Streamlit editor app](docs/streamlit-app.md)** — the browser UI: header
+- **[Editor app](docs/editor-app.md)** — the browser UI: header
   form, assets manager, Markdown editor with a formatting toolbar and
   autocompletion, and live PDF preview.
 - **[Editing notes](docs/editing-notes.md)** — the `yaml`/`md` file format,
@@ -88,7 +88,7 @@ same files.
   regular `make build`. Useful for regenerating the reference PDF that
   demonstrates this pipeline's Markdown syntax without touching your own
   notes.
-- `make app` — runs the [Streamlit editor app](docs/streamlit-app.md).
+- `make app` — runs the [editor app](docs/editor-app.md).
 - `make clean` — removes pdflatex's intermediate files, keeps the PDF.
 - `make distclean` — also removes the generated `build/` files and the PDF.
 - `make deb` — packages this project as a `.deb`; see

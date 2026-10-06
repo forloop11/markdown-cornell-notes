@@ -93,22 +93,40 @@ build: $(PDF)
 build-example:
 	$(MAKE) -f $(lastword $(MAKEFILE_LIST)) build MD=$(EXAMPLE_MD) YAML=$(EXAMPLE_YAML) BUILDDIR=$(EXAMPLE_BUILDDIR)
 
-# Runs the Flask editor app on port 8501 (requires `pip install -r
-# requirements.txt` first; see README.md). Binds 0.0.0.0 rather than the
-# app's own localhost-only default so it's reachable from other machines on
-# the network, not just localhost.
+# Opens the Electron editor app on the project in the CWD (see
+# docs/editor-app.md). Uses the checkout's own Electron once `npm install`
+# has been run in app/; otherwise (e.g. an installed .deb/Homebrew package,
+# whose app/ is read-only) npx fetches the version app/package.json pins
+# into the user's npm cache on first run. Either way needs Node.js + npm.
+#
+# ELECTRON_RUN_AS_NODE is cleared because some tools (VS Code, for one) set
+# it for their child processes, and it makes Electron start as plain Node
+# instead of opening a window. ELECTRON_FLAGS passes extra Electron/Chromium
+# switches, e.g. `make app ELECTRON_FLAGS=--no-sandbox` where the OS blocks
+# Electron's sandbox (see docs/editor-app.md).
+ELECTRON_BIN   := $(MCN_ROOT)app/node_modules/.bin/electron
+ELECTRON_FLAGS ?=
 app:
-	python3 $(MCN_ROOT)app/flask_app.py --host 0.0.0.0 --port 8501
+	@if [ -x "$(ELECTRON_BIN)" ]; then \
+		exec env -u ELECTRON_RUN_AS_NODE "$(ELECTRON_BIN)" "$(MCN_ROOT)app" $(ELECTRON_FLAGS); \
+	fi; \
+	if ! command -v npx >/dev/null 2>&1; then \
+		echo "The editor app needs Node.js and npm (for npx) -- install them, then run this again." >&2; \
+		exit 1; \
+	fi; \
+	version=$$(node -p "require('$(MCN_ROOT)app/package.json').devDependencies.electron") && \
+	exec env -u ELECTRON_RUN_AS_NODE npx --yes "electron@$$version" "$(MCN_ROOT)app" $(ELECTRON_FLAGS)
 
-# Unit tests for app/pipeline.py and scripts/simple_yaml.py's pure functions
-# (requires `pip install -r requirements-dev.txt` first) -- runs against a
-# tmp_path project (see tests/conftest.py), never the CWD's own md/yaml/
-# assets, so it doesn't need (or touch) a scaffolded project. Covers
-# topic_slug() (a cheap pure-Python subprocess) but not pipeline.render()
-# itself, which needs the full pandoc/TeX Live toolchain rather than a
-# quick unit test.
+# Unit tests: the build scripts' Python helpers via pytest (requires `pip
+# install -r requirements-dev.txt` first), then the editor app's main-process
+# code (app/lib/) via Node's built-in test runner -- no `npm install`
+# needed. The app tests run against a temp-dir project (see
+# app/test/helpers.js), never the CWD's own md/yaml/assets, so neither half
+# needs (or touches) a scaffolded project. Rendering itself isn't covered:
+# it needs the full pandoc/TeX Live toolchain rather than a quick unit test.
 test:
 	cd $(MCN_ROOT) && python3 -m pytest
+	cd $(MCN_ROOT)app && node --test "test/*.test.js"
 
 # Packages this project as a .deb (dist/markdown-cornell-notes_<version>.deb)
 # for Debian/Ubuntu -- see scripts/build_deb.sh for what it stages and which

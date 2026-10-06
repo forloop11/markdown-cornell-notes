@@ -1,13 +1,14 @@
-// Browser side of the Cornell notes Flask app (see ../flask_app.py for the
-// JSON API this talks to, and ../frontend_src/editor.js for
-// window.CodeEditor). Everything persistent lives on disk server-side; this
-// file only holds the open file's in-progress form state.
+// Renderer side of the Cornell notes Electron app: talks to the main
+// process through window.mcn (see ../preload.js, ../lib/api.js), and drives
+// window.CodeEditor (see ../frontend_src/editor.js). Everything persistent
+// lives on disk, written by the main process; this file only holds the open
+// file's in-progress form state.
 "use strict";
 
-const CONFIG = JSON.parse(document.getElementById("config").textContent);
-const TZ_SET = new Set(CONFIG.tzOptions);
+let CONFIG = null; // mcn.config(), loaded in init()
+let TZ_SET = new Set();
 const AUTOSAVE_MS = 500;
-// Same order as header_form.FORM_FIELDS, so snapshots compare reliably.
+// Same order as lib/header-form.js's FORM_FIELDS, so snapshots compare reliably.
 const FORM_FIELDS = ["topic", "location", "date", "start", "end", "timezone", "tz_hint", "attendees"];
 
 const $ = (selector) => document.querySelector(selector);
@@ -26,8 +27,8 @@ function h(tag, attrs = {}, ...children) {
   return el;
 }
 
-// localStorage only remembers per-browser conveniences (last file, pane
-// height); it can be unavailable (private windows, blocked storage).
+// localStorage only remembers per-machine conveniences (last file, pane
+// height); treat it as optional all the same.
 const prefs = {
   get(key) {
     try {
@@ -59,29 +60,6 @@ const state = {
   assets: { dir: "", folders: [], files: [], folder_paths: [""], all_files: [] },
   selectedAssets: new Set(),
 };
-
-// --- API ----------------------------------------------------------------
-
-async function api(method, url, body, { keepalive = false } = {}) {
-  const options = { method, headers: {}, keepalive };
-  if (body instanceof FormData) {
-    options.body = body;
-  } else if (body !== undefined) {
-    options.headers["Content-Type"] = "application/json";
-    options.body = JSON.stringify(body);
-  }
-  const response = await fetch(url, options);
-  let data = null;
-  try {
-    data = await response.json();
-  } catch {
-    /* non-JSON error page */
-  }
-  if (!response.ok) throw new Error((data && data.error) || `${response.status} ${response.statusText}`);
-  return data;
-}
-
-const fileUrl = (name) => `api/files/${encodeURIComponent(name)}`;
 
 // --- Messages -------------------------------------------------------------
 
@@ -144,7 +122,7 @@ function saveNow() {
   saveChain = saveChain.then(async () => {
     if (state.lastSaved[file] === snap) return true;
     try {
-      await api("PUT", fileUrl(file), { header, markdown });
+      await mcn.saveFile(file, { header, markdown });
       state.lastSaved[file] = snap;
       setAutosaveWarning(null);
       return true;
@@ -156,9 +134,9 @@ function saveNow() {
   return saveChain;
 }
 
-// Last-chance save as the tab closes or is hidden: a keepalive fetch
-// started right away (not queued behind saveChain), so the browser still
-// delivers it after the page is gone.
+// Last-chance save as the page reloads (e.g. View > Reload): synchronous (not
+// queued behind saveChain), so it's on disk before the page is torn down.
+// Closing the window is handled by mcn.onBeforeClose in init() instead.
 function saveOnLeave() {
   const file = state.selected;
   if (!file || !state.header) return;
@@ -167,10 +145,12 @@ function saveOnLeave() {
   const snap = snapshot(header, markdown);
   if (state.lastSaved[file] === snap) return;
   clearTimeout(saveTimer);
-  state.lastSaved[file] = snap;
-  api("PUT", fileUrl(file), { header, markdown }, { keepalive: true }).catch(() => {
-    delete state.lastSaved[file];
-  });
+  try {
+    mcn.saveFileSync(file, { header, markdown });
+    state.lastSaved[file] = snap;
+  } catch {
+    /* the window is going away; nothing left to report to */
+  }
 }
 
 function wireHeaderInputs() {
@@ -211,7 +191,7 @@ async function selectFile(name) {
   prefs.set("selectedFile", name);
   updateFileControls();
   try {
-    const data = await api("GET", fileUrl(name));
+    const data = await mcn.loadFile(name);
     if (token !== loadToken) return; // superseded by a later selection
     state.header = Object.fromEntries(FORM_FIELDS.map((f) => [f, data.header[f] || ""]));
     fillHeader(state.header);
@@ -256,7 +236,7 @@ function updateFileControls() {
   $("#delete-confirm").hidden = !selected || !confirmDelete;
   $("#delete-name").textContent = selected || "";
   $("#confirm-delete-btn").disabled = busy;
-  $("#download-btn").setAttribute("aria-disabled", String(busy || !state.pdf));
+  $("#download-btn").disabled = busy || !state.pdf;
 }
 
 async function createFile() {
@@ -264,7 +244,7 @@ async function createFile() {
   const error = $("#new-file-error");
   error.hidden = true;
   try {
-    const data = await api("POST", "api/files", { name: input.value });
+    const data = await mcn.createFile(input.value);
     input.value = "";
     $("#new-file-pop").hidePopover();
     setFiles(data.files);
@@ -282,7 +262,7 @@ async function deleteFile() {
   clearTimeout(saveTimer);
   await saveChain;
   try {
-    const data = await api("DELETE", fileUrl(name));
+    const data = await mcn.deleteFile(name);
     delete state.lastSaved[name];
     delete state.rendered[name];
     state.selected = null;
@@ -314,7 +294,7 @@ async function renderPdf() {
     // harmless (same or older content), but wait it out anyway so the two
     // never interleave on disk.
     await saveChain;
-    const result = await api("POST", `${fileUrl(file)}/render`, { header, markdown, build_id: CONFIG.buildId });
+    const result = await mcn.renderFile(file, { header, markdown });
     if (result.saved) state.lastSaved[file] = snapshot(header, markdown);
     state.buildOk = result.ok;
     state.buildLog = result.log;
@@ -364,22 +344,19 @@ function applyPaneHeight() {
 
 function updatePdf() {
   const host = $("#pdf-host");
-  const download = $("#download-btn");
   if (!state.pdf) {
     $("#pdf-caption").textContent = "";
     host.replaceChildren(h("div", { class: "info" }, "No PDF yet -- click Render."));
-    download.removeAttribute("href");
     updateFileControls();
     return;
   }
-  const name = encodeURIComponent(state.pdf.name);
   $("#pdf-caption").textContent = state.pdf.name;
   // #view=FitH (honored by Chromium's built-in PDF viewer) scales the page
   // to the frame's *width* on load. Plain Fit letterboxes the page whenever
   // the frame is proportionally wider than it; FitH always fills the width,
   // at the cost of scrolling inside the frame when the pane is shorter than
   // a full page. ?v= busts the cache after each re-render.
-  const src = `pdf/${name}?v=${state.pdf.version}#view=FitH`;
+  const src = `${state.pdf.url}?v=${state.pdf.version}#view=FitH`;
   let frame = host.querySelector("iframe");
   if (!frame) {
     frame = h("iframe", { title: "PDF preview" });
@@ -387,7 +364,6 @@ function updatePdf() {
   }
   if (frame.getAttribute("src") !== src) frame.setAttribute("src", src);
   frame.style.height = `${paneHeight()}px`;
-  download.href = `pdf/${name}?download=1`;
   updateFileControls();
 }
 
@@ -398,15 +374,16 @@ const joinDir = (dir, name) => (dir ? `${dir}/${name}` : name);
 
 async function loadAssets(dir = state.assets.dir) {
   try {
-    applyAssets(await api("GET", `api/assets?dir=${encodeURIComponent(dir)}`));
+    applyAssets(await mcn.listAssets(dir));
   } catch (err) {
     showMessage(err.message);
   }
 }
 
-async function assetAction(method, url, body) {
+// Run one of mcn's asset operations, then show the listing it returns.
+async function assetAction(call) {
   try {
-    applyAssets(await api(method, url, body));
+    applyAssets(await call());
     return true;
   } catch (err) {
     showMessage(err.message);
@@ -439,9 +416,8 @@ async function copyText(text, button) {
   try {
     await navigator.clipboard.writeText(text);
   } catch {
-    // navigator.clipboard only exists in secure contexts (https or
-    // localhost) -- not when the app is opened over plain http from
-    // another machine on the network.
+    // Clipboard writes can be refused (e.g. if the window lost focus
+    // mid-click); fall back to the old copy-a-selection route.
     const scratch = h("textarea", {}, text);
     document.body.append(scratch);
     scratch.select();
@@ -470,7 +446,7 @@ function renderFolderRow(dir, name) {
   const [renameBtn, renamePop] = popoverButton("Rename", (close) => {
     const input = h("input", { type: "text", value: name, "aria-label": "New name" });
     const confirm = async () => {
-      if (await assetAction("PATCH", "api/assets/folders", { dir, name, new_name: input.value })) close();
+      if (await assetAction(() => mcn.renameAssetFolder(dir, name, input.value))) close();
     };
     input.addEventListener("keydown", (e) => e.key === "Enter" && confirm());
     return [h("label", {}, "New name", input), h("button", { type: "button", onclick: confirm }, "Confirm")];
@@ -482,7 +458,7 @@ function renderFolderRow(dir, name) {
       class: "danger",
       onclick: async () => {
         close();
-        await assetAction("DELETE", "api/assets/folders", { dir, name });
+        await assetAction(() => mcn.deleteAssetFolder(dir, name));
       },
     }, "Confirm"),
   ]);
@@ -499,7 +475,6 @@ function renderFolderRow(dir, name) {
 
 function renderFileRow(dir, file) {
   const path = `${assetDisplayDir(dir)}/${file.name}`;
-  const url = `asset-files/${[...(dir ? dir.split("/") : []), file.name].map(encodeURIComponent).join("/")}`;
   const checkbox = h("input", { type: "checkbox", "aria-label": `Select ${file.name}`, checked: state.selectedAssets.has(file.name) });
   checkbox.addEventListener("change", () => {
     if (checkbox.checked) state.selectedAssets.add(file.name);
@@ -516,7 +491,7 @@ function renderFileRow(dir, file) {
       class: "danger",
       onclick: async () => {
         close();
-        await assetAction("DELETE", "api/assets/files", { dir, name: file.name });
+        await assetAction(() => mcn.deleteAsset(dir, file.name));
       },
     }, "Confirm"),
   ]);
@@ -524,7 +499,7 @@ function renderFileRow(dir, file) {
     "div",
     { class: "asset-row file" },
     checkbox,
-    file.image ? h("img", { class: "thumb", src: url, alt: "", loading: "lazy" }) : h("span"),
+    file.image ? h("img", { class: "thumb", src: file.url, alt: "", loading: "lazy" }) : h("span"),
     h("div", { class: "inline-form" }, pathInput, copyBtn),
     h("span", { class: "muted size" }, `${(file.size / 1024).toFixed(1)} KB`),
     deleteBtn,
@@ -544,7 +519,7 @@ function renderMoveControls(dir) {
     select,
     h("button", {
       type: "button",
-      onclick: () => assetAction("POST", "api/assets/move", { dir, names: selected, dest: select.value }),
+      onclick: () => assetAction(() => mcn.moveAssets(dir, selected, select.value)),
     }, `Move ${selected.length} selected`)
   );
 }
@@ -553,17 +528,17 @@ function renderAssetsPanel() {
   const { dir, folders, files } = state.assets;
 
   const folderInput = h("input", { type: "text", placeholder: "New folder name", "aria-label": "New folder name" });
-  const createFolder = () => assetAction("POST", "api/assets/folders", { dir, name: folderInput.value });
+  const createFolder = () => assetAction(() => mcn.createAssetFolder(dir, folderInput.value));
   folderInput.addEventListener("keydown", (e) => e.key === "Enter" && createFolder());
 
   const fileInput = h("input", { type: "file", multiple: true, "aria-label": "Add files" });
   const uploadBtn = h("button", { type: "button", disabled: true }, "Upload");
   fileInput.addEventListener("change", () => (uploadBtn.disabled = !fileInput.files.length));
-  uploadBtn.addEventListener("click", () => {
-    const form = new FormData();
-    form.append("dir", dir);
-    for (const f of fileInput.files) form.append("files", f);
-    assetAction("POST", "api/assets/upload", form);
+  uploadBtn.addEventListener("click", async () => {
+    const uploads = await Promise.all(
+      [...fileInput.files].map(async (f) => ({ name: f.name, data: new Uint8Array(await f.arrayBuffer()) }))
+    );
+    assetAction(() => mcn.uploadAssets(dir, uploads));
   });
 
   const children = [
@@ -584,7 +559,29 @@ function renderAssetsPanel() {
 
 // --- Startup ----------------------------------------------------------------
 
+async function downloadPdf() {
+  if (!state.pdf) return;
+  try {
+    await mcn.savePdfAs(state.pdf.name);
+  } catch (err) {
+    showMessage(err.message);
+  }
+}
+
 async function init() {
+  // First, so the window can always close promptly -- even on the "no
+  // project" screen below, where there's nothing to save.
+  mcn.onBeforeClose(() => saveNow());
+  CONFIG = await mcn.config();
+  if (!CONFIG.initialized) {
+    // Nothing else can work without md/ and yaml/ -- show only the "run
+    // init" message.
+    $("#project-root").textContent = CONFIG.projectRoot;
+    $("#no-project").hidden = false;
+    for (const id of ["#header-box", ".button-row", "#panes", "#assets-box"]) $(id).hidden = true;
+    return;
+  }
+  TZ_SET = new Set(CONFIG.tzOptions);
   $("#tz-list").replaceChildren(...CONFIG.tzOptions.map((z) => h("option", { value: z })));
 
   const paneSelect = $("#pane-height");
@@ -618,13 +615,13 @@ async function init() {
   });
   $("#confirm-delete-btn").addEventListener("click", deleteFile);
   $("#render-btn").addEventListener("click", renderPdf);
+  $("#download-btn").addEventListener("click", downloadPdf);
   window.addEventListener("pagehide", saveOnLeave);
-  document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && saveOnLeave());
 
   updatePdf();
   loadAssets("");
   try {
-    const { files } = await api("GET", "api/files");
+    const { files } = await mcn.listFiles();
     setFiles(files);
     const remembered = prefs.get("selectedFile");
     if (files.length) await selectFile(files.includes(remembered) ? remembered : files[0]);

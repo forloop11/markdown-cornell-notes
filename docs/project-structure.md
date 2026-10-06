@@ -37,22 +37,29 @@
                         make).
 ├── pdf/                Output PDF (see Naming the output PDF in
                         editing-notes.md).
-├── app/
-│   ├── flask_app.py      The Flask editor app's server + JSON API; see
-│   │                     editor-app.md.
-│   ├── header_form.py    Converts between the yaml header fields and the
-│   │                     app's header form (date/time/timezone pickers).
-│   ├── pipeline.py       Header/markdown file I/O + `make build`
-│   │                     invocation for the app.
-│   ├── templates/        The app's HTML page.
-│   ├── static/           The app's CSS/JS, including editor.js, the built
-│   │                     CodeMirror bundle (markdown/HTML/LaTeX
-│   │                     highlighting + native browser spellcheck).
-│   └── frontend_src/     Source for static/editor.js (npm + esbuild).
-├── requirements.txt    Python deps for the app (`flask`); not needed for
-│                       `make build`.
-└── Makefile            `make build` / `make app` / `make clean` / `make
-                        distclean`.
+├── app/                The Electron editor app; see editor-app.md.
+│   ├── main.js           Main process: the window, IPC handlers, save dialog,
+│   │                     right-click/spellcheck menu.
+│   ├── preload.js        Exposes the main process's operations to the page
+│   │                     as window.mcn.
+│   ├── lib/
+│   │   ├── api.js          Everything the page can ask for (files, render,
+│   │   │                   assets), as plain functions main.js wires to IPC.
+│   │   ├── pipeline.js     Header/markdown/asset file I/O + `make build`
+│   │   │                   invocation.
+│   │   └── header-form.js  Converts between the yaml header fields and the
+│   │                       app's header form (date/time/timezone pickers).
+│   ├── renderer/         The app's page: HTML, CSS, app.js, and editor.js
+│   │                     (the built CodeMirror bundle -- markdown/HTML/LaTeX
+│   │                     highlighting + native spellcheck).
+│   ├── frontend_src/     Source for renderer/editor.js (`npm run
+│   │                     build:editor`).
+│   ├── test/             The app's tests (`node --test`, run by `make test`).
+│   └── package.json      Electron + build tooling (`npm install` once, in a
+│                         git checkout).
+├── tests/              pytest tests for scripts/.
+└── Makefile            `make build` / `make app` / `make test` / `make
+                        clean` / `make distclean`.
 ```
 
 Everything under `build/` is generated, not source — don't hand-edit those

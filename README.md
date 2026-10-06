@@ -1,10 +1,13 @@
 # Markdown Cornell Notes
 
-![screenshot](assets/README/screenshot.png)
+![The editor app: header form, Markdown editor, and rendered PDF preview](assets/README/screenshot.png)
 
 ---
 
-![screenshot_2](assets/README/screenshot_2.png)
+![Close-up of the Markdown editor beside the rendered Cornell-notes PDF](assets/README/screenshot_2.png)
+
+*The optional [editor app](docs/editor-app.md) — a desktop app for editing
+notes beside a live PDF preview.*
 
 A Cornell-style meeting notes template for LaTeX. Each page has a header
 (topic, date, attendees, time), a large notes panel with a cue column
@@ -41,10 +44,10 @@ University or the Pauk estate.
 - A TeX Live (or similar) install with `pdflatex` and `latexmk`, plus the
   `tikz`, `xcolor`, `geometry`, `hyperref`, `amssymb`, `longtable`, and
   `booktabs` packages
-- Python 3 (standard library only, no pip packages required, for `make
-  build` itself — the optional [editor app](docs/editor-app.md)
-  needs `pip install -r requirements.txt`)
+- Python 3 (standard library only, no pip packages required)
 - [pandoc](https://pandoc.org/), for converting `md/notes.md` to LaTeX
+- For the optional [editor app](docs/editor-app.md) only:
+  [Node.js](https://nodejs.org/) with npm
 
 ## Quick start
 
@@ -56,17 +59,23 @@ This regenerates the header, content, and page settings from
 `yaml/notes.yaml` / `md/notes.md` / `settings/page.yaml`, compiles
 `settings/template.tex`, and cleans up pdflatex's intermediate files
 afterward. The result lands in `pdf/`, named after `yaml/notes.yaml`'s
-`topic` and `date` fields (e.g. `pdf/Weekly-Sync_2026-08-23.pdf`) — see
+`topic`, `date`, and (if set) `location` fields (e.g.
+`pdf/Weekly-Sync_2026-08-23_Zoom.pdf`) — see
 [Naming the output PDF](docs/editing-notes.md#naming-the-output-pdf).
 
 To customize the header fields and notes content, see
 [Editing notes](docs/editing-notes.md), or use the
-[editor app](docs/editor-app.md) for a browser UI over the
-same files.
+[editor app](docs/editor-app.md) — a desktop app over the same files, with
+a live PDF preview:
+
+```sh
+cd app && npm install && cd ..   # once, to fetch Electron
+make app
+```
 
 ## Documentation
 
-- **[Editor app](docs/editor-app.md)** — the browser UI: header
+- **[Editor app](docs/editor-app.md)** — the desktop app: header
   form, assets manager, Markdown editor with a formatting toolbar and
   autocompletion, and live PDF preview.
 - **[Editing notes](docs/editing-notes.md)** — the `yaml`/`md` file format,
@@ -88,7 +97,10 @@ same files.
   regular `make build`. Useful for regenerating the reference PDF that
   demonstrates this pipeline's Markdown syntax without touching your own
   notes.
-- `make app` — runs the [editor app](docs/editor-app.md).
+- `make app` — opens the [editor app](docs/editor-app.md) on the
+  current directory's project (run `npm install` in `app/` once first).
+- `make test` — runs the unit tests (pytest for `scripts/`, Node's test
+  runner for `app/`).
 - `make clean` — removes pdflatex's intermediate files, keeps the PDF.
 - `make distclean` — also removes the generated `build/` files and the PDF.
 - `make deb` — packages this project as a `.deb`; see

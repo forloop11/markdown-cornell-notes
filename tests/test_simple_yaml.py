@@ -13,7 +13,7 @@ def test_strip_quotes_single_quoted_not_unescaped():
     """A single-quoted value's backslashes pass through literally.
 
     Only double-quoted values get backslash-escape handling (matching
-    pipeline.write_header, which only ever emits double quotes).
+    app/lib/pipeline.js's writeHeader, which only ever emits double quotes).
     """
     assert strip_quotes("'a\\b'") == "a\\b"
 
@@ -27,7 +27,8 @@ def test_strip_quotes_unescapes_quote_and_backslash():
     """A double-quoted value's escaped quotes/backslashes are unescaped
     back to their literal characters.
 
-    Mirrors pipeline.write_header's escaping: backslash -> \\\\, then
+    Mirrors the editor app's writeHeader (app/lib/pipeline.js) escaping:
+    backslash -> \\\\, then
     " -> \\".
     """
     raw = '"Say \\"hi\\" \\\\ok"'

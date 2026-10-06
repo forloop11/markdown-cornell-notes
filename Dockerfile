@@ -4,6 +4,10 @@
 # and drops a markdown-cornell-notes launcher on PATH. Depends list mirrors
 # the .deb's Depends line in scripts/build_deb.sh.
 #
+# The image is for the CLI (`build`, `init`, ...) only: the editor app is an
+# Electron desktop window, which has no display to open in here. app/ is
+# still staged so the image's file set matches the .deb's.
+#
 # trixie, not bookworm: bookworm's pandoc (2.17) predates the LaTeX writer
 # change that emits \st{...} for strikethrough -- it emits \sout{...}
 # instead, which settings/template.tex doesn't define (see its \st comment),
@@ -14,7 +18,6 @@ FROM debian:trixie-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 \
-        python3-pip \
         make \
         pandoc \
         latexmk \
@@ -29,10 +32,9 @@ ENV MCN_ROOT=/usr/share/markdown-cornell-notes
 
 # Same file set as build_deb.sh's rsync, staged straight into the image
 # instead of a .deb payload. requirements-dev.txt/pytest.ini/tests/ are
-# staged (not installed -- see below) so `make test` at least has
-# something to run if invoked, the same "pip install the extra
-# requirements file yourself first" pattern as the app's requirements.txt.
-COPY Makefile README.md LICENSE requirements.txt requirements-dev.txt pytest.ini "$MCN_ROOT"/
+# staged (not installed) so `make test` at least has something to run if
+# invoked, once pytest is installed.
+COPY Makefile README.md LICENSE requirements-dev.txt pytest.ini "$MCN_ROOT"/
 COPY scripts "$MCN_ROOT"/scripts/
 COPY settings "$MCN_ROOT"/settings/
 COPY app "$MCN_ROOT"/app/
@@ -42,10 +44,6 @@ COPY yaml "$MCN_ROOT"/yaml/
 COPY assets "$MCN_ROOT"/assets/
 COPY docs "$MCN_ROOT"/docs/
 
-# The editor app's Python deps (Flask -- see requirements.txt), installed
-# here so `markdown-cornell-notes app` works out of the box.
-RUN pip install --no-cache-dir --break-system-packages -r "$MCN_ROOT/requirements.txt"
-
 RUN printf '#!/bin/sh\nexec make -f %s/Makefile "$@"\n' "$MCN_ROOT" \
         > /usr/bin/markdown-cornell-notes \
     && chmod 755 /usr/bin/markdown-cornell-notes
@@ -54,8 +52,6 @@ RUN printf '#!/bin/sh\nexec make -f %s/Makefile "$@"\n' "$MCN_ROOT" \
 # workdir, meant to be bind-mounted to a project directory on the host)
 # stays the project directory instead of the read-only MCN_ROOT tree.
 WORKDIR /project
-
-EXPOSE 8501
 
 ENTRYPOINT ["markdown-cornell-notes"]
 CMD ["build"]

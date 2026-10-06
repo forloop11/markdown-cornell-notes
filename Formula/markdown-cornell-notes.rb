@@ -56,9 +56,10 @@ class MarkdownCornellNotes < Formula
         markdown-cornell-notes init
         markdown-cornell-notes build
 
-      The optional editor app needs Flask, one extra pip install:
+      The optional editor app is an Electron desktop app. It needs Node.js
+      (`brew install node`); the first `markdown-cornell-notes app` then
+      downloads Electron itself into your npm cache:
 
-        pip install -r #{libexec}/requirements.txt
         cd ~/notes && markdown-cornell-notes app
     EOS
   end
@@ -73,14 +74,14 @@ class MarkdownCornellNotes < Formula
     assert_path_exists testpath/"md/notes.md"
     assert_path_exists testpath/"settings/page.yaml"
 
-    # Runs the app/pipeline.py + scripts/simple_yaml.py unit test suite
-    # (see tests/, pytest.ini) via the Homebrew-provided `pytest` binary
-    # rather than the Makefile's own `test` target (`python3 -m pytest`):
+    # Runs the scripts/ unit test suite (see tests/, pytest.ini) via the
+    # Homebrew-provided `pytest` binary rather than the Makefile's own
+    # `test` target (`python3 -m pytest`, plus the Node app tests):
     # that needs pytest importable by the depends_on "python@3.13"
     # interpreter specifically, which the separate `pytest` formula
     # doesn't provide -- it's a self-contained binary, not a module
     # installed into some other formula's site-packages. pytest.ini's
-    # `pythonpath = app scripts` still makes `pipeline`/`simple_yaml`
+    # `pythonpath = scripts` still makes `simple_yaml` and friends
     # importable no matter which interpreter built the pytest binary.
     cd libexec do
       system "pytest"

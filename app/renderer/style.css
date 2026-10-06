@@ -164,7 +164,7 @@ input:focus, select:focus { outline: 2px solid var(--primary); outline-offset: -
 
 /* --- Buttons --------------------------------------------------------- */
 
-button, .button {
+button {
   font: inherit;
   color: var(--text);
   background: var(--bg);
@@ -175,11 +175,11 @@ button, .button {
   text-decoration: none;
   white-space: nowrap;
 }
-button:hover:not(:disabled), .button:hover:not([aria-disabled="true"]) {
+button:hover:not(:disabled) {
   border-color: var(--primary);
   color: var(--primary);
 }
-button:disabled, .button[aria-disabled="true"] {
+button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
   pointer-events: none;

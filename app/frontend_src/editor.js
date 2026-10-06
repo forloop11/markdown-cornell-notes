@@ -1,8 +1,8 @@
-// CodeMirror 6 editor for the Cornell notes Flask app.
+// CodeMirror 6 editor for the Cornell notes Electron app.
 //
-// Bundled (see package.json's build script) into a single IIFE at
-// ../static/editor.js that exposes window.CodeEditor -- a small imperative
-// API (mount/setDoc/getDoc/setHeight/setAssets) that app/static/app.js
+// Bundled (see ../package.json's build:editor script) into a single IIFE at
+// ../renderer/editor.js that exposes window.CodeEditor -- a small imperative
+// API (mount/setDoc/getDoc/setHeight/setAssets) that app/renderer/app.js
 // drives directly. It mounts straight into the page rather than inside an
 // iframe, so there's no cross-frame message protocol between the two.
 import { EditorState, EditorSelection } from "@codemirror/state";
@@ -171,13 +171,13 @@ function makeState(doc) {
       syntaxHighlighting(draculaHighlightStyle, { fallback: true }),
       markdown({ codeLanguages }),
       autocompletion({ override: [slashSnippetCompletions, fenceLangCompletions, assetPathCompletions] }),
-      // The one line that actually matters for the "browser spellcheck"
+      // The one line that actually matters for the native spellcheck
       // requirement: CodeMirror 6's editable surface is a real
       // contenteditable DOM tree (unlike e.g. Ace, which paints styled
       // divs/canvas over an offscreen textarea), so turning this on makes
-      // the browser's native spellcheck underline misspelled words -- and
-      // right-click -> "Add to dictionary" already works for free, since
-      // that's the browser's own per-profile dictionary, not app state.
+      // Chromium's own spellchecker underline misspelled words -- and
+      // right-click -> "Add to dictionary" (see ../main.js's context menu)
+      // adds to its per-user dictionary, not app state.
       EditorView.contentAttributes.of({
         spellcheck: "true",
         autocorrect: "off",

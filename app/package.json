@@ -1,0 +1,25 @@
+{
+  "name": "markdown-cornell-notes-editor",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Electron desktop editor for markdown-cornell-notes. Run with `make app` from a project directory; see docs/editor-app.md.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:editor": "esbuild frontend_src/editor.js --bundle --minify --format=iife --outfile=renderer/editor.js",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.7.1",
+    "@codemirror/lang-html": "^6.4.9",
+    "@codemirror/lang-markdown": "^6.3.1",
+    "@codemirror/language": "^6.10.6",
+    "@codemirror/legacy-modes": "^6.4.1",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.34.1",
+    "@lezer/highlight": "^1.2.1",
+    "electron": "^44.6.0",
+    "esbuild": "^0.24.0"
+  }
+}

@@ -1,25 +1,41 @@
 # Editor app
 
-A browser UI for the whole pipeline described in the [main README](../README.md)
+A desktop app for the whole pipeline described in the [main README](../README.md)
 — edit the header fields and a markdown file side by side with a rendered
-PDF, without touching the CLI. It's a small [Flask](https://flask.palletsprojects.com/)
-app (`app/flask_app.py`) serving one page plus a JSON API over the same
-`md/`, `yaml/`, `pdf/`, and `assets/` files the CLI uses.
+PDF, without touching the CLI. It's an [Electron](https://www.electronjs.org/)
+app (`app/`) working on the same `md/`, `yaml/`, `pdf/`, and `assets/` files
+the CLI uses, in whichever project directory you start it from.
+
+It needs [Node.js](https://nodejs.org/) (with npm) on top of the usual
+`make build` requirements. From a git checkout, install the app's
+dependencies once, then start it from the repo root (which is itself a
+project):
 
 ```sh
-pip install -r requirements.txt
+cd app && npm install && cd ..
 make app
 ```
 
-then open [http://localhost:8501](http://localhost:8501). `make app` listens
-on every network interface (`--host 0.0.0.0`) so other machines on your
-network can reach it too; it has no login, so only run it on a network you
-trust. To keep it local-only, or to use another port, run the app directly
-from your project directory:
+From an installed `.deb`/Homebrew package, just run
+`markdown-cornell-notes app` in a project directory — with no `npm install`
+of its own to use, the first run downloads the Electron version the app
+pins into your npm cache (via `npx`), and later runs reuse it.
+
+The window shows the project folder in its title bar. Closing it ends the
+app; anything typed since the last autosave is saved first.
+
+**Linux sandbox note:** on distributions that restrict unprivileged user
+namespaces (Ubuntu 24.04 and later, via AppArmor), Electron can refuse to
+start with an error about its sandbox. Either allow it the usual Electron
+way for your distribution, or start it without Chromium's sandbox:
 
 ```sh
-python3 app/flask_app.py --host 127.0.0.1 --port 8000
+make app ELECTRON_FLAGS=--no-sandbox
 ```
+
+The app only ever loads its own bundled page and your project's local
+files, but the sandbox is still a useful safety net — prefer fixing the
+OS-level restriction where you can.
 
 Along the top, the page title doubles as the status line: once you've
 clicked Render, a success/failure pill appears right next to it, and on
@@ -58,21 +74,23 @@ file** buttons (to create or delete a file) alongside **Render** and
 a fast double-click can't submit twice. Render saves both the selected
 file's header and its markdown content to disk and runs `make build` for
 you; the title's status pill (see above) reports success or failure.
-Download PDF (disabled until a PDF exists) downloads the current one under
-its actual output filename. A dropdown at the end of the row (30%–200%,
-100% by default) scales the editor/PDF pane height below — pick a smaller
-value to fit both panes on a shorter screen without scrolling. The browser
-remembers that choice, and the last file you had open, for next time.
+Download PDF (disabled until a PDF exists) opens a save dialog to copy the
+current one out of `pdf/`, defaulting to its actual output filename. A
+dropdown at the end of the row (30%–200%, 100% by default) scales the
+editor/PDF pane height below — pick a smaller value to fit both panes on a
+shorter screen without scrolling. The app remembers that choice, and the
+last file you had open, for next time.
 
 Below that, the markdown editor (left) and the resulting PDF (right) sit
 side by side, matched in height (per the pane-height dropdown above) so
 their tops and bottoms align. The PDF pane shows the selected file's PDF
 if one has already been built from its current header, and a "Preview may be out of
 date" note appears next to the title whenever the header or markdown has
-changed since that file's last render in this tab. Header fields and markdown content
+changed since that file's last render in this window. Header fields and markdown content
 both autosave to disk continuously as you edit (about half a second after
 you stop typing, or as soon as the editor loses focus) rather than only on
-Render, so switching files or closing the tab doesn't lose unsaved work.
+Render, so switching files or closing the window doesn't lose unsaved work.
+Links clicked inside the PDF preview open in your web browser.
 
 At the bottom is an **Assets** expander (labeled with the current file
 count) that manages the `assets/` folder used for images and linked
@@ -86,18 +104,18 @@ deleted, and checked files can be moved into another folder in bulk.
 The editor itself is [CodeMirror](https://codemirror.net/), with syntax
 highlighting for Markdown, inline/raw HTML, and fenced ` ```html `/
 ` ```latex ` code blocks, and — the reason it's CodeMirror rather than a
-more typical embedded code-editor widget — real support for the browser's
-own spellcheck: misspelled words get the usual squiggly underline, and
-right-click → "Add to dictionary" uses the browser's own per-profile
-dictionary, so it's remembered on future visits with no app-side state at
-all. Its JS is vendored (`app/static/editor.js`) rather than loaded from
-a CDN, so the app works offline; if you edit `app/frontend_src/editor.js`,
-rebuild it with:
+more typical embedded code-editor widget — real support for Chromium's
+built-in spellcheck: misspelled words get the usual squiggly underline, and
+the right-click menu offers spelling suggestions and "Add to dictionary",
+which Electron remembers across sessions with no app-side state at all.
+Its JS is vendored (`app/renderer/editor.js`) rather than loaded from a
+CDN, so the app works offline and an installed copy doesn't need to build
+anything; if you edit `app/frontend_src/editor.js`, rebuild it with:
 
 ```sh
-cd app/frontend_src
+cd app
 npm install
-npm run build
+npm run build:editor
 ```
 
 ## Formatting toolbar

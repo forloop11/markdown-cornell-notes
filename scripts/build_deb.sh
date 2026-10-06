@@ -3,9 +3,9 @@
 # No compiled code here -- this just stages the pipeline (Makefile, scripts,
 # settings, app) under /usr/share, drops a /usr/bin launcher, and declares
 # the system deps (texlive, pandoc, latexmk) apt already knows about.
-# The optional editor app's only Python dependency, Flask, is packaged in
-# Debian as python3-flask -- Recommends rather than Depends, since `make
-# build` itself doesn't need it.
+# The optional Electron editor app needs Node.js + npm (`make app` fetches
+# Electron itself through npx on first run -- see the Makefile) --
+# Recommends rather than Depends, since `make build` itself doesn't need it.
 set -eu
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -30,7 +30,7 @@ rsync -a \
   --exclude 'pdf/*.pdf' \
   "$REPO_ROOT/Makefile" "$REPO_ROOT/README.md" "$REPO_ROOT/LICENSE" \
   "$REPO_ROOT/scripts" "$REPO_ROOT/settings" "$REPO_ROOT/app" \
-  "$REPO_ROOT/requirements.txt" "$REPO_ROOT/requirements-dev.txt" \
+  "$REPO_ROOT/requirements-dev.txt" \
   "$REPO_ROOT/pytest.ini" "$REPO_ROOT/tests" \
   "$REPO_ROOT/md" "$REPO_ROOT/yaml" \
   "$REPO_ROOT/assets" "$REPO_ROOT/docs" \
@@ -51,11 +51,11 @@ Section: text
 Priority: optional
 Architecture: all
 Depends: python3, make, pandoc, latexmk, texlive-latex-extra, texlive-latex-recommended, texlive-pictures
-Recommends: python3-flask
+Recommends: nodejs, npm
 Maintainer: Todd C. Takala <todd.c.takala@gmail.com>
 Description: Cornell-style meeting notes generator (LaTeX/Markdown)
  Generates Cornell-note-taking-system PDFs from YAML header files and
- Markdown content, with an optional browser-based editor UI (Flask).
+ Markdown content, with an optional desktop editor app (Electron).
 EOF
 
 DEB_FILE="$DIST_DIR/${PKG_NAME}_${VERSION}.deb"

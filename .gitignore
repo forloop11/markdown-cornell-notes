@@ -6,4 +6,4 @@ __pycache__/
 *.fls
 *.fdb_latexmk
 *.synctex.gz
-app/frontend_src/node_modules/
+app/node_modules/

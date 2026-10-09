@@ -43,8 +43,8 @@ function obj(value, what) {
 }
 
 class Api {
-  constructor({ projectRoot, repoRoot }) {
-    this.pipeline = new Pipeline({ projectRoot, repoRoot });
+  constructor({ projectRoot, repoRoot, tools }) {
+    this.pipeline = new Pipeline({ projectRoot, repoRoot, tools });
     // Keys this window's own BUILDDIR (see render) so two app windows
     // rendering around the same time never race on the same scratch
     // directory.
@@ -78,6 +78,13 @@ class Api {
       paneHeightOptions: PANE_HEIGHT_OPTIONS,
       tzOptions: headerForm.TZ_OPTIONS,
     };
+  }
+
+  // Scaffold a new project in projectRoot (the "no project" screen's "Set
+  // up a project here" button), returning the updated config().
+  async initProject() {
+    this.pipeline.initProject();
+    return this.config();
   }
 
   // {name, url, version} for an existing PDF at `file`, else null.
@@ -285,6 +292,7 @@ class Api {
 // pdfPath() -- stays main-process only.
 const CHANNELS = [
   "config",
+  "initProject",
   "listFiles",
   "createFile",
   "loadFile",

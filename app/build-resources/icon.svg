@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- App icon: the toolbar logo (a Cornell page -- header band, cue
+       column, summary band) on a rounded tile. Rendered to icon.png by
+       scripts/build_windows.sh. -->
+  <rect x="16" y="16" width="480" height="480" rx="104" fill="#c2185b"/>
+  <g fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="128" y="88" width="256" height="336" rx="36" fill="rgba(255,255,255,0.14)"/>
+    <path d="M128 176h256M296 176v160M128 336h256"/>
+  </g>
+</svg>

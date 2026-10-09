@@ -7,7 +7,8 @@
   "scripts": {
     "start": "electron .",
     "build:editor": "esbuild frontend_src/editor.js --bundle --minify --format=iife --outfile=renderer/editor.js",
-    "test": "node --test \"test/*.test.js\""
+    "test": "node --test \"test/*.test.js\"",
+    "dist:win": "electron-builder --win nsis --x64 --publish never"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -20,6 +21,69 @@
     "@codemirror/view": "^6.34.1",
     "@lezer/highlight": "^1.2.1",
     "electron": "^44.6.0",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.24.0"
+  },
+  "author": "Todd C. Takala",
+  "homepage": "https://github.com/forloop11/markdown-cornell-notes",
+  "license": "MIT",
+  "build": {
+    "appId": "io.github.forloop11.markdown-cornell-notes",
+    "productName": "Markdown Cornell Notes",
+    "copyright": "Copyright © Todd C. Takala",
+    "directories": {
+      "output": "../dist/windows",
+      "buildResources": "build-resources"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "lib/**",
+      "renderer/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist/windows-stage/pipeline",
+        "to": "pipeline"
+      },
+      {
+        "from": "../dist/windows-stage/python",
+        "to": "python"
+      },
+      {
+        "from": "../dist/windows-stage/pandoc",
+        "to": "pandoc"
+      },
+      {
+        "from": "../dist/windows-stage/texlive",
+        "to": "texlive"
+      },
+      {
+        "from": "../dist/windows-stage/THIRD-PARTY-NOTICES.txt",
+        "to": "THIRD-PARTY-NOTICES.txt"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build-resources/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Markdown Cornell Notes",
+      "artifactName": "Markdown-Cornell-Notes-Setup-${version}.exe",
+      "license": "../dist/windows-stage/LICENSE.txt"
+    }
   }
 }

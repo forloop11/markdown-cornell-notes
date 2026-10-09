@@ -21,8 +21,17 @@ From an installed `.deb`/Homebrew package, just run
 of its own to use, the first run downloads the Electron version the app
 pins into your npm cache (via `npx`), and later runs reuse it.
 
-The window shows the project folder in its title bar. Closing it ends the
-app; anything typed since the last autosave is saved first.
+On Windows, install it with the [Windows installer](installation.md#installing-on-windows)
+instead — it bundles Python, pandoc, and TeX, and keeps its project in
+`Documents\Cornell Notes` rather than a directory you start it from.
+
+The window shows the project folder in its title bar. **File > Open
+Project Folder…** (Ctrl+O) switches to a different folder, and **File >
+Show Project Folder** opens the current one in your file manager. If the
+folder isn't a project yet (no `md/` and `yaml/`), the app says so and
+offers to set one up there — the same files `make init` creates — or to
+open another folder. Closing the window ends the app; anything typed since
+the last autosave is saved first.
 
 **Linux sandbox note:** on distributions that restrict unprivileged user
 namespaces (Ubuntu 24.04 and later, via AppArmor), Electron can refuse to

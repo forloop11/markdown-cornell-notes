@@ -1,7 +1,13 @@
-// Electron main process for the Cornell notes editor: one window over the
-// project in the directory the app was launched from (see `make app` in
-// ../Makefile), with lib/api.js's operations exposed to the renderer as
-// IPC channels (see preload.js).
+// Electron main process for the Cornell notes editor: one window over a
+// project directory, with lib/api.js's operations exposed to the renderer
+// as IPC channels (see preload.js).
+//
+// Run from a checkout or the .deb (`make app`), the project is the
+// directory the app was launched from. The packaged Windows build (see
+// scripts/build_windows.sh) has no such directory, so it keeps its project
+// in Documents\Cornell Notes -- or wherever File > Open Project Folder last
+// pointed -- and runs the bundled Python, pandoc, and TeX from its
+// resources folder.
 //
 // The renderer is fully sandboxed (no Node, context isolation on) and only
 // ever shows this app's own files: navigation away is blocked, and
@@ -15,9 +21,110 @@ const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require("electron")
 
 const { Api, CHANNELS, PipelineError } = require("./lib/api");
 
-// Same "operate on CWD" model as the CLI: `make app` (or the installed
-// `markdown-cornell-notes app`) runs from the project directory.
-const api = new Api({ projectRoot: process.cwd() });
+// Where the packaged build's extraResources land (see "build" in
+// package.json): the pipeline's scripts/settings/defaults, plus the
+// bundled helper programs.
+function packagedPaths() {
+  const res = process.resourcesPath;
+  return {
+    repoRoot: path.join(res, "pipeline"),
+    tools: {
+      python: path.join(res, "python", "python.exe"),
+      pathDirs: [path.join(res, "pandoc"), path.join(res, "texlive", "bin", "windows")],
+      directBuild: true,
+    },
+  };
+}
+
+// The packaged build's remembered project folder, in userData/settings.json.
+const settingsFile = () => path.join(app.getPath("userData"), "settings.json");
+
+function readSettings() {
+  try {
+    return JSON.parse(fs.readFileSync(settingsFile(), "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeSettings(settings) {
+  fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
+  fs.writeFileSync(settingsFile(), JSON.stringify(settings, null, 2));
+}
+
+let api = null;
+
+// Point the app at `projectRoot`. The packaged build scaffolds its default
+// folder on first run, so a fresh install opens straight onto the example
+// notes rather than the "no project" screen.
+function openProject(projectRoot, { scaffoldIfMissing = false } = {}) {
+  if (api) api.cleanup();
+  const options = app.isPackaged ? packagedPaths() : {};
+  if (scaffoldIfMissing && !fs.existsSync(projectRoot)) {
+    fs.mkdirSync(projectRoot, { recursive: true });
+    api = new Api({ projectRoot, ...options });
+    api.pipeline.initProject();
+  } else {
+    api = new Api({ projectRoot, ...options });
+  }
+  if (app.isPackaged) writeSettings({ ...readSettings(), projectRoot: api.pipeline.projectRoot });
+  if (win) win.setTitle(windowTitle());
+}
+
+function initialProject() {
+  // Same "operate on CWD" model as the CLI: `make app` (or the installed
+  // `markdown-cornell-notes app`) runs from the project directory.
+  if (!app.isPackaged) return openProject(process.cwd());
+  const remembered = readSettings().projectRoot;
+  if (remembered && fs.existsSync(remembered)) return openProject(remembered);
+  return openProject(path.join(app.getPath("documents"), "Cornell Notes"), { scaffoldIfMissing: true });
+}
+
+// Showing the project folder tells two app windows (two projects) apart.
+const windowTitle = () => `Markdown Cornell Notes — ${api.pipeline.projectRoot}`;
+
+// File > Open Project Folder... (and the "no project" screen's button):
+// pick a folder, switch to it, and reload the page onto it. Resolves to
+// whether a folder was picked.
+async function chooseProject() {
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: "Open Project Folder",
+    defaultPath: api.pipeline.projectRoot,
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (canceled || !filePaths.length) return false;
+  // Let the page save anything pending to the current project first.
+  await new Promise((resolve) => {
+    const timer = setTimeout(resolve, CLOSE_SAVE_TIMEOUT_MS);
+    ipcMain.once("mcn:readyToClose", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+    win.webContents.send("mcn:beforeClose");
+  });
+  openProject(filePaths[0]);
+  win.webContents.reload();
+  return true;
+}
+
+function buildMenu() {
+  const isMac = process.platform === "darwin";
+  return Menu.buildFromTemplate([
+    ...(isMac ? [{ role: "appMenu" }] : []),
+    {
+      label: "File",
+      submenu: [
+        { label: "Open Project Folder…", accelerator: "CmdOrCtrl+O", click: () => chooseProject() },
+        { label: "Show Project Folder", click: () => shell.openPath(api.pipeline.projectRoot) },
+        { type: "separator" },
+        isMac ? { role: "close" } : { role: "quit" },
+      ],
+    },
+    { role: "editMenu" },
+    { role: "viewMenu" },
+    { role: "windowMenu" },
+  ]);
+}
 
 const RENDERER_DIR = path.join(__dirname, "renderer");
 
@@ -75,6 +182,10 @@ function registerIpc() {
       event.returnValue = { error: err.message };
     }
   });
+
+  ipcMain.handle("mcn:chooseProject", (event) =>
+    fromAppPage(event) ? respond(() => chooseProject()) : { error: "Refused." }
+  );
 
   // "Download PDF": a native save dialog, then a copy out of pdf/.
   // Resolves to whether the user went through with it.
@@ -150,10 +261,9 @@ function createWindow() {
     },
   });
 
-  // The page's own <title> would otherwise replace this; showing the
-  // project folder tells two app windows (two projects) apart.
+  // The page's own <title> would otherwise replace this (see windowTitle).
   win.on("page-title-updated", (event) => event.preventDefault());
-  win.setTitle(`Markdown Cornell Notes — ${api.pipeline.projectRoot}`);
+  win.setTitle(windowTitle());
 
   const { webContents } = win;
   webContents.setWindowOpenHandler(({ url }) => {
@@ -203,6 +313,8 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  initialProject();
+  Menu.setApplicationMenu(buildMenu());
   registerIpc();
   createWindow();
 });

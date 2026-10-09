@@ -35,6 +35,10 @@ mcn.onBeforeClose = (callback) => {
   });
 };
 
+// File > Open Project Folder... (also on the "no project" screen): resolves
+// to whether a folder was picked; if so, the page reloads onto it.
+mcn.chooseProject = async () => unwrap(await ipcRenderer.invoke("mcn:chooseProject"));
+
 // "Download PDF": resolves to whether the user saved a copy.
 mcn.savePdfAs = async (name) => unwrap(await ipcRenderer.invoke("mcn:savePdfAs", name));
 

@@ -632,11 +632,21 @@ async function init() {
   mcn.onBeforeClose(() => saveNow());
   CONFIG = await mcn.config();
   if (!CONFIG.initialized) {
-    // Nothing else can work without md/ and yaml/ -- show only the "run
-    // init" message.
+    // Nothing else can work without md/ and yaml/ -- show only the "set up
+    // a project" screen.
     $("#project-root").textContent = CONFIG.projectRoot;
     $("#no-project").hidden = false;
     for (const id of ["#header-box", "#file-controls", "#actions", "#panes", "#assets-box"]) $(id).hidden = true;
+    $("#init-project-btn").addEventListener("click", async () => {
+      try {
+        await mcn.initProject();
+        location.reload();
+      } catch (err) {
+        $("#init-error").textContent = err.message;
+        $("#init-error").hidden = false;
+      }
+    });
+    $("#choose-project-btn").addEventListener("click", () => mcn.chooseProject().catch((err) => showMessage(err.message)));
     return;
   }
   TZ_SET = new Set(CONFIG.tzOptions);

@@ -1,6 +1,7 @@
 // Thin wrapper around the Cornell notes CLI pipeline (see ../../Makefile)
 // for the Electron app: header read/write, markdown file management, and
-// `make build` invocation.
+// building the PDF -- via `make build`, or (on Windows, which has no make
+// or Unix shell) by running the same steps directly; see render().
 //
 // File, folder, and asset names passed in here come straight from the
 // renderer (see api.js), so every method that takes one checks it can't
@@ -104,6 +105,25 @@ function walk(dir, rel = "") {
   return out;
 }
 
+// The files `make init` copies into a fresh project: [source under
+// repoRoot, destination under projectRoot].
+const INIT_FILES = [
+  ["md/notes-example.md", "md/notes.md"],
+  ["yaml/notes-example.yaml", "yaml/notes.yaml"],
+  ["settings/page.yaml", "settings/page.yaml"],
+  ["assets/tux.jpg", "assets/tux.jpg"],
+];
+const INIT_DIRS = ["md", "yaml", "settings", "pdf", "assets"];
+
+// pdflatex log lines asking for another pass (cross-references, longtable
+// column widths, hyperref's outlines via rerunfilecheck) -- what latexmk
+// watches for when deciding to rerun.
+const RERUN_RE = /Rerun to get|Label\(s\) may have changed|Table widths have changed/;
+const MAX_LATEX_PASSES = 4;
+
+// The pdflatex auxiliary files `latexmk -c` would remove after a build.
+const LATEX_AUX_SUFFIXES = [".aux", ".log", ".out", ".toc", ".fls", ".fdb_latexmk"];
+
 class Pipeline {
   // repoRoot is where the pipeline itself (scripts/, the Makefile) lives,
   // which for an installed package is the read-only
@@ -112,9 +132,21 @@ class Pipeline {
   // `make app`/the installed CLI's "operate on CWD" model (see Makefile's
   // MCN_ROOT). md/, yaml/, pdf/, assets/ are project data and live under
   // projectRoot.
-  constructor({ projectRoot, repoRoot = path.resolve(__dirname, "..", "..") }) {
+  //
+  // `tools` says how to reach the build's helper programs: `python` is the
+  // interpreter to run scripts/ with, `pathDirs` are prepended to PATH
+  // (e.g. bundled pandoc and TeX directories in the Windows build -- see
+  // main.js), and `directBuild` runs the build steps here instead of via
+  // `make` (always the case on Windows).
+  constructor({ projectRoot, repoRoot = path.resolve(__dirname, "..", ".."), tools = {} }) {
     this.projectRoot = path.resolve(projectRoot);
     this.repoRoot = repoRoot;
+    const windows = process.platform === "win32";
+    this.tools = {
+      python: tools.python || (windows ? "python" : "python3"),
+      pathDirs: tools.pathDirs || [],
+      directBuild: tools.directBuild ?? (windows || process.env.MCN_DIRECT_BUILD === "1"),
+    };
     this.scriptsDir = path.join(repoRoot, "scripts");
     this.mdDir = path.join(this.projectRoot, "md");
     this.yamlDir = path.join(this.projectRoot, "yaml");
@@ -126,6 +158,45 @@ class Pipeline {
   // -- md/ and yaml/ must exist before any read/write below is safe.
   projectInitialized() {
     return isDir(this.mdDir) && isDir(this.yamlDir);
+  }
+
+  // Scaffold a fresh project in projectRoot from the bundled defaults --
+  // the same checks and files as the Makefile's `init` target.
+  initProject() {
+    if (path.resolve(this.projectRoot) === path.resolve(this.repoRoot)) {
+      throw new PipelineError("Already in the markdown-cornell-notes source tree; nothing to init.");
+    }
+    for (const dir of INIT_DIRS) {
+      if (fs.existsSync(path.join(this.projectRoot, dir))) {
+        throw new PipelineError(`Refusing to init: '${dir}' already exists in ${this.projectRoot}.`);
+      }
+    }
+    for (const dir of INIT_DIRS) fs.mkdirSync(path.join(this.projectRoot, dir), { recursive: true });
+    for (const [from, to] of INIT_FILES) {
+      fs.copyFileSync(path.join(this.repoRoot, from), path.join(this.projectRoot, to));
+    }
+  }
+
+  // The environment for helper programs: this process's, with
+  // tools.pathDirs prepended to PATH. (Windows spells it "Path", and
+  // treats it case-insensitively -- reuse whichever key is there rather
+  // than adding a second one.) PYTHONUTF8 keeps Python's own I/O UTF-8
+  // regardless of the Windows code page.
+  childEnv() {
+    const env = { ...process.env, PYTHONUTF8: "1" };
+    if (this.tools.pathDirs.length) {
+      const key = Object.keys(env).find((k) => k.toUpperCase() === "PATH") || "PATH";
+      env[key] = [...this.tools.pathDirs, env[key]].filter(Boolean).join(path.delimiter);
+    }
+    return env;
+  }
+
+  // Run one of scripts/ with tools.python, from projectRoot.
+  runScript(script, args) {
+    return run(this.tools.python, [path.join(this.scriptsDir, script), ...args], {
+      cwd: this.projectRoot,
+      env: this.childEnv(),
+    });
   }
 
   // The header yaml paired with a markdown file: md/<stem>.md <-> yaml/<stem>.yaml.
@@ -312,9 +383,7 @@ class Pipeline {
   // yaml at `yamlPath`. Runs scripts/topic_slug.py -- the same script the
   // Makefile names the PDF with -- so the two can never disagree.
   async topicSlug(yamlPath) {
-    const { code, stdout, stderr } = await run("python3", [path.join(this.scriptsDir, "topic_slug.py"), yamlPath], {
-      cwd: this.projectRoot,
-    });
+    const { code, stdout, stderr } = await this.runScript("topic_slug.py", [yamlPath]);
     if (code !== 0) throw new PipelineError(stderr.trim() || "Failed to compute output filename.");
     return stdout.trim();
   }
@@ -333,18 +402,9 @@ class Pipeline {
   // (no `-C`) invocation the installed CLI uses.
   async render(mdFilename, builddir) {
     const yamlPath = this.yamlPathFor(mdFilename);
-    const { code, stdout, stderr } = await run(
-      "make",
-      [
-        "-f",
-        path.join(this.repoRoot, "Makefile"),
-        "build",
-        `MD=md/${mdFilename}`,
-        `YAML=${path.relative(this.projectRoot, yamlPath)}`,
-        `BUILDDIR=${builddir}`,
-      ],
-      { cwd: this.projectRoot }
-    );
+    const { code, stdout, stderr } = this.tools.directBuild
+      ? await this.buildDirect(mdFilename, yamlPath, builddir)
+      : await this.buildWithMake(mdFilename, yamlPath, builddir);
 
     let pdfPath = null;
     try {
@@ -354,6 +414,98 @@ class Pipeline {
       if (!(err instanceof PipelineError)) throw err;
     }
     return { success: code === 0, log: stdout + stderr, pdfPath };
+  }
+
+  buildWithMake(mdFilename, yamlPath, builddir) {
+    return run(
+      "make",
+      [
+        "-f",
+        path.join(this.repoRoot, "Makefile"),
+        "build",
+        `MD=md/${mdFilename}`,
+        `YAML=${path.relative(this.projectRoot, yamlPath)}`,
+        `BUILDDIR=${builddir}`,
+      ],
+      { cwd: this.projectRoot, env: this.childEnv() }
+    );
+  }
+
+  // The Makefile's `build` target, step by step, for platforms without
+  // make (Windows): the same three scripts, then pdflatex -- rerun until
+  // its log stops asking for another pass, as latexmk would -- then
+  // latexmk -c's cleanup. Resolves to {code, stdout, stderr} like run(),
+  // stopping at the first failing step.
+  async buildDirect(mdFilename, yamlPath, builddir) {
+    const rel = (p) => path.relative(this.projectRoot, p).split(path.sep).join("/");
+    const settingsYaml = path.join(this.projectRoot, "settings", "page.yaml");
+    const out = { code: 0, stdout: "", stderr: "" };
+    const step = async (promise) => {
+      const result = await promise;
+      out.stdout += result.stdout;
+      out.stderr += result.stderr;
+      out.code = result.code;
+      return result.code === 0;
+    };
+
+    if (!isFile(settingsYaml)) {
+      return { code: 1, stdout: "", stderr: "settings/page.yaml not found -- set up the project first.\n" };
+    }
+    const buildDir = path.join(this.projectRoot, builddir);
+    fs.mkdirSync(buildDir, { recursive: true });
+    fs.mkdirSync(this.pdfDir, { recursive: true });
+    // TeX and the scripts both get forward-slash paths relative to
+    // projectRoot (their CWD).
+    const texBuildDir = builddir.split(path.sep).join("/");
+    const inBuild = (name) => `${texBuildDir}/${name}`;
+
+    if (!(await step(this.runScript("yaml_to_header.py", [rel(yamlPath), inBuild("cornell-header.tex")])))) return out;
+    if (
+      !(await step(
+        this.runScript("markdown_to_pages.py", [
+          `md/${mdFilename}`,
+          inBuild("cornell-content.tex"),
+          inBuild("cornell-cue.tex"),
+          inBuild("cornell-summary.tex"),
+        ])
+      ))
+    ) {
+      return out;
+    }
+    if (!(await step(this.runScript("yaml_to_settings.py", ["settings/page.yaml", inBuild("cornell-page-settings.tex")])))) {
+      return out;
+    }
+
+    let jobname;
+    try {
+      jobname = await this.topicSlug(yamlPath);
+    } catch (err) {
+      if (!(err instanceof PipelineError)) throw err;
+      return { ...out, code: 1, stderr: `${out.stderr}${err.message}\n` };
+    }
+
+    // A copy of the template inside the build directory, so pdflatex gets
+    // a short relative path -- the installed template's own path may hold
+    // spaces or backslashes (e.g. under C:\Program Files) that TeX's
+    // \input doesn't take kindly to.
+    fs.copyFileSync(path.join(this.repoRoot, "settings", "template.tex"), path.join(buildDir, "cornell-template.tex"));
+    // Same as the Makefile's -usepretex: \cnBuildDir tells the template
+    // where the generated .tex fragments are.
+    const latexArgs = [
+      "-interaction=nonstopmode",
+      "-halt-on-error",
+      `-jobname=${jobname}`,
+      "-output-directory=pdf",
+      `\\def\\cnBuildDir{${texBuildDir}}\\input{${inBuild("cornell-template.tex")}}`,
+    ];
+    const logFile = path.join(this.pdfDir, `${jobname}.log`);
+    for (let pass = 1; pass <= MAX_LATEX_PASSES; pass++) {
+      if (!(await step(run("pdflatex", latexArgs, { cwd: this.projectRoot, env: this.childEnv() })))) return out;
+      const log = isFile(logFile) ? fs.readFileSync(logFile, "latin1") : "";
+      if (!RERUN_RE.test(log)) break;
+    }
+    for (const suffix of LATEX_AUX_SUFFIXES) fs.rmSync(path.join(this.pdfDir, jobname + suffix), { force: true });
+    return out;
   }
 }
 
@@ -375,7 +527,8 @@ const displayDir = (subdir) => (subdir ? `assets/${subdir}` : "assets");
 // with code 127 and the error in stderr, like a shell would report it.
 function run(command, args, options) {
   return new Promise((resolve) => {
-    execFile(command, args, { ...options, maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) => {
+    // windowsHide: no console window flashing up per step on Windows.
+    execFile(command, args, { ...options, windowsHide: true, maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err && typeof err.code !== "number") {
         resolve({ code: 127, stdout: stdout || "", stderr: `${stderr || ""}${err.message}\n` });
         return;

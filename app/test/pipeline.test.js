@@ -1,6 +1,7 @@
 // Tests for lib/pipeline.js, run against an isolated project (see
-// helpers.js). render() itself needs the full pandoc/TeX Live toolchain,
-// so it isn't covered here; topicSlug() is, since it only needs python3.
+// helpers.js). render() needs the full pandoc/TeX Live toolchain, so its
+// test skips itself where those aren't installed (e.g. CI); topicSlug()
+// only needs python3.
 "use strict";
 
 const test = require("node:test");
@@ -135,6 +136,63 @@ test('topicSlug() falls back to "cornell-notes" when all fields are blank', asyn
   p.writeHeader("notes.md", blank());
   assert.equal(await p.topicSlug(p.yamlPathFor("notes.md")), "cornell-notes");
 });
+
+test("initProject() scaffolds the same files as `make init`", (t) => {
+  const root = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "mcn-init-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const p = new Pipeline({ projectRoot: root, repoRoot: REPO_ROOT });
+  assert.equal(p.projectInitialized(), false);
+  p.initProject();
+  assert.equal(p.projectInitialized(), true);
+  for (const file of ["md/notes.md", "yaml/notes.yaml", "settings/page.yaml", "assets/tux.jpg"]) {
+    assert.ok(fs.existsSync(path.join(root, file)), file);
+  }
+  assert.ok(fs.statSync(path.join(root, "pdf")).isDirectory());
+});
+
+test("initProject() refuses a directory that already has project folders", (t) => {
+  const { p } = setup(t); // already has md/, yaml/, pdf/, assets/
+  assert.throws(() => p.initProject(), PipelineError);
+});
+
+test("initProject() refuses the source tree itself", () => {
+  const p = new Pipeline({ projectRoot: REPO_ROOT, repoRoot: REPO_ROOT });
+  assert.throws(() => p.initProject(), /source tree/);
+});
+
+test("childEnv() prepends tools.pathDirs to the existing PATH key", (t) => {
+  const root = makeProject(t);
+  const p = new Pipeline({ projectRoot: root, repoRoot: REPO_ROOT, tools: { pathDirs: ["/opt/a", "/opt/b"] } });
+  const env = p.childEnv();
+  const keys = Object.keys(env).filter((k) => k.toUpperCase() === "PATH");
+  assert.equal(keys.length, 1);
+  assert.ok(env[keys[0]].startsWith(["/opt/a", "/opt/b"].join(path.delimiter) + path.delimiter));
+  assert.equal(env.PYTHONUTF8, "1");
+});
+
+const onPath = (cmd) => {
+  try {
+    execFileSync(cmd, ["--version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+test(
+  "render() with directBuild (the Windows build path) produces the PDF and cleans up",
+  { skip: !(onPath("pdflatex") && onPath("pandoc")) && "needs pdflatex and pandoc", timeout: 120000 },
+  async (t) => {
+    const root = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "mcn-direct-"));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const p = new Pipeline({ projectRoot: root, repoRoot: REPO_ROOT, tools: { directBuild: true } });
+    p.initProject();
+    const result = await p.render("notes.md", "build/app-test");
+    assert.ok(result.success, result.log);
+    assert.equal(result.pdfPath, path.join(root, "pdf", `${await p.topicSlug(p.yamlPathFor("notes.md"))}.pdf`));
+    assert.deepEqual(fs.readdirSync(path.join(root, "pdf")), [path.basename(result.pdfPath)]);
+  }
+);
 
 test("asset folders: create, rename, nest, delete with contents", (t) => {
   const { p } = setup(t);

@@ -18,7 +18,7 @@
     <!-- A Cornell page: header band, cue column, summary band. -->
     <svg class="logo" viewBox="0 0 24 24" aria-hidden="true">
       <rect x="4" y="2.5" width="16" height="19" rx="2.5"/>
-      <path d="M4 7.5h16M9.5 7.5v9M4 16.5h16"/>
+      <path d="M4 7.5h16M14.5 7.5v9M4 16.5h16"/>
     </svg>
     <span class="brand-name">Cornell Notes</span>
   </div>
@@ -91,10 +91,14 @@
     <svg class="empty-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
     <h2>No project here</h2>
     <p>
-      No project found in <code id="project-root"></code>. Run
-      <code>markdown-cornell-notes init</code> (or <code>make init</code>) in that
-      directory, then start this app again from there.
+      <code id="project-root"></code> isn't a notes project yet. Set one up
+      here with the example notes to start from, or open a different folder.
     </p>
+    <div class="empty-actions">
+      <button type="button" id="init-project-btn" class="primary">Set up project here</button>
+      <button type="button" id="choose-project-btn">Open another folder…</button>
+    </div>
+    <p id="init-error" class="msg error" hidden></p>
   </div>
 
   <div id="no-files" class="empty-state" hidden>

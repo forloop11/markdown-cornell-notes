@@ -31,6 +31,9 @@
 │   │                          build/cornell-summary.tex
 │   ├── yaml_to_settings.py    settings/page.yaml -> build/cornell-page-
 │   │                          settings.tex
+│   ├── build_deb.sh           `make deb`: packages a .deb (see installation.md).
+│   ├── build_windows.sh       `make windows`: the Windows installer, with
+│   │                          Python/pandoc/TeX bundled (see installation.md).
 │   └── topic_slug.py          yaml/notes.yaml's topic+date -> output PDF's
 │                              filename
 ├── build/              Generated .tex fragments (gitignored, rebuilt by
@@ -45,8 +48,9 @@
 │   ├── lib/
 │   │   ├── api.js          Everything the page can ask for (files, render,
 │   │   │                   assets), as plain functions main.js wires to IPC.
-│   │   ├── pipeline.js     Header/markdown/asset file I/O + `make build`
-│   │   │                   invocation.
+│   │   ├── pipeline.js     Header/markdown/asset file I/O, project setup,
+│   │   │                   and builds (`make build`, or the same steps run
+│   │   │                   directly on Windows).
 │   │   └── header-form.js  Converts between the yaml header fields and the
 │   │                       app's header form (date/time/timezone pickers).
 │   ├── renderer/         The app's page: HTML, CSS, app.js, and editor.js
@@ -55,6 +59,8 @@
 │   ├── frontend_src/     Source for renderer/editor.js (`npm run
 │   │                     build:editor`).
 │   ├── test/             The app's tests (`node --test`, run by `make test`).
+│   ├── build-resources/  The app icon (icon.svg, rendered to icon.png) for
+│   │                     the Windows installer.
 │   └── package.json      Electron + build tooling (`npm install` once, in a
 │                         git checkout).
 ├── tests/              pytest tests for scripts/.

@@ -27,6 +27,29 @@ function h(tag, attrs = {}, ...children) {
   return el;
 }
 
+// Stroke icons (24x24 paths) for buttons built here; the static ones live
+// inline in index.html.
+const ICONS = {
+  folder: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+  trash: "M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3",
+  pencil: "M4 20h4L19 9l-4-4L4 16zM13 7l4 4",
+  copy: "M9 9h11v11H9zM5 15V4h11",
+  upload: "M12 16V4M7 9l5-5 5 5M5 20h14",
+  plus: "M12 5v14M5 12h14",
+  move: "M5 12h14M13 6l6 6-6 6",
+};
+const SVG_NS = "http://www.w3.org/2000/svg";
+function icon(name) {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("d", ICONS[name]);
+  svg.append(path);
+  return svg;
+}
+
 // localStorage only remembers per-machine conveniences (last file, pane
 // height); treat it as optional all the same.
 const prefs = {
@@ -83,6 +106,15 @@ function setAutosaveWarning(text) {
   autosaveWarning = text ? showMessage(text, "warning") : null;
 }
 
+// The small "Saved" / "Saving…" indicator in the app bar.
+function setSaveStatus(kind) {
+  const el = $("#save-status");
+  const labels = { saved: "Saved", pending: "Saving…", failed: "Not saved" };
+  el.hidden = !kind;
+  el.className = `save-status ${kind || ""}`;
+  el.textContent = labels[kind] || "";
+}
+
 // --- Header form + autosave ----------------------------------------------
 
 const headerInputs = [...document.querySelectorAll("[data-field]")];
@@ -97,6 +129,14 @@ function currentSnapshot() {
 
 function fillHeader(form) {
   for (const input of headerInputs) input.value = form[input.dataset.field] || "";
+  updateHeaderSummary();
+}
+
+// One-line recap shown beside "Details" while that card is collapsed.
+function updateHeaderSummary() {
+  const header = state.header || {};
+  const time = [header.start, header.end].filter(Boolean).join("–");
+  $("#header-summary").textContent = [header.topic, header.date, time, header.location].filter(Boolean).join("  ·  ");
 }
 
 let saveTimer = null;
@@ -105,6 +145,7 @@ let saveChain = Promise.resolve(true);
 function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveNow, AUTOSAVE_MS);
+  setSaveStatus("pending");
   updateStatus();
 }
 
@@ -120,14 +161,19 @@ function saveNow() {
   const markdown = CodeEditor.getDoc();
   const snap = snapshot(header, markdown);
   saveChain = saveChain.then(async () => {
-    if (state.lastSaved[file] === snap) return true;
+    if (state.lastSaved[file] === snap) {
+      if (!saveTimer) setSaveStatus("saved");
+      return true;
+    }
     try {
       await mcn.saveFile(file, { header, markdown });
       state.lastSaved[file] = snap;
       setAutosaveWarning(null);
+      if (!saveTimer) setSaveStatus("saved");
       return true;
     } catch (err) {
       setAutosaveWarning(err.message);
+      setSaveStatus("failed");
       return false;
     }
   });
@@ -160,6 +206,7 @@ function wireHeaderInputs() {
     input.addEventListener("input", () => {
       if (!state.header) return;
       state.header[field] = input.value;
+      updateHeaderSummary();
       scheduleSave();
     });
   }
@@ -220,6 +267,7 @@ function setFiles(files) {
   if (none) {
     state.selected = null;
     state.header = null;
+    setSaveStatus(null);
   }
   updateFileControls();
   applyPaneHeight(); // the editor can't measure its toolbar while hidden
@@ -288,7 +336,8 @@ async function renderPdf() {
   state.busy = true;
   updateFileControls();
   const button = $("#render-btn");
-  button.textContent = "Rendering…";
+  button.classList.add("busy");
+  button.querySelector(".label").textContent = "Rendering…";
   try {
     // An in-flight autosave landing after the render's own save would be
     // harmless (same or older content), but wait it out anyway so the two
@@ -305,7 +354,8 @@ async function renderPdf() {
     state.buildLog = err.message;
   } finally {
     state.busy = false;
-    button.textContent = "Render";
+    button.classList.remove("busy");
+    button.querySelector(".label").textContent = "Render";
     updateFileControls();
     updatePdf();
     updateStatus();
@@ -315,8 +365,8 @@ async function renderPdf() {
 function updateStatus() {
   const status = $("#build-status");
   status.hidden = state.buildOk === null;
-  status.className = `pill ${state.buildOk ? "ok" : "fail"}`;
-  status.textContent = state.buildOk ? "Build succeeded." : "Build failed.";
+  status.className = `chip ${state.buildOk ? "ok" : "fail"}`;
+  status.textContent = state.buildOk ? "✓ Build succeeded" : "✕ Build failed";
 
   $("#build-log-box").hidden = !(state.buildOk === false && state.buildLog);
   $("#build-log").textContent = state.buildLog;
@@ -346,7 +396,7 @@ function updatePdf() {
   const host = $("#pdf-host");
   if (!state.pdf) {
     $("#pdf-caption").textContent = "";
-    host.replaceChildren(h("div", { class: "info" }, "No PDF yet -- click Render."));
+    host.replaceChildren(h("div", { class: "info" }, "No PDF yet — click Render to build one."));
     updateFileControls();
     return;
   }
@@ -404,15 +454,15 @@ function applyAssets(data) {
 
 let popoverCount = 0;
 
-// A button that opens a popover built by `build(close)`.
-function popoverButton(label, build) {
+// A small button (icon + label) that opens a popover built by `build(close)`.
+function popoverButton(iconName, label, build) {
   const id = `pop-${++popoverCount}`;
   const pop = h("div", { popover: true, id, class: "pop" });
   pop.append(...build(() => pop.hidePopover()));
-  return [h("button", { type: "button", popovertarget: id }, label), pop];
+  return [h("button", { type: "button", class: "small", popovertarget: id }, icon(iconName), label), pop];
 }
 
-async function copyText(text, button) {
+async function copyText(text, label) {
   try {
     await navigator.clipboard.writeText(text);
   } catch {
@@ -424,8 +474,8 @@ async function copyText(text, button) {
     document.execCommand("copy");
     scratch.remove();
   }
-  button.textContent = "Copied";
-  setTimeout(() => (button.textContent = "Copy"), 1200);
+  label.textContent = "Copied";
+  setTimeout(() => (label.textContent = "Copy"), 1200);
 }
 
 function renderBreadcrumbs(dir) {
@@ -443,15 +493,15 @@ function renderBreadcrumbs(dir) {
 
 function renderFolderRow(dir, name) {
   const target = joinDir(dir, name);
-  const [renameBtn, renamePop] = popoverButton("Rename", (close) => {
+  const [renameBtn, renamePop] = popoverButton("pencil", "Rename", (close) => {
     const input = h("input", { type: "text", value: name, "aria-label": "New name" });
     const confirm = async () => {
       if (await assetAction(() => mcn.renameAssetFolder(dir, name, input.value))) close();
     };
     input.addEventListener("keydown", (e) => e.key === "Enter" && confirm());
-    return [h("label", {}, "New name", input), h("button", { type: "button", onclick: confirm }, "Confirm")];
+    return [h("label", {}, "New name", input), h("button", { type: "button", class: "primary", onclick: confirm }, "Rename")];
   });
-  const [deleteBtn, deletePop] = popoverButton("Delete", (close) => [
+  const [deleteBtn, deletePop] = popoverButton("trash", "Delete", (close) => [
     h("p", {}, "Delete folder ", h("code", {}, name), " and everything inside it?"),
     h("button", {
       type: "button",
@@ -460,12 +510,12 @@ function renderFolderRow(dir, name) {
         close();
         await assetAction(() => mcn.deleteAssetFolder(dir, name));
       },
-    }, "Confirm"),
+    }, "Delete"),
   ]);
   return h(
     "div",
     { class: "asset-row folder" },
-    h("button", { type: "button", class: "folder-btn", onclick: () => loadAssets(target) }, `📁 ${name}`),
+    h("button", { type: "button", class: "folder-btn", onclick: () => loadAssets(target) }, icon("folder"), name),
     renameBtn,
     renamePop,
     deleteBtn,
@@ -483,8 +533,9 @@ function renderFileRow(dir, file) {
   });
   const pathInput = h("input", { type: "text", class: "path mono", readonly: true, value: path, "aria-label": "Asset path" });
   pathInput.addEventListener("focus", () => pathInput.select());
-  const copyBtn = h("button", { type: "button", class: "link", onclick: () => copyText(path, copyBtn) }, "Copy");
-  const [deleteBtn, deletePop] = popoverButton("Delete", (close) => [
+  const copyLabel = h("span", {}, "Copy");
+  const copyBtn = h("button", { type: "button", class: "link", onclick: () => copyText(path, copyLabel) }, icon("copy"), copyLabel);
+  const [deleteBtn, deletePop] = popoverButton("trash", "Delete", (close) => [
     h("p", {}, "Delete ", h("code", {}, file.name), "?"),
     h("button", {
       type: "button",
@@ -493,7 +544,7 @@ function renderFileRow(dir, file) {
         close();
         await assetAction(() => mcn.deleteAsset(dir, file.name));
       },
-    }, "Confirm"),
+    }, "Delete"),
   ]);
   return h(
     "div",
@@ -520,7 +571,7 @@ function renderMoveControls(dir) {
     h("button", {
       type: "button",
       onclick: () => assetAction(() => mcn.moveAssets(dir, selected, select.value)),
-    }, `Move ${selected.length} selected`)
+    }, icon("move"), `Move ${selected.length} selected`)
   );
 }
 
@@ -532,7 +583,7 @@ function renderAssetsPanel() {
   folderInput.addEventListener("keydown", (e) => e.key === "Enter" && createFolder());
 
   const fileInput = h("input", { type: "file", multiple: true, "aria-label": "Add files" });
-  const uploadBtn = h("button", { type: "button", disabled: true }, "Upload");
+  const uploadBtn = h("button", { type: "button", disabled: true }, icon("upload"), "Upload");
   fileInput.addEventListener("change", () => (uploadBtn.disabled = !fileInput.files.length));
   uploadBtn.addEventListener("click", async () => {
     const uploads = await Promise.all(
@@ -543,8 +594,12 @@ function renderAssetsPanel() {
 
   const children = [
     renderBreadcrumbs(dir),
-    h("div", { class: "inline-form" }, folderInput, h("button", { type: "button", onclick: createFolder }, "Create folder")),
-    h("div", { class: "inline-form" }, fileInput, uploadBtn),
+    h(
+      "div",
+      { class: "assets-toolbar" },
+      h("div", { class: "inline-form" }, folderInput, h("button", { type: "button", onclick: createFolder }, icon("plus"), "Folder")),
+      h("div", { class: "inline-form" }, fileInput, uploadBtn)
+    ),
     !folders.length && !files.length ? h("p", { class: "muted" }, "No folders or files here yet.") : null,
     h(
       "div",
@@ -578,7 +633,7 @@ async function init() {
     // init" message.
     $("#project-root").textContent = CONFIG.projectRoot;
     $("#no-project").hidden = false;
-    for (const id of ["#header-box", ".button-row", "#panes", "#assets-box"]) $(id).hidden = true;
+    for (const id of ["#header-box", "#file-controls", "#actions", "#panes", "#assets-box"]) $(id).hidden = true;
     return;
   }
   TZ_SET = new Set(CONFIG.tzOptions);

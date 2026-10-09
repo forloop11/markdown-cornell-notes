@@ -37,16 +37,20 @@ The app only ever loads its own bundled page and your project's local
 files, but the sandbox is still a useful safety net — prefer fixing the
 OS-level restriction where you can.
 
-Along the top, the page title doubles as the status line: once you've
-clicked Render, a success/failure pill appears right next to it, and on
-failure a **Build log** expander (the raw `make build` output) opens
-underneath so you can see what went wrong.
+Along the top, an app bar stays pinned while you scroll. On the left are
+the dropdown to switch between the files in `md/` and **+** (new file) /
+trash (delete file) buttons; on the right, a status area, the pane-height
+dropdown, **Download PDF**, and **Render**. The status area shows a small
+"Saved"/"Saving…" autosave indicator, a "Preview out of date" chip (see
+below), and — once you've clicked Render — a success/failure chip. On
+failure a **Build log** expander (the raw `make build` output) opens under
+the app bar so you can see what went wrong.
 
-The page has a collapsible **Header** section (`topic`/`date`/`attendees`/
-`time`) at the top. Location lives under Topic, and start/end time pickers
-+ a searchable IANA timezone field (type to filter, then pick a zone) live under Date,
-all stacked below their respective field; the dropdown to switch between the
-files in `md/` lives under Attendees. `date` is a calendar date picker
+Below the app bar is a collapsible **Details** section holding the header
+fields: Topic, Date, and start/end time pickers on the first row; Location,
+a searchable IANA timezone field (type to filter, then pick a zone), and
+Attendees on the second. Collapsed, it shows a one-line recap (topic, date,
+time, location) next to its title. `date` is a calendar date picker
 (defaulting to today for an entry that doesn't have one yet), still stored in
 `yaml/<stem>.yaml` as a plain `YYYY-MM-DD` string, same as editing it by
 hand. The start/end/timezone group composes into the `time` field's usual
@@ -68,15 +72,14 @@ paired `yaml/<stem>.yaml`, so switching files in the dropdown also switches
 the header fields shown, and creating a file creates a blank paired yaml
 alongside it (deleting a file removes its yaml too).
 
-Below the **Header** section is a centered row of **New file**/**Delete
-file** buttons (to create or delete a file) alongside **Render** and
-**Download PDF** — all four disable for as long as a render is running, so
-a fast double-click can't submit twice. Render saves both the selected
+The new-file, delete-file, **Render**, and **Download PDF** buttons all
+disable for as long as a render is running (Render shows a spinner), so a
+fast double-click can't submit twice. Render saves both the selected
 file's header and its markdown content to disk and runs `make build` for
-you; the title's status pill (see above) reports success or failure.
+you; the app bar's status chip (see above) reports success or failure.
 Download PDF (disabled until a PDF exists) opens a save dialog to copy the
-current one out of `pdf/`, defaulting to its actual output filename. A
-dropdown at the end of the row (30%–200%, 100% by default) scales the
+current one out of `pdf/`, defaulting to its actual output filename. The
+pane-height dropdown next to it (30%–200%, 100% by default) scales the
 editor/PDF pane height below — pick a smaller value to fit both panes on a
 shorter screen without scrolling. The app remembers that choice, and the
 last file you had open, for next time.
@@ -84,8 +87,8 @@ last file you had open, for next time.
 Below that, the markdown editor (left) and the resulting PDF (right) sit
 side by side, matched in height (per the pane-height dropdown above) so
 their tops and bottoms align. The PDF pane shows the selected file's PDF
-if one has already been built from its current header, and a "Preview may be out of
-date" note appears next to the title whenever the header or markdown has
+if one has already been built from its current header, and a "Preview out of
+date" chip appears in the app bar whenever the header or markdown has
 changed since that file's last render in this window. Header fields and markdown content
 both autosave to disk continuously as you edit (about half a second after
 you stop typing, or as soon as the editor loses focus) rather than only on

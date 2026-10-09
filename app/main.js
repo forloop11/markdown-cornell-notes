@@ -140,7 +140,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: "Markdown Cornell Notes",
-    backgroundColor: "#0e1117",
+    backgroundColor: "#0f1115",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

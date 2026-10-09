@@ -50,9 +50,10 @@ University or the Pauk estate.
 - For the optional [editor app](docs/editor-app.md) only:
   [Node.js](https://nodejs.org/) with npm
 
-On Windows, skip all of this: the
-[Windows installer](docs/installation.md#installing-on-windows) bundles
-the editor app with Python, pandoc, and TeX built in.
+On Windows or an Apple Silicon Mac, you can skip all of this: the
+[Windows installer](docs/installation.md#installing-on-windows) and the
+[macOS app](docs/installation.md#installing-the-macos-app-apple-silicon)
+bundle the editor app with Python, pandoc, and TeX built in.
 
 On Fedora, the build tools are one command away:
 
@@ -102,7 +103,7 @@ make app
 - **[Project structure](docs/project-structure.md)** — what lives in each
   directory and how the build scripts fit together.
 - **[Installation](docs/installation.md)** — installing as a `.deb`, via
-  Homebrew on macOS, with the Windows installer, or running with Docker,
+  Homebrew on macOS, with the Windows or macOS app, or running with Docker,
   instead of using a git checkout directly.
 - **[Customizing the layout](docs/customization.md)** — page geometry and
   proportions via `settings/page.yaml`.
@@ -126,6 +127,9 @@ make app
 - `make windows` — builds the Windows installer for the editor app, with
   Python, pandoc, and TeX bundled; see
   [Installation](docs/installation.md#installing-on-windows).
+- `make macos` — builds the editor app for Apple Silicon Macs as a zip,
+  bundled the same way; see
+  [Installation](docs/installation.md#installing-the-macos-app-apple-silicon).
 - `make init` — scaffolds a fresh `md/`, `yaml/`, `settings/page.yaml`,
   `pdf/`, and `assets/` (with the `tux.jpg` the example note embeds) in the
   current directory from the bundled defaults. Only needed when using the

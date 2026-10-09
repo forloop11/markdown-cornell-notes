@@ -38,7 +38,7 @@ LATEXMK  := latexmk
 # in that recursive call) -- checking the *default* $(MD)/$(YAML) here would
 # wrongly demand a project the example build never touches. It still needs
 # $(SETTINGS_YAML) though, since that one isn't overridden.
-NO_PROJECT_NEEDED := init deb windows clean distclean app test
+NO_PROJECT_NEEDED := init deb windows macos clean distclean app test
 NEEDS_PROJECT := $(filter-out $(NO_PROJECT_NEEDED),$(or $(MAKECMDGOALS),build))
 NEEDS_MD_YAML := $(filter-out build-example,$(NEEDS_PROJECT))
 ifneq ($(NEEDS_MD_YAML),)
@@ -70,7 +70,7 @@ EXAMPLE_MD       := $(MCN_ROOT)md/notes-example.md
 EXAMPLE_YAML     := $(MCN_ROOT)yaml/notes-example.yaml
 EXAMPLE_BUILDDIR := build/example
 
-.PHONY: build clean distclean build-example app deb windows init test
+.PHONY: build clean distclean build-example app deb windows macos init test
 
 build: $(PDF)
 	$(LATEXMK) -c -jobname=$(JOBNAME) -outdir=$(OUTDIR) $(TEX)
@@ -141,6 +141,13 @@ deb:
 # Needs an x86_64 Linux host with podman or docker, and `npm ci` in app/.
 windows:
 	$(MCN_ROOT)scripts/build_windows.sh
+
+# Builds the editor app for Apple Silicon Macs
+# (dist/macos/Markdown-Cornell-Notes-<version>-arm64-mac.zip), bundled the
+# same way and ad-hoc signed -- see scripts/build_macos.sh. Same host
+# requirements as `windows`; no Mac needed.
+macos:
+	$(MCN_ROOT)scripts/build_macos.sh
 
 # Scaffolds a fresh project (md/, yaml/, settings/page.yaml, pdf/, assets/)
 # in the CWD from the bundled defaults, so the installed package -- whose

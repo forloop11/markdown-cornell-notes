@@ -3,11 +3,11 @@
 // as IPC channels (see preload.js).
 //
 // Run from a checkout or the .deb (`make app`), the project is the
-// directory the app was launched from. The packaged Windows build (see
-// scripts/build_windows.sh) has no such directory, so it keeps its project
-// in Documents\Cornell Notes -- or wherever File > Open Project Folder last
-// pointed -- and runs the bundled Python, pandoc, and TeX from its
-// resources folder.
+// directory the app was launched from. The packaged Windows and macOS
+// builds (see scripts/build_windows.sh, scripts/build_macos.sh) have no
+// such directory, so they keep their project in Documents/Cornell Notes --
+// or wherever File > Open Project Folder last pointed -- and run the
+// bundled Python, pandoc, and TeX from their resources folder.
 //
 // The renderer is fully sandboxed (no Node, context isolation on) and only
 // ever shows this app's own files: navigation away is blocked, and
@@ -22,15 +22,19 @@ const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require("electron")
 const { Api, CHANNELS, PipelineError } = require("./lib/api");
 
 // Where the packaged build's extraResources land (see "build" in
-// package.json): the pipeline's scripts/settings/defaults, plus the
-// bundled helper programs.
+// package.json and scripts/bundle_common.sh): the pipeline's
+// scripts/settings/defaults, plus the bundled helper programs, laid out
+// per platform.
 function packagedPaths() {
   const res = process.resourcesPath;
+  const windows = process.platform === "win32";
   return {
     repoRoot: path.join(res, "pipeline"),
     tools: {
-      python: path.join(res, "python", "python.exe"),
-      pathDirs: [path.join(res, "pandoc"), path.join(res, "texlive", "bin", "windows")],
+      python: windows ? path.join(res, "python", "python.exe") : path.join(res, "python", "bin", "python3"),
+      pathDirs: windows
+        ? [path.join(res, "pandoc"), path.join(res, "texlive", "bin", "windows")]
+        : [path.join(res, "pandoc", "bin"), path.join(res, "texlive", "bin", "universal-darwin")],
       directBuild: true,
     },
   };

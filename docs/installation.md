@@ -3,8 +3,10 @@
 Three ways to install this outside of a git checkout, all packaging the
 Makefile/scripts/template the same way and dropping a `markdown-cornell-notes`
 launcher on the `PATH`: a `.deb`, a Homebrew formula, and a Docker image.
-On Windows, a [standalone installer](#installing-on-windows) installs the
-[editor app](editor-app.md) with everything it needs bundled in.
+On Windows and Apple Silicon Macs, a standalone [editor app](editor-app.md)
+build ([Windows installer](#installing-on-windows),
+[macOS app](#installing-the-macos-app-apple-silicon)) comes with
+everything it needs bundled in.
 
 ## Installing as a system package
 
@@ -81,7 +83,9 @@ The output is the same PDF.
 
 Building the installer needs an x86_64 Linux host with podman or docker.
 `scripts/build_windows.sh` downloads pinned versions of TinyTeX, pandoc,
-and Python into `dist/windows-cache/` (reused on later runs), installs the
+and Python into `dist/bundle-cache/` (reused on later runs, and shared
+with `make macos`; the shared steps live in `scripts/bundle_common.sh`),
+installs the
 extra TeX packages and the TeX Windows binaries with TinyTeX's own Linux
 `tlmgr`, then runs [electron-builder](https://www.electron.build/) inside
 its `electronuserland/builder:wine` image to produce the NSIS installer.
@@ -92,6 +96,50 @@ The installer isn't code-signed, so Windows SmartScreen shows an
 anyway**. Signing it needs a code-signing certificate — see
 electron-builder's [Windows code signing](https://www.electron.build/code-signing-win)
 docs, which this build's `win` settings in `app/package.json` can pick up.
+
+## Installing the macOS app (Apple Silicon)
+
+`make macos` builds the editor app for Apple Silicon Macs (M1 and later,
+macOS 13 or newer) as a zip, with the same bundled Python, pandoc, and TeX
+as the Windows installer:
+
+```sh
+cd app && npm ci && cd ..   # once, for electron-builder
+make macos                  # -> dist/macos/Markdown-Cornell-Notes-<version>-arm64-mac.zip
+```
+
+On the Mac, unzip it and drag **Markdown Cornell Notes** into
+**Applications**. Like the Windows build, it opens a project in
+`Documents/Cornell Notes` on first launch (macOS asks once for permission
+to use the Documents folder), and **File > Open Project Folder…** switches
+folders.
+
+**First launch:** this build is only *ad-hoc* signed, not signed with an
+Apple Developer ID or notarized, so macOS blocks it the first time with a
+message that Apple couldn't verify it. Click **Done**, then open
+**System Settings > Privacy & Security**, scroll to the message about
+Markdown Cornell Notes, and click **Open Anyway**. Alternatively, clear
+the download's quarantine flag in Terminal:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Markdown Cornell Notes.app"
+```
+
+After that it opens normally. A smooth first launch needs a Developer ID
+signature and notarization, which need an Apple Developer account.
+
+How it's built: everything happens on the same x86_64 Linux host as
+`make windows` — no Mac needed. TinyTeX's Linux `tlmgr` adds TeX Live's
+`universal-darwin` binaries to the shared TeX tree; pandoc is its official
+arm64 macOS build; Python is
+[python-build-standalone](https://github.com/astral-sh/python-build-standalone)'s
+relocatable CPython (python.org has no embeddable macOS build).
+electron-builder assembles the `.app` in its container image, then
+[rcodesign](https://github.com/indygreg/apple-platform-rs/tree/main/apple-codesign)
+ad-hoc signs every executable in it — Apple Silicon won't run code with no
+signature at all. The zip is about 350 MB. The macOS build hasn't been run
+on a Mac by this project's tooling; it's checked only for signatures,
+architecture, and bundle layout.
 
 ## Installing on macOS (Homebrew)
 

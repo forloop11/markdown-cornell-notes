@@ -8,7 +8,8 @@
     "start": "electron .",
     "build:editor": "esbuild frontend_src/editor.js --bundle --minify --format=iife --outfile=renderer/editor.js",
     "test": "node --test \"test/*.test.js\"",
-    "dist:win": "electron-builder --win nsis --x64 --publish never"
+    "dist:win": "electron-builder --win nsis --x64 --publish never",
+    "dist:mac": "electron-builder --mac dir --arm64 --publish never"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -42,28 +43,6 @@
       "renderer/**",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": "../dist/windows-stage/pipeline",
-        "to": "pipeline"
-      },
-      {
-        "from": "../dist/windows-stage/python",
-        "to": "python"
-      },
-      {
-        "from": "../dist/windows-stage/pandoc",
-        "to": "pandoc"
-      },
-      {
-        "from": "../dist/windows-stage/texlive",
-        "to": "texlive"
-      },
-      {
-        "from": "../dist/windows-stage/THIRD-PARTY-NOTICES.txt",
-        "to": "THIRD-PARTY-NOTICES.txt"
-      }
-    ],
     "win": {
       "target": [
         {
@@ -73,7 +52,29 @@
           ]
         }
       ],
-      "icon": "build-resources/icon.png"
+      "icon": "build-resources/icon.png",
+      "extraResources": [
+        {
+          "from": "../dist/windows-stage/pipeline",
+          "to": "pipeline"
+        },
+        {
+          "from": "../dist/windows-stage/python",
+          "to": "python"
+        },
+        {
+          "from": "../dist/windows-stage/pandoc",
+          "to": "pandoc"
+        },
+        {
+          "from": "../dist/windows-stage/texlive",
+          "to": "texlive"
+        },
+        {
+          "from": "../dist/windows-stage/THIRD-PARTY-NOTICES.txt",
+          "to": "THIRD-PARTY-NOTICES.txt"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -84,6 +85,42 @@
       "shortcutName": "Markdown Cornell Notes",
       "artifactName": "Markdown-Cornell-Notes-Setup-${version}.exe",
       "license": "../dist/windows-stage/LICENSE.txt"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build-resources/icon.png",
+      "identity": null,
+      "hardenedRuntime": false,
+      "extraResources": [
+        {
+          "from": "../dist/macos-stage/pipeline",
+          "to": "pipeline"
+        },
+        {
+          "from": "../dist/macos-stage/python",
+          "to": "python"
+        },
+        {
+          "from": "../dist/macos-stage/pandoc",
+          "to": "pandoc"
+        },
+        {
+          "from": "../dist/macos-stage/texlive",
+          "to": "texlive"
+        },
+        {
+          "from": "../dist/macos-stage/THIRD-PARTY-NOTICES.txt",
+          "to": "THIRD-PARTY-NOTICES.txt"
+        }
+      ]
     }
   }
 }

@@ -30,9 +30,22 @@ University and first published in his book *How to Study in College*
 that layout was created by Todd Takala; it isn't affiliated with Cornell
 University or the Pauk estate.
 
+## Download
+
+Ready-to-run editor apps, with everything needed to make PDFs built in:
+
+- **Windows 10/11 (64-bit):** [Windows installer](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.0)
+- **macOS 13+ on Apple silicon (M1 or later):** [macOS app](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.1)
+
+Each release page has install steps. The apps aren't code-signed yet, so
+Windows and macOS warn on first launch; the steps there explain how to
+open them. Earlier and later versions are on the [Releases](https://github.com/forloop11/markdown-cornell-notes/releases) page.
+On Linux, or to use the command line, see [Quick start](#quick-start).
+
 ## Table of contents
 
 - [Markdown Cornell Notes](#markdown-cornell-notes)
+  - [Download](#download)
   - [Table of contents](#table-of-contents)
   - [Requirements](#requirements)
   - [Quick start](#quick-start)
@@ -51,9 +64,8 @@ University or the Pauk estate.
   [Node.js](https://nodejs.org/) with npm
 
 On Windows or an Apple Silicon Mac, you can skip all of this: the
-[Windows installer](docs/installation.md#installing-on-windows) and the
-[macOS app](docs/installation.md#installing-the-macos-app-apple-silicon)
-bundle the editor app with Python, pandoc, and TeX built in.
+[downloadable apps](#download) bundle the editor with Python, pandoc, and
+TeX built in.
 
 On Fedora, the build tools are one command away:
 

@@ -53,6 +53,10 @@ afterward (it keeps the old code loaded in memory until restarted).
 
 ## Installing on Windows
 
+To just install it, download the installer from the
+[Windows release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.0). The rest of this section covers
+building it yourself.
+
 `make windows` builds a Windows installer for the editor app:
 
 ```sh
@@ -98,6 +102,10 @@ electron-builder's [Windows code signing](https://www.electron.build/code-signin
 docs, which this build's `win` settings in `app/package.json` can pick up.
 
 ## Installing the macOS app (Apple Silicon)
+
+To just install it, download the zip from the
+[macOS release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.1). The rest of this section covers
+building it yourself.
 
 `make macos` builds the editor app for Apple Silicon Macs (M1 and later,
 macOS 13 or newer) as a zip, with the same bundled Python, pandoc, and TeX

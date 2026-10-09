@@ -1,13 +1,14 @@
 # Markdown Cornell Notes
 
-![The editor app: header form, Markdown editor, and rendered PDF preview](assets/README/screenshot.png)
+![The editor app: app bar, note details, Markdown editor, and rendered PDF preview](assets/README/screenshot.png)
 
 ---
 
 ![Close-up of the Markdown editor beside the rendered Cornell-notes PDF](assets/README/screenshot_2.png)
 
 *The optional [editor app](docs/editor-app.md) — a desktop app for editing
-notes beside a live PDF preview.*
+notes beside a live PDF preview, with autosave, one-click rendering, and
+light and dark themes.*
 
 A Cornell-style meeting notes template for LaTeX. Each page has a header
 (topic, date, attendees, time), a large notes panel with a cue column
@@ -49,6 +50,18 @@ University or the Pauk estate.
 - For the optional [editor app](docs/editor-app.md) only:
   [Node.js](https://nodejs.org/) with npm
 
+On Fedora, the build tools are one command away:
+
+```sh
+sudo dnf install pandoc latexmk texlive-scheme-medium nodejs npm
+```
+
+On Debian/Ubuntu:
+
+```sh
+sudo apt install pandoc latexmk texlive-latex-extra nodejs npm
+```
+
 ## Quick start
 
 ```sh
@@ -75,9 +88,10 @@ make app
 
 ## Documentation
 
-- **[Editor app](docs/editor-app.md)** — the desktop app: header
-  form, assets manager, Markdown editor with a formatting toolbar and
-  autocompletion, and live PDF preview.
+- **[Editor app](docs/editor-app.md)** — the desktop app: an app bar
+  for switching files, rendering, and save/build status; a collapsible
+  note-details form; an assets manager; a Markdown editor with a
+  formatting toolbar and autocompletion; and a live PDF preview.
 - **[Editing notes](docs/editing-notes.md)** — the `yaml`/`md` file format,
   pagination, cue-column and summary-band directives, multi-topic
   documents, linking assets, and how the output PDF is named.

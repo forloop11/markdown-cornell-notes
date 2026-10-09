@@ -405,8 +405,11 @@ function updatePdf() {
   // to the frame's *width* on load. Plain Fit letterboxes the page whenever
   // the frame is proportionally wider than it; FitH always fills the width,
   // at the cost of scrolling inside the frame when the pane is shorter than
-  // a full page. ?v= busts the cache after each re-render.
-  const src = `${state.pdf.url}?v=${state.pdf.version}#view=FitH`;
+  // a full page. navpanes=0 starts with the page-thumbnail sidebar closed
+  // (Chromium otherwise opens it, squeezing the page) while keeping the
+  // toolbar, whose menu button can still open it. ?v= busts the cache after
+  // each re-render.
+  const src = `${state.pdf.url}?v=${state.pdf.version}#view=FitH&navpanes=0`;
   let frame = host.querySelector("iframe");
   if (!frame) {
     frame = h("iframe", { title: "PDF preview" });

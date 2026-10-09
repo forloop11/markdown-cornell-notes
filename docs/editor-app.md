@@ -93,6 +93,8 @@ changed since that file's last render in this window. Header fields and markdown
 both autosave to disk continuously as you edit (about half a second after
 you stop typing, or as soon as the editor loses focus) rather than only on
 Render, so switching files or closing the window doesn't lose unsaved work.
+The preview opens fitted to the pane's width with the viewer's page-thumbnail
+sidebar closed; its menu button (top left of the preview) toggles it.
 Links clicked inside the PDF preview open in your web browser.
 
 At the bottom is an **Assets** expander (labeled with the current file

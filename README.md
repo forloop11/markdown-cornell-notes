@@ -1,6 +1,6 @@
 # Markdown Cornell Notes
 
-![Tutorial: filling in the meeting details, writing notes in Markdown with a cue and a summary line, clicking Render to build the Cornell-notes PDF, adding an image through the assets explorer and pasting its link into the notes, rendering again, then hiding the explorer and switching to dark mode](assets/tutorial.gif)
+![Tutorial, starting in dark mode: filling in the meeting details, typing notes in Markdown with a cue and a summary line, clicking Render to build the Cornell-notes PDF, adding an image through the assets explorer and pasting its link into the notes, rendering again, hiding the explorer with the hamburger button, the preview marking the line the editor's cursor is on, double-clicking text in the PDF to jump to it in the editor, and switching to light mode](assets/tutorial.gif)
 
 *The optional [editor app](docs/editor-app.md) — a desktop app for writing
 notes beside their PDF, with autosave, one-click rendering, an assets
@@ -163,7 +163,6 @@ preview size themselves to the window. Also:
   system's trash.
 - **Renaming or moving an asset** offers to update the links to it in
   your notes.
-
 - **Several notes:** the dropdown in the app bar switches between the
   project's notes; **+** makes a new one, the pencil renames one, and the
   trash button deletes one.
@@ -180,8 +179,9 @@ preview size themselves to the window. Also:
 - **View menu:** *Appearance* switches between light, dark, and your
   desktop's setting; *Zoom Editor In/Out* changes the editor's text size.
 - **Spellcheck** underlines misspellings in the editor, with suggestions
-  on right-click (US English in the downloadable builds; see the
-  [editor app](docs/editor-app.md) page to add a language).
+  on right-click. The AppImage and the Windows and macOS builds come with
+  a US English dictionary; run any other way, add one as the
+  [editor app](docs/editor-app.md) page describes.
 
 ## Documentation
 
@@ -189,16 +189,18 @@ preview size themselves to the window. Also:
   existing Markdown files and exporting notes as Markdown or LaTeX; an app bar
   for switching files, rendering, and save/build status; an assets
   explorer; a collapsible note-details form; a Markdown editor with a
-  formatting toolbar and autocompletion; and a live PDF preview.
+  formatting toolbar, autocompletion, and find and replace; and a PDF
+  preview that keeps its place and follows the editor.
 - **[Editing notes](docs/editing-notes.md)** — the `yaml`/`md` file format,
   pagination, cue-column and summary-band directives, multi-topic
   documents, linking assets, and how the output PDF is named.
 - **[Project structure](docs/project-structure.md)** — what lives in each
   directory and how the build scripts fit together.
-- **[Installation](docs/installation.md)** — installing as a `.deb` or RPM, via
-  Homebrew on macOS, with the Windows or macOS app or the Linux AppImage,
-  or running with Docker,
-  instead of using a git checkout directly.
+- **[Installation](docs/installation.md)** — installing as a `.deb` or RPM
+  (and publishing the RPM through Fedora COPR), via Homebrew on macOS,
+  with the Windows or macOS app or the Linux AppImage, as a snap, or
+  running with Docker, instead of using a git checkout directly; and
+  signing and notarizing the macOS app.
 - **[Customizing the layout](docs/customization.md)** — page geometry and
   proportions via `settings/page.yaml`.
 

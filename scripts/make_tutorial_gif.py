@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Record the README's tutorial (assets/tutorial.gif): the editor app
-itself, driven through a short session -- fill in the details, write
-notes, render, add an image from the assets explorer -- with a caption
-under each step and an outline around the control it's about.
+itself, driven through a short session -- fill in the details, type some
+notes, render, watch the preview follow the cursor (and the editor follow
+a double-click in the preview), add an image from the assets explorer --
+with a caption under each step and an outline around the control it's
+about. It starts in dark mode and ends by switching to light.
 
 Nothing is faked: it's the real window, on a throwaway project, drawn
 without a display (Qt's "offscreen" platform) and grabbed frame by frame.
@@ -44,7 +46,9 @@ NOTES = [
     "- Review the launch plan\n",
     "- Assign owners\n\n",
     "^1 Who owns the rollout?\n\n",
-    "^^1 Launch moves to Friday.\n\n",
+    "# Decisions\n\n",
+    "Launch moves to Friday so QA can finish.\n\n",
+    "^^1 Ship Friday; QA signs off first.\n\n",
 ]
 
 
@@ -159,8 +163,30 @@ def diagram(path):
     image.save(str(path))
 
 
+def run_js(view, script):
+    """Run `script` in a web view's page and wait for its result."""
+    got = []
+    view.page().runJavaScript(script, 0, got.append)
+    wait_until(lambda: got, "the page to answer")
+    return got[0]
+
+
+def line_of(window, text):
+    return next(i for i, line in enumerate(window.editor.doc.split("\n"), 1) if line.startswith(text))
+
+
+def follow_cursor(window, rec, text, seconds):
+    """Put the editor's cursor on the line starting `text`, and grab the
+    preview once it has scrolled there and marked the line.
+    """
+    run_js(window.pdf_view, "document.querySelectorAll('.sync-marker').forEach((m) => m.remove()); true")
+    window.editor.go_to_line(line_of(window, text))
+    wait_until(lambda: run_js(window.pdf_view, "document.querySelectorAll('.sync-marker').length") > 0, "the preview to follow")
+    rec.shot(seconds, [window.editor_frame, window.pdf_stack])
+
+
 def record(window, rec, scratch):
-    api, explorer = window.api, window.explorer
+    api, explorer, preview = window.api, window.explorer, window.pdf_view
 
     rec.caption = "Markdown Cornell Notes: write on the left, see the PDF on the right"
     rec.shot(2.6)
@@ -217,18 +243,51 @@ def record(window, rec, scratch):
     render(window, rec)
     rec.shot(3.0, window.pdf_stack)
 
-    rec.caption = "The hamburger hides the explorer; folding Details gives the panes more room"
+    rec.caption = "The red hamburger tucks the explorer away, leaving more room for your notes"
+    rec.shot(1.2, window.explorer_button)
     window.set_explorer_shown(False)
-    window.details_card.set_expanded(False)
-    QTest.qWait(500)
+    preview.fit_width()
+    wait_until(lambda: preview.scale == "page-width", "the wider view")
+    QTest.qWait(900)
     rec.shot(2.4, window.explorer_button)
 
-    rec.caption = "View > Appearance switches between light and dark"
-    window.set_appearance("dark")
-    QTest.qWait(500)
-    rec.shot(2.4)
+    # The marker fades within a second and a half -- too quick for frames
+    # shown for longer than that, so (for the recording only) it lingers.
+    run_js(
+        preview,
+        "const s = document.createElement('style');"
+        "s.textContent = '.sync-marker { animation-duration: 600s !important; }';"
+        "document.head.append(s); true",
+    )
+    rec.caption = "7. The preview follows the editor: it marks the line your cursor is on"
+    follow_cursor(window, rec, "# Decisions", 2.4)
+    follow_cursor(window, rec, "- Assign owners", 2.0)
+    follow_cursor(window, rec, "^1 Who owns", 2.4)
 
-    rec.caption = "File menu: import Markdown, export Markdown or LaTeX, download the PDF"
+    rec.caption = "...and double-clicking text in the PDF takes the editor to that line"
+    run_js(preview, "document.querySelectorAll('.sync-marker').forEach((m) => m.remove()); true")
+    clicked = run_js(
+        preview,
+        "(() => { const span = [...document.querySelectorAll('.textLayer span')]"
+        ".find((e) => e.textContent.includes('Launch moves'));"
+        "if (!span) return false; const box = span.getBoundingClientRect();"
+        "span.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: box.left + 4, clientY: box.top + 3 }));"
+        "return true; })()",
+    )
+    if not clicked:
+        raise SystemExit("Couldn't find the text to double-click in the preview.")
+    target = line_of(window, "Launch moves")
+    wait_until(lambda: window._cursor_line == target, "the editor to follow the preview")
+    wait_until(lambda: run_js(preview, "document.querySelectorAll('.sync-marker').length") > 0, "the line to be marked")
+    rec.shot(2.8, [window.editor_frame, window.pdf_stack])
+    run_js(preview, "document.querySelectorAll('.sync-marker').forEach((m) => m.remove()); true")
+
+    rec.caption = "View > Appearance switches to light mode — or follows your desktop"
+    window.set_appearance("light")
+    QTest.qWait(600)
+    rec.shot(2.8)
+
+    rec.caption = "File menu: new projects, import Markdown, export Markdown or LaTeX"
     rec.shot(3.2)
 
 
@@ -260,7 +319,8 @@ def main():
         api.pipeline.write_markdown_file("weekly-sync.md", "")
         (project / "assets" / "tux.jpg").unlink()
 
-        theme.apply(app, "light")
+        # The recording opens in dark mode and ends by switching to light.
+        theme.apply(app, "dark")
         window = MainWindow(project)
         window.resize(*WINDOW_SIZE)
         window.show()

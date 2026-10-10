@@ -101,11 +101,14 @@ build-example:
 #
 # sets that up where this target looks first. Otherwise it runs with
 # python3 -- for a system-wide PySide6, e.g. the distribution's packages an
-# installed .deb recommends -- or whichever interpreter APP_PYTHON names.
+# installed .deb or RPM pulls in -- or whichever interpreter APP_PYTHON
+# names.
 #
 # APP_FLAGS passes extra Qt/Chromium switches, e.g. `make app
 # APP_FLAGS=--no-sandbox` where the OS blocks Chromium's sandbox (see
-# docs/editor-app.md).
+# docs/editor-app.md) -- and --desktop, which an installed package's
+# application-menu entry uses: open the project used last rather than the
+# CWD.
 APP_PYTHON ?= $(if $(wildcard $(MCN_ROOT)app/.venv/bin/python),$(MCN_ROOT)app/.venv/bin/python,python3)
 APP_FLAGS  ?=
 app:
@@ -113,9 +116,10 @@ app:
 
 # Unit tests, via pytest (requires `pip install -r requirements-dev.txt`
 # first): the build scripts' Python helpers and the editor app's backend
-# (app/pipeline.py, app/api.py, app/header_form.py), plus the app's window
-# itself where PySide6 is installed (tests/test_window.py skips itself
-# otherwise, so run with APP_PYTHON's interpreter to include it). Everything
+# (app/pipeline.py, app/api.py, app/header_form.py, app/sync.py), plus the
+# app's window itself where PySide6 is installed (tests/test_window.py
+# skips itself otherwise, so run with APP_PYTHON's interpreter to include
+# it). Everything
 # runs against temp-dir projects (see tests/conftest.py), never the CWD's
 # own md/yaml/assets, so no scaffolded project is needed (or touched).
 # Rendering is only covered where pandoc and pdflatex are installed.
@@ -124,7 +128,9 @@ test:
 
 # Packages this project as a .deb (dist/markdown-cornell-notes_<version>.deb)
 # for Debian/Ubuntu -- see scripts/build_deb.sh for what it stages and which
-# system packages it declares as Depends.
+# system packages it declares as Depends. Needs dpkg-deb, or podman or
+# docker. The version is `git describe`'s; for an exact one (and for the
+# other packages together), see scripts/release.sh.
 deb:
 	$(MCN_ROOT)scripts/build_deb.sh
 
@@ -144,8 +150,10 @@ windows:
 
 # Builds the editor app for Apple Silicon Macs
 # (dist/macos/Markdown-Cornell-Notes-<version>-arm64-mac.zip), bundled the
-# same way and ad-hoc signed -- see scripts/build_macos.sh. Needs an
-# x86_64 Linux host; no Mac.
+# same way -- see scripts/build_macos.sh. Ad-hoc signed, or signed with a
+# Developer ID and notarized when MACOS_SIGN_P12 and friends name the
+# credentials (see docs/installation.md). Needs an x86_64 Linux host; no
+# Mac.
 macos:
 	$(MCN_ROOT)scripts/build_macos.sh
 

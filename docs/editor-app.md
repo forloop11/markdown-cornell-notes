@@ -21,10 +21,12 @@ From an installed `.deb`/Homebrew package, just run
 of its own to use, the first run downloads the Electron version the app
 pins into your npm cache (via `npx`), and later runs reuse it.
 
-On Windows or an Apple Silicon Mac, install it with the
-[Windows installer](installation.md#installing-on-windows) or the
-[macOS app](installation.md#installing-the-macos-app-apple-silicon)
-instead — they bundle Python, pandoc, and TeX, and keep their project in
+Standalone builds — the
+[Windows installer](installation.md#installing-on-windows), the
+[macOS app](installation.md#installing-the-macos-app-apple-silicon) for
+Apple Silicon, and the
+[Linux AppImage](installation.md#running-the-linux-appimage) — bundle
+Python, pandoc, and TeX instead, and keep their project in
 `Documents/Cornell Notes` rather than a directory you start them from.
 
 The window shows the project folder in its title bar. **File > Open

@@ -3,11 +3,12 @@
 // as IPC channels (see preload.js).
 //
 // Run from a checkout or the .deb (`make app`), the project is the
-// directory the app was launched from. The packaged Windows and macOS
-// builds (see scripts/build_windows.sh, scripts/build_macos.sh) have no
-// such directory, so they keep their project in Documents/Cornell Notes --
-// or wherever File > Open Project Folder last pointed -- and run the
-// bundled Python, pandoc, and TeX from their resources folder.
+// directory the app was launched from. The packaged builds (Windows
+// installer, macOS app, Linux AppImage -- see scripts/build_windows.sh,
+// build_macos.sh, build_appimage.sh) have no such directory, so they keep
+// their project in Documents/Cornell Notes -- or wherever File > Open
+// Project Folder last pointed -- and run the bundled Python, pandoc, and
+// TeX from their resources folder.
 //
 // The renderer is fully sandboxed (no Node, context isolation on) and only
 // ever shows this app's own files: navigation away is blocked, and
@@ -28,13 +29,15 @@ const { Api, CHANNELS, PipelineError } = require("./lib/api");
 function packagedPaths() {
   const res = process.resourcesPath;
   const windows = process.platform === "win32";
+  const texPlatform = { win32: "windows", darwin: "universal-darwin" }[process.platform] || "x86_64-linux";
   return {
     repoRoot: path.join(res, "pipeline"),
     tools: {
       python: windows ? path.join(res, "python", "python.exe") : path.join(res, "python", "bin", "python3"),
-      pathDirs: windows
-        ? [path.join(res, "pandoc"), path.join(res, "texlive", "bin", "windows")]
-        : [path.join(res, "pandoc", "bin"), path.join(res, "texlive", "bin", "universal-darwin")],
+      pathDirs: [
+        windows ? path.join(res, "pandoc") : path.join(res, "pandoc", "bin"),
+        path.join(res, "texlive", "bin", texPlatform),
+      ],
       directBuild: true,
     },
   };

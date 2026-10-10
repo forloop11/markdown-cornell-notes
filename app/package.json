@@ -4,12 +4,14 @@
   "version": "1.0.0",
   "description": "Electron desktop editor for markdown-cornell-notes. Run with `make app` from a project directory; see docs/editor-app.md.",
   "main": "main.js",
+  "desktopName": "markdown-cornell-notes.desktop",
   "scripts": {
     "start": "electron .",
     "build:editor": "esbuild frontend_src/editor.js --bundle --minify --format=iife --outfile=renderer/editor.js",
     "test": "node --test \"test/*.test.js\"",
     "dist:win": "electron-builder --win nsis --x64 --publish never",
-    "dist:mac": "electron-builder --mac dir --arm64 --publish never"
+    "dist:mac": "electron-builder --mac dir --arm64 --publish never",
+    "dist:linux": "electron-builder --linux AppImage --x64 --publish never"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -121,6 +123,44 @@
           "to": "THIRD-PARTY-NOTICES.txt"
         }
       ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Office",
+      "icon": "build-resources/icon.png",
+      "executableName": "markdown-cornell-notes",
+      "synopsis": "Cornell-style meeting notes from Markdown, with a live PDF preview",
+      "artifactName": "Markdown-Cornell-Notes-${version}-x86_64.AppImage",
+      "extraResources": [
+        {
+          "from": "../dist/linux-stage/pipeline",
+          "to": "pipeline"
+        },
+        {
+          "from": "../dist/linux-stage/python",
+          "to": "python"
+        },
+        {
+          "from": "../dist/linux-stage/pandoc",
+          "to": "pandoc"
+        },
+        {
+          "from": "../dist/linux-stage/texlive",
+          "to": "texlive"
+        },
+        {
+          "from": "../dist/linux-stage/THIRD-PARTY-NOTICES.txt",
+          "to": "THIRD-PARTY-NOTICES.txt"
+        }
+      ],
+      "syncDesktopName": true
     }
   }
 }

@@ -3,10 +3,11 @@
 Three ways to install this outside of a git checkout, all packaging the
 Makefile/scripts/template the same way and dropping a `markdown-cornell-notes`
 launcher on the `PATH`: a `.deb`, a Homebrew formula, and a Docker image.
-On Windows and Apple Silicon Macs, a standalone [editor app](editor-app.md)
-build ([Windows installer](#installing-on-windows),
-[macOS app](#installing-the-macos-app-apple-silicon)) comes with
-everything it needs bundled in.
+A standalone [editor app](editor-app.md) build — a
+[Windows installer](#installing-on-windows), a
+[macOS app](#installing-the-macos-app-apple-silicon) for Apple Silicon, or
+a [Linux AppImage](#running-the-linux-appimage) — comes with everything it
+needs bundled in.
 
 ## Installing as a system package
 
@@ -148,6 +149,58 @@ ad-hoc signs every executable in it — Apple Silicon won't run code with no
 signature at all. The zip is about 350 MB. The macOS build hasn't been run
 on a Mac by this project's tooling; it's checked only for signatures,
 architecture, and bundle layout.
+
+## Running the Linux AppImage
+
+To just run it, download the AppImage from the
+[Linux release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.2). The rest of this section covers
+building it yourself.
+
+`make appimage` builds the editor app for x86_64 Linux as an
+[AppImage](https://appimage.org/): a single executable file with the same
+bundled Python, pandoc, and TeX as the Windows and macOS builds, so it
+needs no `make`, TeX Live, pandoc, Python, or Node.js on the machine it
+runs on.
+
+```sh
+cd app && npm ci && cd ..   # once, for electron-builder
+make appimage               # -> dist/linux/Markdown-Cornell-Notes-<version>-x86_64.AppImage
+```
+
+There's nothing to install — make the file executable and run it:
+
+```sh
+chmod +x Markdown-Cornell-Notes-*-x86_64.AppImage
+./Markdown-Cornell-Notes-*-x86_64.AppImage
+```
+
+Like the other standalone builds, it opens a project in
+`~/Documents/Cornell Notes` on first launch, and **File > Open Project
+Folder…** switches folders. To remove it, delete the file (your notes stay
+where they are).
+
+Two things can stop an AppImage from starting, depending on the
+distribution:
+
+- **"AppImages require FUSE to run"** (`error loading libfuse.so.2`):
+  mounting an AppImage needs the FUSE 2 library, which newer
+  distributions don't install by default. Install it (`sudo dnf install
+  fuse-libs` on Fedora, `sudo apt install libfuse2t64` — or `libfuse2` on
+  older releases — on Debian/Ubuntu), or skip mounting altogether with
+  `./Markdown-Cornell-Notes-*-x86_64.AppImage --appimage-extract-and-run`
+  (slower to start: it unpacks about 800 MB to `/tmp` each time).
+- **An error about the sandbox** (Ubuntu 24.04 and later): add
+  `--no-sandbox`, as described in the
+  [editor app's Linux sandbox note](editor-app.md).
+
+How it's built: `scripts/build_appimage.sh` stages the TeX tree's own
+`x86_64-linux` binaries, pandoc's static Linux build, and
+[python-build-standalone](https://github.com/astral-sh/python-build-standalone)'s
+relocatable CPython, then runs electron-builder's `AppImage` target in the
+same container image as the other builds. The file is about 325 MB.
+It has been run end to end on Fedora (Render with every system build tool
+hidden from `PATH`), and its bundled Python, pandoc, and TeX also build
+the example in a bare Debian 11 container.
 
 ## Installing on macOS (Homebrew)
 

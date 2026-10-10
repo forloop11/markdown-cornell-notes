@@ -32,11 +32,13 @@ Ready-to-run editor apps, with everything needed to make PDFs built in:
 
 - **Windows 10/11 (64-bit):** [Windows installer](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.0)
 - **macOS 13+ on Apple silicon (M1 or later):** [macOS app](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.1)
+- **Linux (64-bit Intel/AMD):** [AppImage](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.2)
 
 Each release page has install steps. The apps aren't code-signed yet, so
-Windows and macOS warn on first launch; the steps there explain how to
-open them. Earlier and later versions are on the [Releases](https://github.com/forloop11/markdown-cornell-notes/releases) page.
-On Linux, or to use the command line, see [Quick start](#quick-start).
+Windows and macOS warn on first launch, and the AppImage may need FUSE 2
+installed; the steps there explain what to do. Earlier and later versions
+are on the [Releases](https://github.com/forloop11/markdown-cornell-notes/releases) page. To use the command line, or your system's
+own TeX Live and pandoc, see [Quick start](#quick-start).
 
 ## Table of contents
 
@@ -62,9 +64,9 @@ On Linux, or to use the command line, see [Quick start](#quick-start).
 - For the optional [editor app](docs/editor-app.md) only:
   [Node.js](https://nodejs.org/) with npm
 
-On Windows or an Apple Silicon Mac, you can skip all of this: the
-[downloadable apps](#download) bundle the editor with Python, pandoc, and
-TeX built in.
+To just use the editor, you can skip all of this: the
+[downloadable apps](#download) for Windows, macOS, and Linux bundle it with
+Python, pandoc, and TeX built in.
 
 On Fedora, the build tools are one command away:
 
@@ -136,7 +138,8 @@ Typing `](` in the editor also suggests asset paths.
 - **[Project structure](docs/project-structure.md)** — what lives in each
   directory and how the build scripts fit together.
 - **[Installation](docs/installation.md)** — installing as a `.deb`, via
-  Homebrew on macOS, with the Windows or macOS app, or running with Docker,
+  Homebrew on macOS, with the Windows or macOS app or the Linux AppImage,
+  or running with Docker,
   instead of using a git checkout directly.
 - **[Customizing the layout](docs/customization.md)** — page geometry and
   proportions via `settings/page.yaml`.
@@ -163,6 +166,9 @@ Typing `](` in the editor also suggests asset paths.
 - `make macos` — builds the editor app for Apple Silicon Macs as a zip,
   bundled the same way; see
   [Installation](docs/installation.md#installing-the-macos-app-apple-silicon).
+- `make appimage` — builds the editor app for x86_64 Linux as a
+  single-file AppImage, bundled the same way; see
+  [Installation](docs/installation.md#running-the-linux-appimage).
 - `make init` — scaffolds a fresh `md/`, `yaml/`, `settings/page.yaml`,
   `pdf/`, and `assets/` (with the `tux.jpg` the example note embeds) in the
   current directory from the bundled defaults. Only needed when using the

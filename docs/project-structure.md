@@ -36,7 +36,9 @@
 │   │                          Python/pandoc/TeX bundled (see installation.md).
 │   ├── build_macos.sh         `make macos`: the Apple Silicon macOS app zip,
 │   │                          bundled the same way.
-│   ├── bundle_common.sh       Shared by those two: pinned versions, the
+│   ├── build_appimage.sh      `make appimage`: the x86_64 Linux AppImage,
+│   │                          bundled the same way.
+│   ├── bundle_common.sh       Shared by those three: pinned versions, the
 │   │                          download cache, the TeX tree, staging.
 │   └── topic_slug.py          yaml/notes.yaml's topic+date -> output PDF's
 │                              filename
@@ -64,7 +66,7 @@
 │   │                     build:editor`).
 │   ├── test/             The app's tests (`node --test`, run by `make test`).
 │   ├── build-resources/  The app icon (icon.svg, rendered to icon.png) for
-│   │                     the Windows and macOS builds.
+│   │                     the Windows, macOS, and AppImage builds.
 │   └── package.json      Electron + build tooling (`npm install` once, in a
 │                         git checkout).
 ├── tests/              pytest tests for scripts/.

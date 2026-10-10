@@ -1,6 +1,7 @@
-# Shared by scripts/build_windows.sh and scripts/build_macos.sh (sourced,
-# not run): pinned versions, the download cache, the TeX tree, and staging
-# the pieces both platforms' bundles have in common.
+# Shared by scripts/build_windows.sh, build_macos.sh, and
+# build_appimage.sh (sourced, not run): pinned versions, the download
+# cache, the TeX tree, and staging the pieces every platform's bundle has
+# in common.
 #
 # Every bundle carries, as electron-builder extraResources (see "build" in
 # app/package.json):
@@ -32,8 +33,9 @@ PYTHON_VERSION="3.13.16"
 # fontenc's T1 needs (cm-super) -- without the latter TeX would fall back
 # to generating bitmap fonts, which needs tools these bundles leave out.
 TEX_PACKAGES="pgf cm-super"
-# Every platform the TeX tree carries binaries for; each bundle copies
-# just its own bin/<platform>.
+# The platforms the TeX tree carries binaries for beyond x86_64-linux (its
+# own, which the AppImage bundles); each bundle copies just its own
+# bin/<platform>.
 TEX_PLATFORMS="windows universal-darwin"
 BUILDER_IMAGE="docker.io/electronuserland/builder:wine"
 

@@ -33,19 +33,16 @@ Ready-to-run editor apps, with everything needed to make PDFs built in:
 - **Linux (64-bit Intel/AMD):** [AppImage, version 2.0.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0)
   — the current app, as shown above. Needs a distribution with glibc 2.34
   or later (Ubuntu 22.04, Debian 12, Fedora 35, or newer).
-- **Windows 10/11 (64-bit):** [Windows installer, version 1.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.0)
-- **macOS 13+ on Apple silicon (M1 or later):** [macOS app, version 1.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.1)
+- **macOS 14+ on Apple silicon (M1 or later):** [macOS app, version 2.0.0 — test build](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0).
+  It hasn't been run on a Mac yet and isn't notarized; see its
+  [release notes](docs/release-notes/macos-2.0.0.md) before trying it.
+- **Windows 10/11 (64-bit):** [Windows installer, version 2.0.0 — test build](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0).
+  It hasn't been run on Windows yet and isn't code-signed; see its
+  [release notes](docs/release-notes/windows-2.0.0.md) before trying it.
 
-Each release page has install steps. The apps aren't code-signed yet, so
+The release page has install steps. The apps aren't code-signed, so
 Windows and macOS warn on first launch; the steps there explain what to
-do. Other versions are on the [Releases](https://github.com/forloop11/markdown-cornell-notes/releases) page.
-
-**The Windows and macOS downloads are still version 1.0**, from before the
-editor was rebuilt on Qt: they lack the assets explorer, Markdown import,
-Markdown/LaTeX export, and the other version 2 features shown above. To
-get version 2 on those systems now, [build it](docs/installation.md)
-(`make windows` or `make macos`) — those builds haven't been tried on
-Windows or a Mac yet, which is why they aren't published.
+do.
 
 To use the command line, or your system's own TeX Live and pandoc, see
 [Quick start](#quick-start).

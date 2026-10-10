@@ -68,6 +68,11 @@ ICONS = {
     "upload": "M12 16V4M7 9l5-5 5 5M5 20h14",
     "download": "M12 4v11M7 10l5 5 5-5M5 20h14",
     "plus": "M12 5v14M5 12h14",
+    "minus": "M5 12h14",
+    "search": "M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 0 0 0-13zM15.5 15.5L20 20",
+    "external": "M14 4h6v6M20 4l-9 9M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6",
+    "fit-page": "M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM12 7v10M9.5 9.5L12 7l2.5 2.5M9.5 14.5L12 17l2.5-2.5",
+    "fit-width": "M4 5v14M20 5v14M8 12h8M10.5 9.5L8 12l2.5 2.5M13.5 9.5L16 12l-2.5 2.5",
     "move": "M5 12h14M13 6l6 6-6 6",
     "height": "M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4",
     "lines": "M4 6h16M4 12h10M4 18h13",
@@ -193,6 +198,8 @@ QPushButton[kind="link"]:hover, QToolButton[kind="link"]:hover {{ background: {c
 QPushButton[kind="link"]:disabled {{ color: {c['text']}; background: transparent; }}
 QToolButton[kind="icon"] {{ padding: 6px; }}
 QToolButton[kind="plain"] {{ background: transparent; border: none; padding: 2px; }}
+QToolButton[kind="mini"] {{ padding: 3px; border-radius: 5px; }}
+#pdf-status {{ color: {c['muted']}; font-size: 12px; }}
 
 QLabel[kind="chip"] {{ border-radius: 10px; padding: 3px 10px; font-size: 12px; font-weight: 600; }}
 QLabel[tone="ok"] {{ background: {c['success_bg']}; color: {c['success_text']}; }}

@@ -55,6 +55,14 @@ def icon_button(icon, tooltip, on_click=None, color="text"):
     return btn
 
 
+def mini_button(icon, tooltip, on_click):
+    """A small icon-only button, for a pane's header row."""
+    btn = icon_button(icon, tooltip, on_click)
+    btn.setProperty("kind", "mini")
+    theme.set_icon(btn, icon, "text", 14)
+    return btn
+
+
 def label(text="", name=None, selectable=False):
     """A QLabel with object name `name` (what theme.py's rules match on)."""
     lbl = QLabel(text)
@@ -413,6 +421,23 @@ class ChoiceField(QComboBox):
         if text != self._value:
             self._value = text
             self.changed.emit(text)
+
+
+class FindField(QLineEdit):
+    """A search box: Enter steps to the next match, Shift+Enter to the
+    previous one (`step`, with whether it's backwards), Esc closes it.
+    """
+
+    step = Signal(bool)
+    closed = Signal()
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.step.emit(bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier))
+        elif event.key() == Qt.Key.Key_Escape:
+            self.closed.emit()
+        else:
+            super().keyPressEvent(event)
 
 
 class NameDialog(QDialog):

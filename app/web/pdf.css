@@ -1,0 +1,40 @@
+/* The PDF preview pane's page, on top of PDF.js's own pdf_viewer.css: the
+   pages on a dark backdrop (in every app theme, as PDF viewers do), and
+   the marker that shows where the editor's cursor is in the PDF. */
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #2b2d31;
+}
+
+/* PDF.js needs its container absolutely positioned and scrolling. */
+#viewerContainer {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  outline: none;
+}
+
+/* (Margins small enough that a fitted single page needs no scrollbar:
+   PDF.js allows 5px of vertical slack when it fits a page.) */
+.pdfViewer .page {
+  margin: 2px auto;
+  border: none;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+}
+
+.sync-marker {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  background: rgba(194, 24, 91, 0.22);
+  border-left: 4px solid #c2185b;
+  animation: sync-marker-fade 1.4s ease-out forwards;
+}
+@keyframes sync-marker-fade {
+  0%, 35% { opacity: 1; }
+  100% { opacity: 0; }
+}

@@ -10,7 +10,10 @@ their project in Documents/Cornell Notes -- or wherever File > Open
 Project Folder last pointed -- and run the bundled Python, pandoc, and TeX
 from their resources folder.
 
-Usage: python3 app/main.py [Qt/Chromium options, e.g. --no-sandbox]
+Started with --desktop -- as an installed package's application-menu
+entry does -- it behaves the same way, but with the system's own tools.
+
+Usage: python3 app/main.py [--desktop] [Qt/Chromium options, e.g. --no-sandbox]
 """
 import os
 import sys
@@ -111,15 +114,23 @@ def main():
         import ctypes
 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("io.github.forloop11.markdown-cornell-notes")
-    app = QApplication(sys.argv)
+    # --desktop: started from an application menu rather than from a
+    # project directory in a terminal, so there's no "current directory"
+    # worth opening. (Taken out before Qt and Chromium see the arguments.)
+    from_menu = "--desktop" in sys.argv
+    app = QApplication([arg for arg in sys.argv if arg != "--desktop"])
     app.setWindowIcon(QIcon(str(APP_DIR / "build-resources" / "icon.png")))
     theme.apply(app, QSettings().value("appearance", "system"))
     if dictionaries:
         enable_spellcheck(dictionaries)
 
-    if is_packaged():
+    if is_packaged() or from_menu:
+        # The standalone builds, and an installed package's menu entry:
+        # the project is whichever was open last, or Documents/Cornell
+        # Notes the first time. (A package's entry builds with the
+        # system's own tools; only a standalone build has bundled ones.)
         remembered = QSettings().value("projectRoot", "")
-        options = {"packaged": True, "api_options": {"tools": packaged_tools()}}
+        options = {"packaged": True, "api_options": {"tools": packaged_tools()} if is_packaged() else {}}
         if remembered and Path(remembered).is_dir():
             window = MainWindow(remembered, **options)
         else:

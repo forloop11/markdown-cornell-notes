@@ -100,7 +100,8 @@ stage_texlive() {
 # stage_pipeline <dest>
 stage_pipeline() {
   local f
-  for f in app/*.py app/web/* app/build-resources/* scripts/*.py settings/template.tex settings/page.yaml \
+  # (app/package.json: where the app reads its version from.)
+  for f in app/*.py app/package.json app/web/* app/build-resources/* scripts/*.py settings/template.tex settings/page.yaml \
     md/notes-example.md yaml/notes-example.yaml assets/tux.jpg; do
     mkdir -p "$1/$(dirname "$f")"
     cp "$ROOT/$f" "$1/$f"
@@ -196,5 +197,11 @@ en-US spellcheck dictionary (resources/qtwebengine_dictionaries)
 CodeMirror 6 (compiled into pipeline/app/web/editor.js)
   Copyright (C) Marijn Haverbeke and others. License: MIT.
   Source code: https://github.com/codemirror
+
+PDF.js (compiled into pipeline/app/web/pdfviewer.js, with its
+pdf_viewer.css)
+  Copyright (C) Mozilla Foundation. License: Apache License 2.0 --
+  https://www.apache.org/licenses/LICENSE-2.0
+  Source code: https://github.com/mozilla/pdf.js
 EOF
 }

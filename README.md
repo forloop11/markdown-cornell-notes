@@ -30,9 +30,14 @@ University or the Pauk estate.
 
 Ready-to-run editor apps, with everything needed to make PDFs built in:
 
-- **Linux (64-bit Intel/AMD):** [AppImage, version 2.1.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.1.0)
-  — the current app, as shown above. Needs a distribution with glibc 2.34
-  or later (Ubuntu 22.04, Debian 12, Fedora 35, or newer).
+- **Linux (64-bit Intel/AMD):** [AppImage, version 2.2.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.2.0)
+  — self-contained, nothing else to install. Needs a distribution with
+  glibc 2.34 or later (Ubuntu 22.04, Debian 12, Fedora 35, or newer).
+- **Debian 13+ (and Debian-based systems):** [.deb package, version 2.2.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.2.0)
+  — a small package of the command-line tool and the editor, using your
+  system's own TeX Live and pandoc.
+- **Fedora:** [RPM package, version 2.2.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.2.0) — the same, as
+  an RPM.
 - **macOS 14+ on Apple silicon (M1 or later):** [macOS app, version 2.0.0 — test build](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0).
   It hasn't been run on a Mac yet and isn't notarized; see its
   [release notes](docs/release-notes/macos-2.0.0.md) before trying it.
@@ -40,14 +45,11 @@ Ready-to-run editor apps, with everything needed to make PDFs built in:
   It hasn't been run on Windows yet and isn't code-signed; see its
   [release notes](docs/release-notes/windows-2.0.0.md) before trying it.
 
-- **Debian 13+ (and Debian-based systems), using your system's own TeX
-  Live and pandoc:** [.deb package, version 2.0.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0) — a 1 MB package
-  of the command-line tool and the editor; see its
-  [release notes](docs/release-notes/deb-2.0.0.md).
-- **Fedora, using your system's own TeX Live and pandoc:**
-  [RPM package, version 2.0.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0) — a 1 MB package of the
-  command-line tool and the editor; see its
-  [release notes](docs/release-notes/rpm-2.0.0.md).
+**The Windows and macOS downloads are older than this page.** They are
+2.0.0 test builds, and lack what's been added since: the PDF.js preview
+(which keeps its place and follows the editor), auto-render, the trash,
+link updating, find and replace, renaming, New Project, and Open Recent.
+The [2.2.0 release notes](docs/release-notes/2.2.0.md) list what's new.
 
 The release page has install steps. The apps aren't code-signed, so
 Windows and macOS warn on first launch; the steps there explain what to
@@ -138,8 +140,10 @@ words:
    and `/` shortcuts insert formatting for you; a line starting `^1` puts a
    note in page 1's cue column, and `^^1` in its summary band (see
    [Editing notes](docs/editing-notes.md)).
-3. **Click Render** (Ctrl+R) to build the PDF, shown on the right with the
-   whole page fitted to the pane (the preview's own toolbar zooms in). It's
+3. **Click Render** (Ctrl+R) to build the PDF, shown on the right. The
+   preview keeps its zoom and place from one Render to the next, scrolls
+   to follow the editor's cursor, and takes you to the matching line in
+   the editor when you double-click text in it. It's
    saved in the project's `pdf/` folder, named after the topic, date, and
    location; **Download PDF** saves a copy anywhere else.
 4. **Add images and other files** with the **assets explorer** down the
@@ -153,10 +157,20 @@ words:
 Everything saves as you type; there is no Save button. The editor and
 preview size themselves to the window. Also:
 
+- **Auto-render:** turn on *View > Auto-Render as You Type* and the PDF
+  rebuilds itself a moment after you stop typing.
+- **Deleting is recoverable:** deleted notes and assets go to the
+  system's trash.
+- **Renaming or moving an asset** offers to update the links to it in
+  your notes.
+
 - **Several notes:** the dropdown in the app bar switches between the
   project's notes; **+** makes a new one, the pencil renames one, and the
   trash button deletes one.
-- **Find and replace** in the editor with Ctrl+F.
+- **Find and replace** in the editor with Ctrl+F; the preview has its
+  own search, and a button to open the PDF in your system's viewer to
+  print it.
+- **Help > Keyboard Shortcuts** (F1) lists the shortcuts.
 - **File menu:** *Import Markdown File…* brings an existing `.md` file
   from anywhere on your computer into the project; *Export Markdown…* and
   *Export LaTeX…* save the open note as a `.md` or a single self-contained
@@ -206,6 +220,9 @@ preview size themselves to the window. Also:
 - `make distclean` — also removes the generated `build/` files and the PDF.
 - `make deb` — packages this project as a `.deb`; see
   [Installation](docs/installation.md#installing-as-a-system-package).
+- `scripts/release.sh` — the steps of a release (`bump`, `build`,
+  `publish`), so the version, the packages, their checksums, and the tag
+  always line up; run it with no arguments for how.
 - `make rpm` — packages it as an RPM for Fedora and RHEL-family systems;
   see [Installation](docs/installation.md#installing-on-fedora-and-rhel-family-systems-rpm),
   which also covers publishing it through Fedora COPR.

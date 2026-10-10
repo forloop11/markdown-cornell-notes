@@ -2,7 +2,7 @@
 //
 // Bundled (see ../package.json's build:editor script) into a single IIFE at
 // ../web/editor.js that exposes window.CodeEditor -- a small imperative API
-// (mount/setDoc/getDoc/setHeight/setAssets/openSearch). The page it runs in
+// (mount/setDoc/getDoc/setHeight/setAssets/openSearch/goToLine/replaceDoc). The page it runs in
 // (../web/index.html) is shown in a Qt web view; ../web/bridge.js connects
 // this API to the Python side (../webviews.py's EditorView).
 import { EditorState, EditorSelection } from "@codemirror/state";
@@ -52,25 +52,38 @@ const draculaEditorTheme = EditorView.theme(
     // rather than @codemirror/search's stock light ones.
     ".cm-panels": { backgroundColor: "#21222c", color: dracula.foreground },
     ".cm-panels.cm-panels-top": { borderBottom: `1px solid ${dracula.currentLine}` },
-    ".cm-search": { padding: "6px 8px", fontFamily: "system-ui, sans-serif", fontSize: "13px" },
-    ".cm-search label": { display: "inline-flex", alignItems: "center", gap: "4px", margin: "0 8px 0 0" },
+    // Half as large again as @codemirror/search's stock panel, which is
+    // small beside the rest of the app: the font (which its fields and
+    // buttons size themselves from), the spacing, and the checkboxes.
+    // (Room on the right for the close button, so nothing runs under it.)
+    ".cm-panel.cm-search": { padding: "9px 44px 3px 12px", fontFamily: "system-ui, sans-serif", fontSize: "19.5px" },
+    ".cm-panel.cm-search label": {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "6px",
+      margin: "0 12px 6px 0",
+      fontSize: "70%",
+    },
+    ".cm-panel.cm-search input[type=checkbox]": { width: "16px", height: "16px", margin: "0" },
     ".cm-textfield": {
       backgroundColor: dracula.background,
       color: dracula.foreground,
       border: `1px solid ${dracula.comment}`,
-      borderRadius: "4px",
-      padding: "3px 6px",
+      borderRadius: "6px",
+      padding: "4.5px 9px",
+      margin: "0 6px 6px 0",
     },
     ".cm-button": {
       backgroundImage: "none",
       backgroundColor: dracula.currentLine,
       color: dracula.foreground,
       border: `1px solid ${dracula.comment}`,
-      borderRadius: "4px",
-      padding: "3px 8px",
+      borderRadius: "6px",
+      padding: "4.5px 12px",
+      margin: "0 6px 6px 0",
     },
     ".cm-button:hover": { backgroundColor: dracula.comment },
-    ".cm-panel.cm-search [name=close]": { color: dracula.foreground, fontSize: "18px", cursor: "pointer" },
+    ".cm-panel.cm-search [name=close]": { color: dracula.foreground, fontSize: "27px", cursor: "pointer", right: "8px" },
     ".cm-searchMatch": { backgroundColor: "rgba(241, 250, 140, 0.25)", outline: `1px solid ${dracula.yellow}` },
     ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "rgba(255, 184, 108, 0.55)" },
     ".cm-selectionMatch": { backgroundColor: "rgba(139, 233, 253, 0.18)" },
@@ -146,6 +159,11 @@ let toolbar = null;
 // the Python side's job (see ../window.py), so neither waits here.
 let onChange = () => {};
 let onBlur = () => {};
+// ...and onCursor(line, lines) when the cursor moves to another line
+// (1-based, with the document's line count), for keeping the PDF preview
+// in step with the editor.
+let onCursor = () => {};
+let lastCursorLine = 0;
 // Filenames from assets/ (see pipeline.list_asset_files() on the Python
 // side), used by assetPathCompletions below. Set via setAssets(), since the
 // asset list can change (add/delete) without the open file changing.
@@ -192,6 +210,13 @@ function makeState(doc) {
       EditorView.lineWrapping,
       EditorView.updateListener.of((update) => {
         if (update.docChanged) onChange(update.state.doc.toString());
+        if (update.selectionSet || update.docChanged) {
+          const line = update.state.doc.lineAt(update.state.selection.main.head).number;
+          if (line !== lastCursorLine) {
+            lastCursorLine = line;
+            onCursor(line, update.state.doc.lines);
+          }
+        }
       }),
       // So the autosave can fire as soon as the user clicks away (e.g. to
       // switch files) rather than waiting out its debounce.
@@ -597,8 +622,9 @@ function setHeight(height) {
 
 // Mounts the toolbar + editor into `el` (an empty element), showing `doc`.
 // `onChange(doc)` is called with the full text after every edit, `onBlur()`
-// when the editor loses focus.
-function mount(el, { doc = "", height = 600, assets = [], onChange: changed, onBlur: blurred } = {}) {
+// when the editor loses focus, `onCursor(line, lines)` when the cursor
+// changes line.
+function mount(el, { doc = "", height = 600, assets = [], onChange: changed, onBlur: blurred, onCursor: moved } = {}) {
   container = document.createElement("div");
   container.id = "editor";
   toolbar = buildToolbar();
@@ -606,6 +632,7 @@ function mount(el, { doc = "", height = 600, assets = [], onChange: changed, onB
   assetFiles = assets;
   onChange = changed || (() => {});
   onBlur = blurred || (() => {});
+  onCursor = moved || (() => {});
   view = new EditorView({ state: makeState(doc), parent: container });
   setHeight(height);
 }
@@ -614,7 +641,28 @@ function mount(el, { doc = "", height = 600, assets = [], onChange: changed, onB
 // history. Not an edit: onChange isn't called.
 function setDoc(doc) {
   if (!view) return;
+  lastCursorLine = 0;
   view.setState(makeState(doc));
+}
+
+// Replaces the whole text as one edit -- unlike setDoc, it can be undone,
+// and onChange hears of it. For changes the app makes to the open note
+// (rewriting links to a renamed asset).
+function replaceDoc(doc) {
+  if (!view) return;
+  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
+}
+
+// Puts the cursor at the start of line `number` (1-based) and scrolls it
+// to the middle of the editor -- where a click in the PDF preview lands.
+function goToLine(number) {
+  if (!view) return;
+  const line = view.state.doc.line(Math.max(1, Math.min(number, view.state.doc.lines)));
+  view.dispatch({
+    selection: EditorSelection.cursor(line.from),
+    effects: EditorView.scrollIntoView(line.from, { y: "center" }),
+  });
+  view.focus();
 }
 
 function getDoc() {
@@ -632,4 +680,4 @@ function openSearch() {
   openSearchPanel(view);
 }
 
-window.CodeEditor = { mount, setDoc, getDoc, setHeight, setAssets, openSearch };
+window.CodeEditor = { mount, setDoc, getDoc, setHeight, setAssets, openSearch, goToLine, replaceDoc };

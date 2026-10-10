@@ -21,7 +21,7 @@ from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from pipeline import Pipeline  # noqa: E402
+from pipeline import NEW_NOTE, REPO_ROOT, Pipeline  # noqa: E402
 
 HAVE_TEX = bool(shutil.which("pdflatex") and shutil.which("pandoc") and shutil.which("make"))
 
@@ -60,6 +60,18 @@ def scaffolded(tmp_path):
     root.mkdir()
     Pipeline(root).init_project()
     return root
+
+
+@pytest.fixture(autouse=True)
+def no_real_trash(qapp):
+    """Deletions made by these tests are permanent, not sent to the trash
+    of whoever is running them -- and nothing stops to ask a question
+    nobody is there to answer.
+    """
+    from window import MainWindow
+
+    MainWindow.trash = None
+    MainWindow.ask_before_updating_links = False
 
 
 @pytest.fixture
@@ -141,11 +153,11 @@ def test_switching_files_right_after_typing_saves_to_the_right_file(window, scaf
     type_in_editor(window, "LAST WORDS ")
     window.select_file(file)  # before the keystroke has been reported
     wait_until(lambda: window.selected == file and window.header is not None, what="the second file")
-    wait_until(lambda: window.editor.doc == "# New notes\n", what="the second file's text")
+    wait_until(lambda: window.editor.doc == NEW_NOTE, what="the second file's text")
 
     assert (scaffolded / "md" / "notes.md").read_text(encoding="utf-8") == "LAST WORDS " + original
     QTest.qWait(700)  # past the autosave delay: nothing late may land in the new file
-    assert (scaffolded / "md" / "second.md").read_text(encoding="utf-8") == "# New notes\n"
+    assert (scaffolded / "md" / "second.md").read_text(encoding="utf-8") == NEW_NOTE
     assert window.file_select.currentText() == file
 
 
@@ -408,7 +420,7 @@ def test_editor_and_preview_fill_the_window_and_follow_its_size(window):
 
     # Too short a window: the panes hold their minimum and the page scrolls.
     window.details_card.set_expanded(True)
-    assert settle(1400, 600) == MIN_PANE_HEIGHT
+    assert MIN_PANE_HEIGHT <= settle(1400, 600) <= MIN_PANE_HEIGHT + 2  # (a pixel of rounding, on some styles)
     assert scroll.verticalScrollBar().maximum() > 0
 
 
@@ -527,3 +539,241 @@ def test_find_and_replace_panel_opens_in_the_editor(window):
     )
     wait_until(lambda: found, what="the editor to answer")
     assert found[0] == "[true,true]"
+
+
+# A PDF that's in the repository, for the preview's tests where no TeX is installed.
+EXAMPLE_PDF = REPO_ROOT / "pdf" / "Example-Meeting_2026-08-25_Teams.pdf"
+
+
+@pytest.fixture
+def preview(window):
+    """The window with the example PDF on show in its preview pane."""
+    view = window.pdf_view
+    window.pdf = window.api.pdf_info(EXAMPLE_PDF)
+    window._update_pdf()
+    wait_until(lambda: view.pages == 2, what="the preview to load the PDF")
+    QTest.qWait(300)  # the pane settling into its size, and the fitted page with it
+    return view
+
+
+def pdf_scroll(view):
+    got = []
+    view.page().runJavaScript("document.getElementById('viewerContainer').scrollTop", 0, got.append)
+    wait_until(lambda: got, what="the preview to answer")
+    return got[0]
+
+
+def test_preview_shows_the_pdf_fitted_with_its_own_controls(window, preview):
+    assert (preview.pages, preview.current_page, preview.scale) == (2, 1, "page-fit")
+    assert window.pdf_controls.isVisible()
+    assert window.pdf_status.text() == f"1 / 2   {preview.percent}%"
+    fitted = preview.percent
+
+    preview.zoom_in()
+    wait_until(lambda: preview.percent > fitted, what="the zoom")
+    preview.fit_width()
+    wait_until(lambda: preview.scale == "page-width", what="fit width")
+    assert preview.percent > fitted
+    preview.fit_page()
+    wait_until(lambda: preview.scale == "page-fit", what="fit page")
+    assert abs(preview.percent - fitted) <= 2, (preview.percent, fitted)
+
+    preview.go_to_page(2)
+    wait_until(lambda: preview.current_page == 2, what="page 2")
+    assert window.pdf_status.text().startswith("2 / 2")
+
+    window.pdf = None
+    window._update_pdf()
+    wait_until(lambda: preview.pages == 0, what="the preview to clear")
+    assert not window.pdf_controls.isVisible()
+
+
+def test_preview_keeps_its_zoom_and_place_when_the_pdf_is_rebuilt(window, preview, tmp_path):
+    preview.fit_width()
+    wait_until(lambda: preview.scale == "page-width", what="fit width")
+    preview.go_to_page(2)
+    wait_until(lambda: preview.current_page == 2, what="page 2")
+    before = pdf_scroll(preview)
+    assert before > 0
+
+    # The same file again, as after a Render: a new version of the same name.
+    window.pdf = {**window.pdf, "version": window.pdf["version"] + 1}
+    preview.pages = 0
+    window._update_pdf()
+    wait_until(lambda: preview.pages == 2, what="the reload")
+    assert (preview.current_page, preview.scale) == (2, "page-width")
+    assert abs(pdf_scroll(preview) - before) <= 2
+
+    # A different PDF starts from the top, fitted.
+    other = tmp_path / "Other.pdf"
+    shutil.copyfile(EXAMPLE_PDF, other)
+    window.pdf = window.api.pdf_info(other)
+    preview.pages = 0
+    window._update_pdf()
+    wait_until(lambda: preview.pages == 2, what="the other PDF")
+    assert (preview.current_page, preview.scale) == (1, "page-fit")
+    assert pdf_scroll(preview) == 0
+
+
+def test_moving_the_cursor_scrolls_the_preview_to_that_text(window, preview):
+    preview.fit_width()  # so only part of a page is in view
+    wait_until(lambda: preview.scale == "page-width", what="fit width")
+    assert pdf_scroll(preview) == 0
+
+    # The example notes' last section is on the PDF's second page.
+    lines = window.editor.doc.split("\n")
+    target = max(i for i, text in enumerate(lines, 1) if text.startswith("# "))
+    window.editor.go_to_line(target)
+    wait_until(lambda: pdf_scroll(preview) > 0, what="the preview to follow the cursor")
+    wait_until(lambda: preview.current_page == 2, what="the second page")
+
+    # Switched off in the View menu, it stays put.
+    window.sync_action.trigger()
+    assert not window.sync_preview and QSettings().value("syncPreview", type=bool) is False
+    place = pdf_scroll(preview)
+    window.editor.go_to_line(1)
+    QTest.qWait(700)
+    assert pdf_scroll(preview) == place
+    window.sync_action.trigger()
+
+
+def test_text_double_clicked_in_the_preview_moves_the_editors_cursor(window, preview):
+    lines = window.editor.doc.split("\n")
+    target = next(i for i, text in enumerate(lines, 1) if text.startswith("# Blockquote"))
+    # What the preview reports for a double-click on that heading in the PDF.
+    preview.text_activated.emit("3 blockquote", target / len(lines))
+    wait_until(lambda: window._cursor_line == target, what="the editor's cursor")
+    got = []
+    window.editor.page().runJavaScript(
+        "document.querySelector('.cm-activeLine').textContent", 0, got.append
+    )
+    wait_until(lambda: got, what="the editor to answer")
+    assert got[0] == "# Blockquote"
+
+
+def test_auto_render_rebuilds_after_typing_but_not_after_details_edits(window, monkeypatch):
+    import window as window_module
+
+    monkeypatch.setattr(window_module, "AUTO_RENDER_MS", 150)
+    window._auto_timer.setInterval(150)
+    builds = []
+
+    def fake_render(filename, header, markdown):
+        builds.append(markdown)
+        return {"ok": "BROKEN" not in markdown, "saved": True, "log": "the log", "pdf": None}
+
+    monkeypatch.setattr(window.api, "render_file", fake_render)
+
+    # Off by default: typing builds nothing.
+    type_in_editor(window, "one ")
+    QTest.qWait(500)
+    assert builds == []
+
+    window.auto_render_action.trigger()  # on: catches up straight away...
+    wait_until(lambda: len(builds) == 1 and window.render_thread is None, what="the first automatic build")
+    assert window.build_ok and QSettings().value("autoRender", type=bool) is True
+    type_in_editor(window, "two ")  # ...and again after each pause in typing
+    wait_until(lambda: len(builds) == 2 and window.render_thread is None, what="the second automatic build")
+    assert builds[1].startswith("one two ")
+    QTest.qWait(500)
+    assert len(builds) == 2  # nothing changed: nothing rebuilt
+
+    # A Details edit doesn't set one off (the PDF is named after those fields).
+    window.topic.setFocus()
+    QTest.keyClicks(window.topic, "X")
+    QTest.qWait(500)
+    assert len(builds) == 2
+
+    # A note that doesn't build is tried once, reported quietly, and left
+    # until it's edited again.
+    type_in_editor(window, "BROKEN ")
+    wait_until(lambda: len(builds) == 3 and window.render_thread is None, what="the failing build")
+    assert window.build_ok is False and window.build_log_card.isVisible()
+    assert not window.build_log_card.expanded
+    QTest.qWait(500)
+    assert len(builds) == 3
+
+    window.render_pdf()  # asked for by hand, the same failure opens its log
+    wait_until(lambda: len(builds) == 4 and window.render_thread is None, what="the manual build")
+    assert window.build_log_card.expanded
+    window.auto_render_action.trigger()
+
+
+def test_renaming_an_asset_offers_to_update_the_notes_links_to_it(window, scaffolded):
+    assets = scaffolded / "assets"
+    other, _ = window.api.create_file("other")
+    window.api.pipeline.write_markdown_file(other, "![t](assets/tux.jpg) and ![again](assets/tux.jpg)\n")
+    window.editor.set_doc("Open note: ![tux](assets/tux.jpg){width=75px}\n")
+    asked = []
+    window.explorer.moved.disconnect()  # the window's own handling: done by hand below
+    window.explorer.moved.connect(asked.append)
+
+    window.explorer.rename(str(assets / "tux.jpg"), "Penguin.jpg")
+    assert asked == [[("tux.jpg", "Penguin.jpg", False)]]
+    assert window.update_asset_links(asked[0], ask=False) == 3
+
+    # The other note changed on disk; the open one in the editor, as an edit.
+    assert window.api.pipeline.read_markdown_file(other) == "![t](assets/Penguin.jpg) and ![again](assets/Penguin.jpg)\n"
+    assert window.editor.doc == "Open note: ![tux](assets/Penguin.jpg){width=75px}\n"
+    wait_until(
+        lambda: "assets/Penguin.jpg" in (scaffolded / "md" / "notes.md").read_text(encoding="utf-8"), what="the autosave"
+    )
+    assert window.update_asset_links(asked[0], ask=False) == 0  # nothing left pointing at the old name
+
+    # Moving a file into a folder, and renaming that folder, are reported too.
+    window.api.create_asset_folder("", "pics")
+    window.explorer.drop([str(assets / "Penguin.jpg")], str(assets / "pics"))
+    window.explorer.rename(str(assets / "pics"), "album")
+    assert asked[1:] == [[("Penguin.jpg", "pics/Penguin.jpg", False)], [("pics", "album", True)]]
+    for change in asked[1:]:
+        window.update_asset_links(change, ask=False)
+    assert window.editor.doc == "Open note: ![tux](assets/album/Penguin.jpg){width=75px}\n"
+    assert (assets / "album" / "Penguin.jpg").is_file()
+
+
+def test_deleting_through_the_window_uses_the_trash_it_was_given(qapp, scaffolded, tmp_path):
+    from window import MainWindow
+
+    trashed = []
+    MainWindow.trash = staticmethod(lambda path: trashed.append(path) or False)  # asked, declines: deleted for good
+    win = MainWindow(scaffolded)
+    win.show()
+    wait_until(lambda: win.header is not None, what="the project")
+    win.api.delete_asset("", "tux.jpg")
+    assert trashed == [str(scaffolded / "assets" / "tux.jpg")]
+    assert not (scaffolded / "assets" / "tux.jpg").exists()
+    win._close_ready = True
+    win.close()
+    win.deleteLater()
+
+
+def test_preview_search_counts_matches_and_steps_through_them(window, preview):
+    counts = []
+    preview.find_changed.connect(lambda current, total: counts.append((current, total)))
+    window.pdf_find_button.click()
+    assert window.pdf_find.isVisible()
+    window.pdf_find.setText("question")
+    wait_until(lambda: counts and counts[-1][1] >= 2, what="the matches to be counted")
+    total = counts[-1][1]
+    assert window.pdf_find_count.text() == f"{counts[-1][0]} of {total}"
+    first = counts[-1][0]
+    QTest.keyClick(window.pdf_find, Qt.Key.Key_Return)
+    wait_until(lambda: counts[-1][0] != first, what="the next match")
+
+    window.pdf_find.setText("zzzz-not-in-the-pdf")
+    wait_until(lambda: window.pdf_find_count.text() == "No matches", what="no matches")
+    QTest.keyClick(window.pdf_find, Qt.Key.Key_Escape)
+    assert not window.pdf_find.isVisible() and not window.pdf_find_button.isChecked()
+
+
+def test_help_menu_lists_the_shortcuts_and_about_names_the_version(window):
+    import json
+
+    import window as window_module
+
+    version = json.loads((REPO_ROOT / "app" / "package.json").read_text())["version"]
+    assert window_module.app_version() == version
+    keys = [keys for _, entries in window_module.SHORTCUTS for keys, _ in entries]
+    assert "Ctrl+R" in keys and "F2" in keys and len(keys) == len(set(keys))
+    titles = [a.text() for a in window.menuBar().actions()]
+    assert titles == ["&File", "&Edit", "&View", "&Help"]

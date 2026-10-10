@@ -55,6 +55,8 @@
 │   ├── macos_sign_scopes.py   Lists the programs in the .app for Developer
 │   │                          ID signing (see build_macos.sh).
 │   ├── make_icons.py          Regenerates the app icon's .ico and .icns.
+│   ├── release.sh             The steps of a release: bump the version,
+│   │                          build the packages with checksums, publish.
 │   ├── make_tutorial_gif.py   Records the README's tutorial
 │   │                          (assets/tutorial.gif) from the real app.
 │   └── topic_slug.py          yaml/notes.yaml's topic+date -> output PDF's
@@ -81,12 +83,19 @@
 │   │                     directly on Windows and in standalone builds).
 │   ├── header_form.py    Converts between the yaml header fields and the
 │   │                     app's header form (date/time/timezone fields).
-│   ├── web/              The editor pane's page: index.html, editor.css,
+│   ├── sync.py           Matches markdown lines with text in the PDF, for
+│   │                     the editor <-> preview sync.
+│   ├── web/              The two panes' pages. The preview: pdf.html,
+│   │                     pdf.css, pdf_bridge.js, and pdfviewer.js (the
+│   │                     built PDF.js bundle) with PDF.js's pdf_viewer.css.
+│   │                     The editor: index.html, editor.css,
 │   │                     bridge.js (its link to webviews.py), and editor.js
 │   │                     (the built CodeMirror bundle -- markdown/HTML/LaTeX
 │   │                     highlighting, toolbar, autocompletion).
-│   ├── frontend_src/     Source for web/editor.js (`npm run build:editor`).
-│   ├── build-resources/  The app icon (icon.svg, rendered to icon.png, and
+│   ├── frontend_src/     Source for web/editor.js and web/pdfviewer.js
+│   │                     (`npm run build`).
+│   ├── build-resources/  The application-menu entry the .deb and RPM
+│   │                     install; the app icon (icon.svg, rendered to icon.png, and
 │   │                     from that to icon.ico/.icns by
 │   │                     scripts/make_icons.py) and the style sheet's
 │   │                     dropdown arrows.

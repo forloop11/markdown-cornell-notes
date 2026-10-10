@@ -14,8 +14,8 @@ A standalone [editor app](editor-app.md) build — a
 ## Installing as a system package
 
 To just install it, download the `.deb` from the
-[v2.0.0 release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0); its
-[release notes](release-notes/deb-2.0.0.md) cover installing it. To build
+[2.2.0 release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.2.0); its
+[release notes](release-notes/2.2.0.md) cover installing it. To build
 it yourself:
 
 ```sh
@@ -29,7 +29,8 @@ it in a Debian container, with podman or docker. The version comes from
 
 This stages the Makefile, scripts, `settings/template.tex`, and the app
 under `/usr/share/markdown-cornell-notes` (read-only, like any installed
-package) and drops a `markdown-cornell-notes` launcher in `/usr/bin`. Unlike
+package), drops a `markdown-cornell-notes` launcher in `/usr/bin`, and adds
+the [editor app](editor-app.md) to the application menu. Unlike
 a git checkout, that install has nowhere writable of its own for your notes,
 so each project lives in whatever directory you run the command from:
 
@@ -318,8 +319,8 @@ needs another entitlement.
 ## Running the Linux AppImage
 
 To just run it, download the AppImage from the
-[Linux release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.1.0); its
-[release notes](release-notes/linux-2.1.0.md) cover running it. The rest
+[2.2.0 release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.2.0); its
+[release notes](release-notes/2.2.0.md) cover running it. The rest
 of this section covers building it yourself. (Version 1.0, the
 [earlier Electron-based release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.2), runs on older
 distributions but needs FUSE 2 to mount.)

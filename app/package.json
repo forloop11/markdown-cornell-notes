@@ -1,10 +1,12 @@
 {
   "name": "markdown-cornell-notes-editor",
   "private": true,
-  "version": "2.1.0",
-  "description": "Builds the CodeMirror bundle (web/editor.js) for the markdown-cornell-notes editor app. The app itself is Python (PySide6) and doesn't need Node.js to run; see docs/editor-app.md.",
+  "version": "2.2.0",
+  "description": "Builds the JavaScript bundles (web/editor.js: CodeMirror; web/pdfviewer.js: PDF.js) for the markdown-cornell-notes editor app. The app itself is Python (PySide6) and doesn't need Node.js to run; see docs/editor-app.md.",
   "scripts": {
-    "build:editor": "esbuild frontend_src/editor.js --bundle --minify --format=iife --outfile=web/editor.js"
+    "build:editor": "esbuild frontend_src/editor.js --bundle --minify --format=iife --outfile=web/editor.js",
+    "build:pdf": "esbuild frontend_src/pdfviewer.js --bundle --minify --format=iife --target=chrome110 --outfile=web/pdfviewer.js && node -e \"require('fs').copyFileSync('node_modules/pdfjs-dist/legacy/web/pdf_viewer.css', 'web/pdf_viewer.css')\"",
+    "build": "npm run build:editor && npm run build:pdf"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -17,7 +19,8 @@
     "@codemirror/state": "^6.4.1",
     "@codemirror/view": "^6.34.1",
     "@lezer/highlight": "^1.2.1",
-    "esbuild": "^0.24.0"
+    "esbuild": "^0.24.0",
+    "pdfjs-dist": "^4.10.38"
   },
   "author": "Todd C. Takala",
   "homepage": "https://github.com/forloop11/markdown-cornell-notes",

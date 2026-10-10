@@ -8,7 +8,7 @@ import shutil
 
 import pytest
 
-from pipeline import HEADER_FIELDS, REPO_ROOT, Pipeline, PipelineError
+from pipeline import HEADER_FIELDS, NEW_NOTE, REPO_ROOT, Pipeline, PipelineError, rewrite_links
 from simple_yaml import parse_yaml
 
 
@@ -60,7 +60,7 @@ def test_create_list_read_delete_a_markdown_file_and_its_paired_yaml(p):
     created = p.create_markdown_file("My Notes!")
     assert created == "My-Notes.md"
     assert created in p.list_markdown_files()
-    assert p.read_markdown_file(created) == "# New notes\n"
+    assert p.read_markdown_file(created) == NEW_NOTE
     assert p.read_header(created) == blank()
 
     # A second file, so deleting the first isn't blocked by the last-file guard.
@@ -292,3 +292,90 @@ def test_rename_asset_renames_a_file_in_place(p, project):
         with pytest.raises(PipelineError):
             call()
     assert p.list_asset_files() == ["pics/New-Name.png", "pics/other.png"]
+
+
+def test_a_new_note_starts_from_a_template_showing_the_format(p):
+    name = p.create_markdown_file("fresh")
+    text = p.read_markdown_file(name)
+    assert text == NEW_NOTE
+    assert text.startswith("# New notes\n")
+    assert "\n^1 " in text and "\n^^1 " in text
+
+
+def test_deletions_go_to_the_trash_when_there_is_one(project, tmp_path):
+    bin_ = tmp_path / "trash"
+    bin_.mkdir()
+    trashed = []
+
+    def trash(path):
+        trashed.append(path)
+        shutil.move(path, bin_ / (str(len(trashed)) + "-" + path.rsplit("/", 1)[-1]))
+        return True
+
+    p = Pipeline(project, trash=trash)
+    p.create_markdown_file("keep")
+    p.create_markdown_file("gone")
+    p.save_asset("pic.png", b"png")
+    p.create_asset_folder("album")
+    p.save_asset("inside.png", b"png", "album")
+
+    p.delete_markdown_file("gone.md")
+    p.delete_asset("pic.png")
+    p.delete_asset_folder("album")
+    assert p.list_markdown_files() == ["keep.md"] and p.list_asset_files() == []
+    # Everything deleted is in the trash, recoverable: the note, its header,
+    # the file, and the folder with what was in it.
+    assert sorted(f.name.split("-", 1)[1] for f in bin_.iterdir()) == ["album", "gone.md", "gone.yaml", "pic.png"]
+    assert (next(f for f in bin_.iterdir() if f.name.endswith("album")) / "inside.png").is_file()
+
+
+@pytest.mark.parametrize("trash", [lambda path: False, lambda path: (_ for _ in ()).throw(OSError("no trash here"))])
+def test_deletions_fall_back_to_permanent_where_the_trash_cant_take_them(project, trash):
+    p = Pipeline(project, trash=trash)
+    p.create_markdown_file("keep")
+    p.create_markdown_file("gone")
+    p.create_asset_folder("album")
+    p.save_asset("inside.png", b"png", "album")
+    p.delete_markdown_file("gone.md")
+    p.delete_asset_folder("album")
+    assert p.list_markdown_files() == ["keep.md"]
+    assert not (project / "yaml" / "gone.yaml").exists() and not (project / "assets" / "album").exists()
+
+
+def test_rewrite_links_repoints_links_to_a_renamed_asset_and_nothing_else():
+    text = (
+        "![flow](assets/diagrams/flow.png) and [the same](assets/diagrams/flow.png).\n"
+        "Sized: ![f](assets/diagrams/flow.png){width=50%} and anchored [x](assets/diagrams/flow.png#top)\n"
+        "Others: ![o](assets/diagrams/flow.png.bak) ![p](assets/flow.png) [web](https://e.com/assets/diagrams/flow.png)\n"
+        "Prose mentioning assets/diagrams/flow.png stays as it is.\n"
+    )
+    out, count = rewrite_links(text, "diagrams/flow.png", "diagrams/pipeline.png")
+    assert count == 4
+    assert out.count("](assets/diagrams/pipeline.png") == 4
+    assert "![o](assets/diagrams/flow.png.bak) ![p](assets/flow.png) [web](https://e.com/assets/diagrams/flow.png)" in out
+    assert "Prose mentioning assets/diagrams/flow.png stays as it is." in out
+    assert rewrite_links("no links here", "a.png", "b.png") == ("no links here", 0)
+
+
+def test_rewrite_links_follows_a_renamed_or_moved_folder_and_bracketed_paths():
+    text = "![a](assets/pics/a.png) ![b](assets/pics/sub/b.png) ![c](assets/pics2/c.png) ![d](<assets/pics/my photo.png>)"
+    out, count = rewrite_links(text, "pics", "album/2026", folder=True)
+    assert count == 3
+    assert out == (
+        "![a](assets/album/2026/a.png) ![b](assets/album/2026/sub/b.png) ![c](assets/pics2/c.png) "
+        "![d](<assets/album/2026/my photo.png>)"
+    )
+    # A file moved between folders is a rename of its whole path.
+    assert rewrite_links("![a](assets/a.png)", "a.png", "pics/a.png") == ("![a](assets/pics/a.png)", 1)
+
+
+def test_rewrite_asset_links_updates_every_note_but_the_ones_skipped(p):
+    for name in ("one", "two", "three"):
+        p.create_markdown_file(name)
+    p.write_markdown_file("one.md", "![x](assets/old.png) ![y](assets/old.png)\n")
+    p.write_markdown_file("two.md", "![x](assets/old.png)\n")
+    p.write_markdown_file("three.md", "nothing\n")
+    assert p.asset_link_counts("old.png", "new.png") == {"one.md": 2, "two.md": 1}
+    assert p.rewrite_asset_links("old.png", "new.png", skip=["two.md"]) == 2
+    assert p.read_markdown_file("one.md") == "![x](assets/new.png) ![y](assets/new.png)\n"
+    assert p.read_markdown_file("two.md") == "![x](assets/old.png)\n"

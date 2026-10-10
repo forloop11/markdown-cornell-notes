@@ -5,16 +5,20 @@ side, with the assets explorer down the left.
 Everything persistent lives on disk, written through api.py; this file
 only holds the open file's in-progress form state.
 """
+import json
 import shutil
+import sys
 import traceback
 from pathlib import Path
 
-from PySide6.QtCore import QDate, QSettings, QStandardPaths, Qt, QThread, QTimer, QUrl
+from PySide6.QtCore import QDate, QFile, QSettings, QStandardPaths, Qt, QThread, QTimer, QUrl
 from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QDateEdit,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QFrame,
     QGridLayout,
@@ -33,15 +37,17 @@ from PySide6.QtWidgets import (
 )
 
 import header_form
+import sync
 import theme
 from api import Api
 from assets_explorer import AssetsExplorer
-from pipeline import PipelineError
+from pipeline import REPO_ROOT, PipelineError, rewrite_links
 from webviews import EditorView, PdfView, WebAction
 from widgets import (
     Card,
     Chip,
     ChoiceField,
+    FindField,
     MessageBar,
     NameDialog,
     TimeField,
@@ -50,10 +56,24 @@ from widgets import (
     field,
     icon_button,
     label,
+    mini_button,
     set_tone,
 )
 
 APP_NAME = "Markdown Cornell Notes"
+PROJECT_URL = "https://github.com/forloop11/markdown-cornell-notes"
+DOCS_URL = f"{PROJECT_URL}#documentation"
+
+
+def app_version():
+    """The app's version, from package.json next to this file ("" if it
+    can't be read).
+    """
+    try:
+        return json.loads((REPO_ROOT / "app" / "package.json").read_text(encoding="utf-8"))["version"]
+    except (OSError, ValueError, KeyError):
+        return ""
+
 AUTOSAVE_MS = 500
 # How long a closing window (or one switching projects) waits for the
 # editor to report its final text before going ahead anyway, so a hung
@@ -62,6 +82,53 @@ FLUSH_TIMEOUT_MS = 3000
 EDITOR_ZOOM_STEPS = [0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0]
 DATE_FORMAT = "yyyy-MM-dd"
 MAX_RECENT = 8  # how many project folders File > Open Recent remembers
+# How long the cursor rests on a line before the preview scrolls to it, so
+# arrowing through the notes doesn't drag the PDF along line by line.
+SYNC_MS = 300
+# With View > Auto-Render on: how long after the last keystroke the PDF is
+# rebuilt. Long enough not to build half-typed words, short enough to feel
+# live.
+AUTO_RENDER_MS = 1500
+
+SHORTCUTS = [
+    ("Notes", [
+        ("Ctrl+R", "Render the PDF"),
+        ("Ctrl+F", "Find and replace in the editor"),
+        ("Ctrl+Z / Ctrl+Shift+Z", "Undo / redo"),
+        ("Tab", "Indent by two spaces"),
+        ("/ at the start of a word", "Insert formatting: /bold, /table, /cue, /summary, …"),
+        ("](", "Suggest files from assets/ for a link or image"),
+    ]),
+    ("Files and projects", [
+        ("Ctrl+Shift+N", "New project"),
+        ("Ctrl+O", "Open a project folder"),
+        ("Ctrl+I", "Import a Markdown file"),
+        ("Ctrl+E / Ctrl+Shift+E", "Export the note as Markdown / LaTeX"),
+        ("Ctrl+P", "Open the PDF in the system's viewer (to print)"),
+        ("Ctrl+Q", "Quit"),
+    ]),
+    ("View", [
+        ("Ctrl+B", "Show or hide the assets explorer"),
+        ("Ctrl++ / Ctrl+- / Ctrl+0", "Editor text larger / smaller / normal"),
+        ("F11", "Full screen"),
+    ]),
+    ("Assets explorer", [
+        ("Double-click a file", "Copy a Markdown link to it"),
+        ("Ctrl+C", "Copy links to the selected files"),
+        ("F2", "Rename the selected file or folder"),
+    ]),
+    ("PDF preview", [
+        ("Double-click text", "Go to that line in the editor"),
+        ("Enter / Shift+Enter in its search box", "Next / previous match"),
+    ]),
+]  # fmt: skip
+
+
+def move_to_trash(path):
+    """Move the file or folder at `path` to the system's trash; whether it went."""
+    result = QFile.moveToTrash(path)
+    # (PySide hands back the file's new place along with the verdict.)
+    return bool(result[0] if isinstance(result, tuple) else result)
 # The least height the editor and PDF preview are given; see _build_panes.
 MIN_PANE_HEIGHT = 260
 
@@ -96,6 +163,12 @@ class RenderThread(QThread):
 
 
 class MainWindow(QMainWindow):
+    # How deletions are made recoverable (None: they're permanent).
+    trash = staticmethod(move_to_trash)
+    # Whether renaming or moving an asset asks before rewriting the notes'
+    # links to it (off: it just does).
+    ask_before_updating_links = True
+
     def __init__(self, project_root, packaged=False, api_options=None, scaffold_if_missing=False):
         super().__init__()
         self.packaged = packaged
@@ -116,6 +189,8 @@ class MainWindow(QMainWindow):
         self._load_token = 0
         self._autosave_warning = None
         self._close_ready = False
+        self._render_automatic = False
+        self._auto_attempted = None  # the last content auto-render tried to build
 
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
@@ -127,6 +202,19 @@ class MainWindow(QMainWindow):
         self.resize(min(1600, screen.width()), min(1000, screen.height()))
 
         self.explorer_shown = self.settings.value("showExplorer", True, type=bool)
+        # Whether the preview follows the editor's cursor (View menu).
+        self.sync_preview = self.settings.value("syncPreview", True, type=bool)
+        self._sync_timer = QTimer(self)
+        self._sync_timer.setSingleShot(True)
+        self._sync_timer.setInterval(SYNC_MS)
+        self._sync_timer.timeout.connect(self._sync_preview_to_cursor)
+        self._cursor_line = 1
+        # Whether the PDF is rebuilt as the notes are typed (View menu).
+        self.auto_render = self.settings.value("autoRender", False, type=bool)
+        self._auto_timer = QTimer(self)
+        self._auto_timer.setSingleShot(True)
+        self._auto_timer.setInterval(AUTO_RENDER_MS)
+        self._auto_timer.timeout.connect(self._auto_render_now)
         self._build_ui()
         self._build_menu()
         QApplication.instance().styleHints().colorSchemeChanged.connect(lambda *_: self._palette_changed())
@@ -147,6 +235,7 @@ class MainWindow(QMainWindow):
         # The tree shows changes itself; the editor's path completion
         # needs telling.
         self.explorer.changed.connect(self._assets_changed)
+        self.explorer.moved.connect(lambda changes: self.update_asset_links(changes, self.ask_before_updating_links))
 
         scroll = QScrollArea()
         scroll.setObjectName("scroll")
@@ -312,14 +401,14 @@ class MainWindow(QMainWindow):
         grid.addWidget(field("Attendees", self.attendees), 1, 3, 1, 3)
         return form
 
-    def _pane(self, icon, tag, body):
+    def _pane(self, icon, tag, body, controls=()):
         pane = QWidget()
         layout = QVBoxLayout(pane)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
         # A fixed height, so the two panes' bodies line up exactly.
         head_row = QWidget()
-        head_row.setFixedHeight(24)
+        head_row.setFixedHeight(28)
         head = QHBoxLayout(head_row)
         head.setContentsMargins(2, 0, 2, 0)
         head.setSpacing(8)
@@ -328,6 +417,8 @@ class MainWindow(QMainWindow):
         caption = label("", "caption")
         head.addWidget(mark)
         head.addWidget(caption, 1)
+        for control in controls:
+            head.addWidget(control)
         head.addWidget(label(tag, "pane-tag"))
         layout.addWidget(head_row)
         layout.addWidget(body, 1)
@@ -351,12 +442,50 @@ class MainWindow(QMainWindow):
         editor_pane, self.editor_caption = self._pane("lines", "MARKDOWN", self.editor_frame)
 
         self.pdf_view = PdfView()
+        self.pdf_view.state_changed.connect(self._pdf_state_changed)
+        self.pdf_view.text_activated.connect(self._pdf_text_activated)
+        self.editor.cursor_moved.connect(self._cursor_moved)
+        # The preview's own controls, in its header: which page of how
+        # many and the zoom, then zoom out/in and the two fits.
+        self.pdf_status = label("", "pdf-status")
+        self.pdf_controls = QWidget()
+        controls = QHBoxLayout(self.pdf_controls)
+        controls.setContentsMargins(0, 0, 6, 0)
+        controls.setSpacing(3)
+        controls.addWidget(self.pdf_status)
+        controls.addSpacing(4)
+        controls.addWidget(mini_button("minus", "Zoom out", self.pdf_view.zoom_out))
+        controls.addWidget(mini_button("plus", "Zoom in", self.pdf_view.zoom_in))
+        controls.addWidget(mini_button("fit-page", "Fit the whole page", self.pdf_view.fit_page))
+        controls.addWidget(mini_button("fit-width", "Fit the page's width", self.pdf_view.fit_width))
+        self.pdf_find_button = mini_button("search", "Find in the PDF", self._toggle_pdf_find)
+        self.pdf_find_button.setCheckable(True)
+        controls.addWidget(self.pdf_find_button)
+        self.pdf_find = FindField()
+        self.pdf_find.setPlaceholderText("Find in PDF")
+        self.pdf_find.setAccessibleName("Find in PDF")
+        self.pdf_find.setFixedWidth(150)
+        self.pdf_find.setClearButtonEnabled(True)
+        self.pdf_find.textChanged.connect(lambda text: self.pdf_view.find(text))
+        self.pdf_find.step.connect(lambda backwards: self.pdf_view.find(self.pdf_find.text(), backwards))
+        self.pdf_find.closed.connect(lambda: self._toggle_pdf_find(False))
+        self.pdf_find.hide()
+        controls.addWidget(self.pdf_find)
+        self.pdf_find_count = label("", "pdf-status")
+        self.pdf_find_count.hide()
+        controls.addWidget(self.pdf_find_count)
+        self.pdf_view.find_changed.connect(self._pdf_find_changed)
+        controls.addWidget(
+            mini_button("external", "Open in your PDF viewer — to print it, for instance (Ctrl+P)", self.open_pdf_externally)
+        )
+        self.pdf_controls.hide()
         self.pdf_stack = QStackedWidget()
         placeholder = label("No PDF yet — click Render to build one.", "empty")
         placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.pdf_stack.addWidget(placeholder)
         self.pdf_stack.addWidget(self._framed(self.pdf_view, "pdf-frame"))
-        pdf_pane, self.pdf_caption = self._pane("file", "PDF PREVIEW", self.pdf_stack)
+        pdf_pane, self.pdf_caption = self._pane("file", "PDF PREVIEW", self.pdf_stack, [self.pdf_controls])
+        self.pdf_caption.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
 
         self.panes = QSplitter(Qt.Orientation.Horizontal)
         self.panes.setChildrenCollapsible(False)
@@ -400,6 +529,7 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         action(file_menu, "&Render PDF", self.render_pdf, "Ctrl+R")
         action(file_menu, "&Download PDF…", self.download_pdf)
+        action(file_menu, "Open PDF in System &Viewer (to Print)", self.open_pdf_externally, QKeySequence.StandardKey.Print)
         file_menu.addSeparator()
         quit_item = action(file_menu, "&Quit", self.close, QKeySequence.StandardKey.Quit)
         quit_item.setMenuRole(QAction.MenuRole.QuitRole)
@@ -444,9 +574,59 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
         self.explorer_action = action(view_menu, "Assets &Explorer", lambda: self.set_explorer_shown(not self.explorer_shown), "Ctrl+B")
         self.explorer_action.setCheckable(True)
+        self.auto_render_action = action(view_menu, "Auto-&Render as You Type", self._toggle_auto_render)
+        self.auto_render_action.setCheckable(True)
+        self.auto_render_action.setChecked(self.auto_render)
+        self.sync_action = action(view_menu, "&Sync Preview with Editor", self._toggle_sync)
+        self.sync_action.setCheckable(True)
+        self.sync_action.setChecked(self.sync_preview)
         action(view_menu, "&Full Screen", self._toggle_full_screen, QKeySequence.StandardKey.FullScreen)
 
+        help_menu = bar.addMenu("&Help")
+        action(help_menu, "&Keyboard Shortcuts", self.show_shortcuts, "F1")
+        action(help_menu, "&Documentation", lambda: QDesktopServices.openUrl(QUrl(DOCS_URL)))
+        help_menu.addSeparator()
+        about = action(help_menu, "&About Markdown Cornell Notes", self.show_about)
+        about.setMenuRole(QAction.MenuRole.AboutRole)
+
     # --- Menu actions ---------------------------------------------------------
+
+    def show_shortcuts(self):
+        """Help > Keyboard Shortcuts: everything the keyboard (and a
+        double-click) does, in one place.
+        """
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Keyboard Shortcuts")
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(4)
+        mac = sys.platform == "darwin"
+        for section, entries in SHORTCUTS:
+            heading = label(section, "card-title")
+            heading.setContentsMargins(0, 8, 0, 2)
+            layout.addWidget(heading)
+            grid = QGridLayout()
+            grid.setHorizontalSpacing(24)
+            grid.setVerticalSpacing(3)
+            grid.setColumnMinimumWidth(0, 260)
+            for row, (keys, what) in enumerate(entries):
+                grid.addWidget(label(keys.replace("Ctrl", "⌘") if mac else keys, "mono"), row, 0)
+                grid.addWidget(label(what), row, 1)
+            layout.addLayout(grid)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(dialog.reject)
+        layout.addSpacing(8)
+        layout.addWidget(buttons)
+        dialog.exec()
+
+    def show_about(self):
+        QMessageBox.about(
+            self,
+            f"About {APP_NAME}",
+            f"<b>{APP_NAME}</b> {app_version()}<br><br>"
+            "Cornell-style meeting notes from Markdown, with a PDF preview.<br><br>"
+            f'<a href="{PROJECT_URL}">{PROJECT_URL}</a><br><br>'
+            "MIT licensed. Built with Qt (PySide6), CodeMirror, and PDF.js; PDFs are made with pandoc and LaTeX.",
+        )
 
     _WEB_ACTIONS = {
         "undo": WebAction.Undo,
@@ -526,7 +706,7 @@ class MainWindow(QMainWindow):
         scaffold = scaffold_if_missing and not project_root.exists()
         if scaffold:
             project_root.mkdir(parents=True)
-        self.api = Api(project_root, **self.api_options)
+        self.api = Api(project_root, trash=self.trash, **self.api_options)
         if scaffold:
             self.api.init_project()
         if self.packaged:
@@ -643,7 +823,7 @@ class MainWindow(QMainWindow):
         # Set the new project up before leaving the current one, so a
         # folder that can't take one leaves everything as it was.
         try:
-            candidate = Api(folder, **self.api_options)
+            candidate = Api(folder, trash=self.trash, **self.api_options)
             already_a_project = candidate.initialized()
             if not already_a_project:
                 candidate.init_project()
@@ -721,6 +901,149 @@ class MainWindow(QMainWindow):
 
     def _editor_edited(self):
         self.schedule_save()
+        # Only the notes' text sets an automatic render off, not the
+        # Details fields: the PDF is named after those, and rebuilding
+        # while one is half-typed would leave a trail of half-named PDFs.
+        if self.auto_render:
+            self._auto_timer.start()
+
+    # --- Auto-render ------------------------------------------------------------
+
+    def _toggle_auto_render(self):
+        self.auto_render = not self.auto_render
+        self.settings.setValue("autoRender", self.auto_render)
+        self.auto_render_action.setChecked(self.auto_render)
+        if self.auto_render:
+            self._auto_render_now()
+        else:
+            self._auto_timer.stop()
+
+    def _auto_render_now(self):
+        """Rebuild the PDF if the notes have changed since it was built
+        (or since the last attempt, so a note that doesn't build isn't
+        retried until it's edited).
+        """
+        if not self.auto_render or not self.selected or self.header is None:
+            return
+        if self.render_thread is not None:
+            self._auto_timer.start()  # one is running: look again after it
+            return
+        snap = self._current_snapshot()
+        if snap in (self.rendered.get(self.selected), self._auto_attempted):
+            return
+        self._auto_attempted = snap
+        self.render_pdf(automatic=True)
+
+    # --- Editor <-> preview sync ------------------------------------------------
+
+    def _toggle_sync(self):
+        self.sync_preview = not self.sync_preview
+        self.settings.setValue("syncPreview", self.sync_preview)
+        self.sync_action.setChecked(self.sync_preview)
+
+    def _cursor_moved(self, line):
+        self._cursor_line = line
+        if self.sync_preview and self.pdf:
+            self._sync_timer.start()
+
+    def _sync_preview_to_cursor(self):
+        """Scroll the preview to where the editor's cursor line is in the
+        PDF, if its text can be found there (see sync.py).
+        """
+        if not (self.sync_preview and self.pdf and self.header is not None):
+            return
+        snippets, fraction = sync.snippets_for_line(self.editor.doc, self._cursor_line)
+        self.pdf_view.reveal(snippets, fraction)
+
+    def _pdf_text_activated(self, text, fraction):
+        """Text double-clicked in the preview: put the editor's cursor on
+        the line it came from.
+        """
+        line = sync.line_for_text(self.editor.doc, text, fraction)
+        if line is not None:
+            # (Not echoed back: the preview is already there.)
+            self._cursor_line = line
+            self.editor.go_to_line(line)
+            self._sync_timer.stop()
+
+    def _toggle_pdf_find(self, shown=None):
+        """Show or hide the preview's search box."""
+        shown = (not self.pdf_find.isVisible()) if shown is None else bool(shown)
+        self.pdf_find_button.setChecked(shown)
+        self.pdf_find.setVisible(shown)
+        self.pdf_find_count.setVisible(shown)
+        if shown:
+            self.pdf_find.setFocus()
+            self.pdf_find.selectAll()
+            self.pdf_view.find(self.pdf_find.text())
+        else:
+            self.pdf_view.find("")
+
+    def _pdf_find_changed(self, current, total):
+        query = self.pdf_find.text()
+        self.pdf_find_count.setText(f"{current} of {total}" if total else ("No matches" if query else ""))
+
+    def open_pdf_externally(self):
+        """Hand the PDF to the system's own viewer -- which is where
+        printing, and anything else this preview doesn't do, is.
+        """
+        if not self.pdf:
+            return
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(self.pdf["path"])):
+            self.show_message(f"Couldn't open {self.pdf['name']} in another program.")
+
+    def update_asset_links(self, changes, ask=True):
+        """After assets were renamed or moved (`changes`: [(old, new, is
+        a folder)], paths relative to assets/): point the notes' links at
+        their new places -- offering first, unless `ask` is off. Returns
+        how many links were changed.
+        """
+        if not self.api.initialized():
+            return 0
+
+        def links_in(text):
+            return sum(rewrite_links(text, old, new, folder)[1] for old, new, folder in changes)
+
+        try:
+            notes = {}
+            for name in self.api.list_files():
+                # The open note as it is in the editor, saved or not.
+                text = self.editor.doc if name == self.selected else self.api.pipeline.read_markdown_file(name)
+                if links_in(text):
+                    notes[name] = links_in(text)
+            total = sum(notes.values())
+            if not total:
+                return 0
+            if ask:
+                links = "1 link" if total == 1 else f"{total} links"
+                where = "1 note" if len(notes) == 1 else f"{len(notes)} notes"
+                box = QMessageBox(
+                    QMessageBox.Icon.Question,
+                    "Update links",
+                    f"{links} in {where} still point at the old name. Update them?",
+                    parent=self,
+                )
+                box.setInformativeText("\n".join(f"{name}: {count}" for name, count in sorted(notes.items())))
+                update = box.addButton("Update Links", QMessageBox.ButtonRole.AcceptRole)
+                box.addButton("Leave as They Are", QMessageBox.ButtonRole.RejectRole)
+                box.exec()
+                if box.clickedButton() is not update:
+                    return 0
+            for old, new, folder in changes:
+                self.api.pipeline.rewrite_asset_links(old, new, folder, skip=[self.selected] if self.selected else [])
+            if self.selected in notes:
+                text = self.editor.doc
+                for old, new, folder in changes:
+                    text = rewrite_links(text, old, new, folder)[0]
+                self.editor.replace_doc(text)  # undoable, and saved like any edit
+            return total
+        except (PipelineError, OSError) as err:
+            self.show_message(str(err))
+            return 0
+
+    def _pdf_state_changed(self, pages, page, percent, scale):
+        self.pdf_controls.setVisible(pages > 0)
+        self.pdf_status.setText(f"{page} / {pages}   {percent}%" if pages else "")
 
     def schedule_save(self):
         self._save_timer.start()
@@ -958,9 +1281,12 @@ class MainWindow(QMainWindow):
         name = self.selected
         if not name:
             return
-        box = QMessageBox(QMessageBox.Icon.Warning, "Delete file", f"Delete {name}?", parent=self)
-        box.setInformativeText("Its header (yaml) goes with it. PDFs already built from it are kept.")
-        delete = box.addButton("Delete", QMessageBox.ButtonRole.DestructiveRole)
+        box = QMessageBox(QMessageBox.Icon.Warning, "Delete file", f"Move {name} to the trash?", parent=self)
+        box.setInformativeText(
+            "Its header (yaml) goes with it. PDFs already built from it are kept.\n"
+            "Where the system has no trash for this location, it's deleted for good."
+        )
+        delete = box.addButton("Move to Trash", QMessageBox.ButtonRole.DestructiveRole)
         box.setDefaultButton(box.addButton(QMessageBox.StandardButton.Cancel))
         box.exec()
         if box.clickedButton() is not delete:
@@ -983,9 +1309,13 @@ class MainWindow(QMainWindow):
 
     # --- Render + status ------------------------------------------------------
 
-    def render_pdf(self):
+    def render_pdf(self, automatic=False):
+        """Build the open note's PDF. `automatic`: started by auto-render
+        rather than the Render button, so a failure is reported quietly.
+        """
         if not self.selected or self.header is None or self.render_thread is not None:
             return
+        self._render_automatic = automatic
         self._save_timer.stop()
         self.render_button.setText("Rendering…")
         # Claimed before the editor answers, so a second click can't start
@@ -1015,6 +1345,10 @@ class MainWindow(QMainWindow):
             self.last_saved[file] = snap
         self.build_ok = result["ok"]
         self.build_log = result["log"]
+        # A build nobody asked for shouldn't push the notes down the
+        # window when it fails mid-sentence: the log is there, folded.
+        if not result["ok"]:
+            self.build_log_card.set_expanded(not self._render_automatic)
         if result["ok"]:
             self.rendered[file] = snap
         if result["pdf"] and self.selected == file:
@@ -1022,6 +1356,8 @@ class MainWindow(QMainWindow):
         self._update_file_controls()
         self._update_pdf()
         self._update_status()
+        if self.auto_render:
+            self._auto_timer.start()  # typed on while it built?
 
     def _wait_for_render(self):
         """Let a build in flight finish (it's using the project's files)."""

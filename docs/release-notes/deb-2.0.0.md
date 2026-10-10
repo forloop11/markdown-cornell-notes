@@ -21,12 +21,13 @@ sha256sum markdown-cornell-notes_2.0.0.deb
 
 ## Requirements
 
-- Debian 13 (trixie) or later, or Ubuntu 24.04 or later. Built for any
-  architecture (it contains no compiled code); tested on Debian 13.
-- On older releases the command-line build may still work, but their
-  pandoc is too old for some notes (strikethrough fails to build with
-  pandoc 2), and the editor needs PySide6 6.8 or later, which they don't
-  package.
+- Debian 13 (trixie) or later — the release it was tested on. It contains
+  no compiled code, so it installs on any architecture.
+- Ubuntu and other Debian-based systems are untested. The editor needs
+  PySide6 6.8 or later; Ubuntu 24.04 packages an older one, so there the
+  command-line build should work but the editor may not.
+- Older releases (Debian 12, Ubuntu 22.04) have a pandoc too old for some
+  notes: strikethrough fails to build with pandoc 2.
 
 ## Installing
 

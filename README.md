@@ -40,8 +40,8 @@ Ready-to-run editor apps, with everything needed to make PDFs built in:
   It hasn't been run on Windows yet and isn't code-signed; see its
   [release notes](docs/release-notes/windows-2.0.0.md) before trying it.
 
-- **Debian 13+ and Ubuntu 24.04+, using your system's own TeX Live and
-  pandoc:** [.deb package, version 2.0.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0) — a 1 MB package
+- **Debian 13+ (and Debian-based systems), using your system's own TeX
+  Live and pandoc:** [.deb package, version 2.0.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0) — a 1 MB package
   of the command-line tool and the editor; see its
   [release notes](docs/release-notes/deb-2.0.0.md).
 - **Fedora, using your system's own TeX Live and pandoc:**

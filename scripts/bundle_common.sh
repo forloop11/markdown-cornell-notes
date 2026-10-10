@@ -113,20 +113,14 @@ Python $PYTHON_VERSION, $2 (resources/python)
 EOF
 }
 
-# run_builder <electron-builder args...>: electron-builder inside its
-# container image (podman or docker), which has the Wine that editing a
-# Windows .exe's icon and version info needs.
-run_builder() {
+# run_in_builder <command...>: a command inside electron-builder's
+# container image (podman or docker), with the checkout at /project.
+run_in_builder() {
   local container="${CONTAINER:-$(command -v podman || command -v docker || true)}"
   if [ -z "$container" ]; then
     echo "Needs podman or docker to run electron-builder's image ($BUILDER_IMAGE)." >&2
     exit 1
   fi
-  if [ ! -d "$ROOT/app/node_modules/electron-builder" ]; then
-    echo "Run 'npm ci' in app/ first." >&2
-    exit 1
-  fi
-  echo "Packaging with electron-builder (in $BUILDER_IMAGE)..."
   mkdir -p "$CACHE/builder-cache"
   # label=disable: on SELinux hosts (e.g. Fedora), lets the container read
   # the bind mounts without relabeling the checkout.
@@ -136,5 +130,17 @@ run_builder() {
     -v "$CACHE/builder-cache":/root/.cache \
     -w /project/app \
     "$BUILDER_IMAGE" \
-    npx electron-builder "$@"
+    "$@"
+}
+
+# run_builder <electron-builder args...>: electron-builder in that image,
+# which has the Wine that editing a Windows .exe's icon and version info
+# needs.
+run_builder() {
+  if [ ! -d "$ROOT/app/node_modules/electron-builder" ]; then
+    echo "Run 'npm ci' in app/ first." >&2
+    exit 1
+  fi
+  echo "Packaging with electron-builder (in $BUILDER_IMAGE)..."
+  run_in_builder npx electron-builder "$@"
 }

@@ -2,10 +2,6 @@
 
 ![Demo of the editor app: typing a new section with a cue-column question and a summary line in Markdown, clicking Render, and the Cornell-notes PDF updating beside it](assets/markdown-cornell-notes-demo.gif)
 
----
-
-![Close-up of the Markdown editor beside the rendered Cornell-notes PDF](assets/README/screenshot_2.png)
-
 *The optional [editor app](docs/editor-app.md) — a desktop app for editing
 notes beside a live PDF preview, with autosave, one-click rendering, and
 light and dark themes.*
@@ -49,6 +45,9 @@ On Linux, or to use the command line, see [Quick start](#quick-start).
   - [Table of contents](#table-of-contents)
   - [Requirements](#requirements)
   - [Quick start](#quick-start)
+  - [Using the editor app](#using-the-editor-app)
+    - [Details card](#details-card)
+    - [Assets card](#assets-card)
   - [Documentation](#documentation)
   - [Other Makefile targets](#other-makefile-targets)
   - [License](#license)
@@ -102,6 +101,28 @@ a live PDF preview:
 cd app && npm install && cd ..   # once, to fetch Electron
 make app
 ```
+
+## Using the editor app
+
+### Details card
+
+The **Details** card holds the header printed at the top of every page:
+topic, date, start and end time, timezone, location, and attendees.
+Changes save as you type. Collapse the card to see a one-line summary
+instead. When you click **Render**, the PDF header updates, and the PDF is
+renamed after the new topic, date, and location.
+
+![Demo of the Details card: filling in the topic, date, times, timezone, location, and attendees, collapsing the card to its one-line summary, and rendering so the PDF header and file name update](assets/details-card-demo.gif)
+
+### Assets card
+
+The **Assets** card manages the images and other files your notes link to,
+kept in the project's `assets/` folder. Create folders, upload files, and
+click **Copy** next to a file to copy its path. Paste that path into an
+image or link in your notes, e.g. `![Pipeline](assets/diagrams/pipeline.png)`.
+Typing `](` in the editor also suggests asset paths.
+
+![Demo of the Assets card: creating a diagrams folder, uploading an image into it, copying its path into the notes as an image, and rendering so the image appears in the PDF](assets/assets-card-demo.gif)
 
 ## Documentation
 

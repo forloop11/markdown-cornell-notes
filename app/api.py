@@ -16,8 +16,8 @@ IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 
 
 class Api:
-    def __init__(self, project_root, repo_root=REPO_ROOT, tools=None):
-        self.pipeline = Pipeline(project_root, repo_root=repo_root, tools=tools)
+    def __init__(self, project_root, repo_root=REPO_ROOT, tools=None, trash=None):
+        self.pipeline = Pipeline(project_root, repo_root=repo_root, tools=tools, trash=trash)
         # Keys this window's own BUILDDIR (see render_file) so two app
         # windows rendering around the same time never race on the same
         # scratch directory.
@@ -163,6 +163,13 @@ class Api:
         except OSError as err:
             raise PipelineError(f"Couldn't autosave {filename}: {err}") from err
 
+    def rename_file(self, filename, new_name):
+        """Rename a note (its markdown file and header together),
+        returning (the filename actually used, the new file list).
+        """
+        file = self.pipeline.rename_markdown_file(filename, new_name)
+        return file, self.pipeline.list_markdown_files()
+
     def delete_file(self, filename):
         """Delete `filename` and its header, returning the new file list."""
         self.pipeline.delete_markdown_file(filename)
@@ -254,8 +261,15 @@ class Api:
         return self.asset_listing(subdir)
 
     def rename_asset_folder(self, subdir, name, new_name):
-        self.pipeline.rename_asset_folder(name, new_name, subdir)
-        return self.asset_listing(subdir)
+        used = self.pipeline.rename_asset_folder(name, new_name, subdir)
+        return {**self.asset_listing(subdir), "name": used}
+
+    def rename_asset(self, subdir, name, new_name):
+        """Rename a file in assets/<subdir>; the listing's "name" is the
+        name it actually got.
+        """
+        used = self.pipeline.rename_asset(name, new_name, subdir)
+        return {**self.asset_listing(subdir), "name": used}
 
     def delete_asset_folder(self, subdir, name):
         self.pipeline.delete_asset_folder(name, subdir)

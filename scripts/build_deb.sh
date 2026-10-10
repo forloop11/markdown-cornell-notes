@@ -43,6 +43,12 @@ rsync -a \
   "$REPO_ROOT/assets" "$REPO_ROOT/docs" \
   "$STAGE/usr/share/$PKG_NAME/"
 
+# An application-menu entry for the editor app, with its icon. Started
+# from there, the app has no project directory to be run from, so it opens
+# the last project used (--desktop; see app/main.py).
+install -D -m 644 "$REPO_ROOT/app/build-resources/$PKG_NAME.desktop" "$STAGE/usr/share/applications/$PKG_NAME.desktop"
+install -D -m 644 "$REPO_ROOT/app/build-resources/icon.png" "$STAGE/usr/share/icons/hicolor/512x512/apps/$PKG_NAME.png"
+
 cat > "$STAGE/usr/bin/$PKG_NAME" <<EOF
 #!/bin/sh
 # No -C: keep the caller's CWD as the project directory (see "make init")

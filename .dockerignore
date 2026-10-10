@@ -1,7 +1,8 @@
 .git
 build
 dist
-__pycache__
+**/__pycache__
+**/.pytest_cache
 *.aux
 *.log
 *.fls

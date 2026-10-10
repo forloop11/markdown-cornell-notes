@@ -18,6 +18,12 @@ app/.venv/bin/pip install -r app/requirements.txt
 make app
 ```
 
+Installed from the `.deb` or the RPM, the editor is also in your
+application menu as **Markdown Cornell Notes**. Started from there it has
+no project directory to open, so it behaves like the standalone builds:
+it opens the project you used last, or a `Cornell Notes` folder in
+Documents the first time.
+
 Without an `app/.venv`, `make app` runs with plain `python3`, for a
 PySide6 installed system-wide; `make app APP_PYTHON=/path/to/python` names
 another interpreter. From an installed `.deb`, whose `app/` is read-only,
@@ -35,7 +41,14 @@ Apple Silicon, and the
 Python, Qt, pandoc, and TeX instead, and keep their project in
 `Documents/Cornell Notes` rather than a directory you start them from.
 
-The window shows the project folder in its title bar. **File > Open
+The window shows the project folder in its title bar. **File > New
+Project…** (Ctrl+Shift+N) starts a fresh project: pick or create a folder
+anywhere, and the app sets it up with the example notes (the same files
+`make init` creates) and switches to it. It won't overwrite anything: a
+folder that already has an `md`, `yaml`, `settings`, `pdf`, or `assets`
+folder is refused with a message, unless it's already a notes project, in
+which case it's simply opened. **File > Open Recent** lists the other
+projects you've had open lately, to switch back with one click. **File > Open
 Project Folder…** (Ctrl+O) switches to a different folder, and **File >
 Show Project Folder** opens the current one in your file manager. If the
 folder isn't a project yet (no `md/` and `yaml/`), the app says so and
@@ -43,8 +56,8 @@ offers to set one up there — the same files `make init` creates — or to
 open another folder. Closing the window ends the app; anything typed since
 the last autosave is saved first.
 
-**Linux sandbox note:** the editor and PDF preview panes are drawn by Qt
-WebEngine, which is built on Chromium and sandboxes it. On distributions
+**Linux sandbox note:** the editor and PDF preview panes are web pages
+shown by Qt WebEngine, which is built on Chromium and sandboxes it. On distributions
 that restrict unprivileged user namespaces (Ubuntu 24.04 and later, via
 AppArmor), it can refuse to start with an error about that sandbox. Either
 allow it the usual way for your distribution, or start the app without
@@ -65,8 +78,8 @@ of the desktop (or back to **System**), and the app remembers the choice.
 The editor pane keeps its own dark theme in every mode.
 
 Along the top, an app bar stays pinned while you scroll. On the left are
-the dropdown to switch between the files in `md/` and **+** (new file) /
-trash (delete file) buttons; on the right, a status area,
+the dropdown to switch between the files in `md/` and **+** (new file),
+pencil (rename file), and trash (delete file) buttons; on the right, a status area,
 **Download PDF**, and **Render**. The status area shows a small
 "Saved"/"Saving…" autosave indicator, a "Preview out of date" chip (see
 below), and — once you've clicked Render — a success/failure chip. On
@@ -93,9 +106,15 @@ Explorer** (Ctrl+B); the app remembers which. In it:
   is relative to the project, as the build expects. Ctrl+C on the selected
   file (or files — one link per line) copies the same.
 - **Right-click** for Copy Markdown Link, Copy Path (just
-  `assets/diagrams/flow.png`), Rename (folders), Delete (with a
+  `assets/diagrams/flow.png`), Rename (F2 does the same), Delete (with a
   confirmation; several selected items at once works too), New Folder, Add
   Files, and Show in File Manager.
+
+When you rename or move an asset that notes link to, the app offers to
+update those links — in every note in the project, including the one
+that's open (as an edit you can undo). It lists how many links in which
+notes before changing anything. Only link and image targets are touched,
+not the same words in ordinary text.
 
 Names are tidied the same way as everywhere else in the app (spaces and
 other unsafe characters become `-`), and changes made to `assets/` outside
@@ -131,6 +150,19 @@ The header form is per markdown file — each `md/<stem>.md` has its own
 paired `yaml/<stem>.yaml`, so switching files in the dropdown also switches
 the header fields shown, and creating a file creates a blank paired yaml
 alongside it (deleting a file removes its yaml too).
+
+Deleting a note or an asset moves it to the system's trash, so a wrong
+click can be undone from there. Where the system has no trash for the
+project's location (some network and removable drives), it's deleted for
+good; the confirmation says so.
+
+A new note starts from a short template — a heading, a line of text, a
+cue note, and a summary note — to write over.
+
+Renaming a note (the pencil button, or **File > Rename Note…**) renames
+its markdown file and its header together, and leaves what's in the editor
+alone. PDFs already built from it keep their names, which come from the
+topic, date, and location rather than the file's name.
 
 The **File** menu moves notes in and out of the project:
 
@@ -170,11 +202,47 @@ changed since that file's last render in this window. Header fields and markdown
 both autosave to disk continuously as you edit (about half a second after
 you stop typing, or as soon as the editor loses focus) rather than only on
 Render, so switching files or closing the window doesn't lose unsaved work.
-The preview opens fitted to the pane — the whole page visible at once,
-however the window is sized — with the viewer's page-thumbnail
-sidebar closed; its menu button (top left of the preview) toggles it, and
-its toolbar has zoom and fit-to-width buttons.
-Links clicked inside the PDF preview open in your web browser.
+The preview is [PDF.js](https://mozilla.github.io/pdf.js/), Mozilla's
+PDF viewer, with its controls in the pane's header: the current page of
+how many, the zoom, then buttons to zoom out and in, fit the whole page,
+and fit the page's width. It opens with the whole page fitted, and text
+in it can be selected and copied. Links clicked inside it open in your web
+browser.
+
+Two more buttons sit at the end of that row. The magnifier opens a
+search box for the PDF: matches are highlighted and counted, Enter and
+Shift+Enter step through them, and Esc closes it. The last button opens
+the PDF in your system's own PDF viewer, which is where to print it from
+(**File > Open PDF in System Viewer**, Ctrl+P, does the same).
+
+**It keeps its place.** After a Render the preview stays at the zoom and
+scroll position it had, rather than going back to the top of page 1, so
+you can work on page 3 and watch page 3. Only opening a different note's
+PDF starts from the top again.
+
+**It follows the editor, and the editor follows it.** When the cursor
+comes to rest on a line, the preview scrolls to where that line's text is
+in the PDF and briefly marks it; double-clicking text in the preview puts
+the editor's cursor on the line it came from. **View > Sync Preview with
+Editor** turns the first of those off.
+
+**It can rebuild itself.** With **View > Auto-Render as You Type** on,
+the PDF is rebuilt about a second and a half after you stop typing in the
+editor, so the preview follows your notes without clicking Render. It's
+off to begin with. Two things it deliberately doesn't do: edits to the
+Details fields don't trigger it (the PDF is named after them, and
+rebuilding mid-word would leave a trail of half-named PDFs — click Render
+when the details are right), and a note that fails to build is tried
+once, with its log folded away under the app bar, then left until you
+edit it again.
+
+The match is by text, since nothing records which Markdown line became
+which part of which page: the app looks for the line's opening words in
+the PDF. So it's approximate. It works for headings and ordinary
+sentences; a phrase that appears more than once is told apart only by how
+far through the notes it is; and tables, math, and anything edited since
+the last Render may not be found, in which case the preview just stays
+where it is.
 
 The editor itself is [CodeMirror](https://codemirror.net/), with syntax
 highlighting for Markdown, inline/raw HTML, and fenced ` ```html `/
@@ -183,6 +251,15 @@ the window that's a web page (`app/web/`) — which is also what gives it
 Chromium's built-in spellcheck: misspelled words get the usual squiggly
 underline, and the right-click menu offers spelling suggestions.
 **View > Zoom Editor In/Out** changes its text size.
+
+**Help > Keyboard Shortcuts** (F1) lists everything the keyboard does in
+the app.
+
+**Edit > Find and Replace…** (Ctrl+F, also from inside the editor) opens a
+search panel along the editor's top: Enter and Shift+Enter step through
+the matches, which are all highlighted; **replace** and **replace all**
+change them; and it can match case, whole words, or a regular expression.
+Esc closes it. Selecting a word also highlights its other occurrences.
 
 Spellcheck needs a dictionary. The standalone builds come with US English;
 run any other way, the app has none until you give it one. In both cases
@@ -194,15 +271,16 @@ for it. The Chromium project publishes ready-made ones in its
 [hunspell_dictionaries](https://chromium.googlesource.com/chromium/deps/hunspell_dictionaries/)
 repository.
 
-The editor's JS is vendored (`app/web/editor.js`) rather than loaded from
-a CDN, so the app works offline and never needs Node.js to run; only
-rebuilding that bundle does. If you edit `app/frontend_src/editor.js`,
-rebuild it with:
+The editor's and the preview's JS is vendored (`app/web/editor.js`,
+`app/web/pdfviewer.js`) rather than loaded from a CDN, so the app works
+offline and never needs Node.js to run; only rebuilding those bundles
+does. If you edit `app/frontend_src/editor.js` or `pdfviewer.js`, rebuild
+them with:
 
 ```sh
 cd app
 npm install
-npm run build:editor
+npm run build      # or build:editor / build:pdf for one of them
 ```
 
 ## Formatting toolbar

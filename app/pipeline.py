@@ -33,6 +33,23 @@ HEADER_COMMENT = (
 
 _SAFE_STEM_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
+# What a new note starts as: enough of the format to write on from, without
+# opening the example notes to remember how a cue or a summary goes.
+NEW_NOTE = """\
+# New notes
+
+Write your notes here, in Markdown.
+
+^1 A question or keyword for the cue column (the 1 is the page it goes on)
+
+^^1 A one-line summary for the band at the bottom of page 1
+"""
+
+# A link's or image's target in markdown, when it's an asset: the path
+# after "](", either bare (up to the ")", a space, or a #fragment) or in
+# <...>, as a path with spaces has to be. Group 1 is the path either way.
+_LINK_TARGET_RE = re.compile(r"(?<=\]\()(?:<(assets/[^>\n]*)>|(assets/[^)\s#?<>]*))")
+
 # The files `make init` copies into a fresh project: (source under
 # repo_root, destination under project_root).
 INIT_FILES = [
@@ -199,10 +216,17 @@ class Pipeline:
     (e.g. the standalone builds' bundled pandoc and TeX directories -- see
     main.py), and "direct_build" runs the build steps here instead of via
     `make` (always the case on Windows).
+
+    `trash` is how to move a file or folder to the system's trash (the app
+    passes Qt's); without one, deletions are permanent.
     """
 
-    def __init__(self, project_root, repo_root=REPO_ROOT, tools=None):
+    def __init__(self, project_root, repo_root=REPO_ROOT, tools=None, trash=None):
         tools = tools or {}
+        # trash(path) -> whether it moved the file or folder to the
+        # system's trash. With one, deleting a note or an asset goes there
+        # instead of being permanent (see _remove).
+        self.trash = trash
         self.project_root = Path(os.path.abspath(project_root))
         self.repo_root = Path(repo_root)
         self.python = tools.get("python") or _default_python()
@@ -303,8 +327,32 @@ class Pipeline:
         path = self.md_dir / filename
         if path.exists():
             raise PipelineError(f"{filename} already exists.")
-        _write_text(path, "# New notes\n")
+        _write_text(path, NEW_NOTE)
         self.write_header(filename, {field: "" for field in HEADER_FIELDS})
+        return filename
+
+    def rename_markdown_file(self, name, new_name):
+        """Rename `name` (one of list_markdown_files()) and its paired
+        header yaml after the sanitized stem of `new_name`, returning the
+        filename actually used. PDFs already built keep their names (they
+        come from the header, not from this one).
+        """
+        if name not in self.list_markdown_files():
+            raise PipelineError(f"{name} not found.")
+        filename = self.markdown_name_for(new_name)
+        if filename == name:
+            return name
+        old_path, new_path = self.md_dir / name, self.md_dir / filename
+        old_yaml, new_yaml = self.yaml_path_for(name), self.yaml_path_for(filename)
+        # (samefile: a change of capitals only, where the file system
+        # doesn't tell those apart, isn't a collision.)
+        if new_path.exists() and not new_path.samefile(old_path):
+            raise PipelineError(f"{filename} already exists.")
+        if new_yaml.exists() and not (old_yaml.exists() and new_yaml.samefile(old_yaml)):
+            raise PipelineError(f"yaml/{new_yaml.name} already exists.")
+        old_path.rename(new_path)
+        if old_yaml.exists():
+            old_yaml.rename(new_yaml)
         return filename
 
     def delete_markdown_file(self, name):
@@ -316,8 +364,9 @@ class Pipeline:
             raise PipelineError(f"{name} not found.")
         if len(files) <= 1:
             raise PipelineError("Can't delete the last remaining markdown file.")
-        (self.md_dir / name).unlink()
-        self.yaml_path_for(name).unlink(missing_ok=True)
+        self._remove(self.md_dir / name)
+        if self.yaml_path_for(name).exists():
+            self._remove(self.yaml_path_for(name))
 
     def markdown_path(self, name):
         """md/<name>, for an existing markdown file `name`."""
@@ -399,7 +448,24 @@ class Pipeline:
         path = self.resolve_asset_dir(subdir) / name
         if not path.is_file():
             raise PipelineError(f"{name} not found in {_display_dir(subdir)}/.")
-        path.unlink()
+        self._remove(path)
+
+    def rename_asset(self, old_name, new_name, subdir=""):
+        """Rename the file assets/<subdir>/<old_name> to the sanitized form
+        of `new_name`, returning the name actually used. Notes that link to
+        it aren't touched.
+        """
+        _check_plain_name(old_name)
+        base = self.resolve_asset_dir(subdir)
+        old_path = base / old_name
+        if not old_path.is_file():
+            raise PipelineError(f"{old_name} not found in {_display_dir(subdir)}/.")
+        safe_name = _sanitize_name(new_name)
+        new_path = base / safe_name
+        if new_path != old_path and new_path.exists() and not new_path.samefile(old_path):
+            raise PipelineError(f"{safe_name} already exists in {_display_dir(subdir)}/.")
+        old_path.rename(new_path)
+        return safe_name
 
     def move_asset(self, name, src_subdir, dest_subdir):
         """Move assets/<src_subdir>/<name> into assets/<dest_subdir>/,
@@ -443,7 +509,54 @@ class Pipeline:
         path = self.resolve_asset_dir(subdir) / name
         if not path.is_dir():
             raise PipelineError(f"{name} not found in {_display_dir(subdir)}/.")
-        shutil.rmtree(path)
+        self._remove(path)
+
+    def _remove(self, path):
+        """Delete the file or folder at `path`: to the system's trash where
+        that's possible (so it can be brought back), for good where it
+        isn't -- no trash was given, or the system has none for this
+        location (some network and removable drives).
+        """
+        if self.trash is not None:
+            try:
+                if self.trash(str(path)) and not path.exists():
+                    return
+            except OSError:
+                pass
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+
+    def asset_link_counts(self, old, new, folder=False):
+        """How many links each note has to asset `old` (a path relative to
+        assets/, e.g. "diagrams/flow.png") that rewrite_asset_links would
+        point at `new`: {markdown filename: count}, notes with none left
+        out.
+        """
+        counts = {}
+        for name in self.list_markdown_files():
+            _, count = rewrite_links(self.read_markdown_file(name), old, new, folder)
+            if count:
+                counts[name] = count
+        return counts
+
+    def rewrite_asset_links(self, old, new, folder=False, skip=()):
+        """Point every note's links to asset `old` at `new` instead -- for
+        after the asset was renamed or moved. With `folder`, they're
+        folders, and links to everything inside follow. Notes named in
+        `skip` are left alone (the one open in the editor, which changes
+        its own text). Returns how many links changed.
+        """
+        total = 0
+        for name in self.list_markdown_files():
+            if name in skip:
+                continue
+            text, count = rewrite_links(self.read_markdown_file(name), old, new, folder)
+            if count:
+                self.write_markdown_file(name, text)
+                total += count
+        return total
 
     def topic_slug(self, yaml_path):
         """The output PDF's base filename (the latexmk jobname) for the
@@ -616,6 +729,34 @@ class Pipeline:
         for suffix in LATEX_AUX_SUFFIXES:
             (self.pdf_dir / f"{jobname}{suffix}").unlink(missing_ok=True)
         return out
+
+
+def rewrite_links(markdown, old, new, folder=False):
+    """`markdown` with its links and images that point at asset `old` (a
+    path relative to assets/) pointing at `new`, and how many there were:
+    (text, count). With `folder`, `old` and `new` are folders, and links
+    to anything under `old` follow it. Only link targets change -- the
+    same words in prose, or in a code block's text, are left alone.
+    """
+    old_path, new_path = f"assets/{old}", f"assets/{new}"
+    count = 0
+
+    def swap(match):
+        nonlocal count
+        bracketed = match.group(1) is not None
+        target = match.group(1) if bracketed else match.group(2)
+        if folder:
+            if not target.startswith(old_path + "/"):
+                return match.group(0)
+            target = new_path + target[len(old_path) :]
+        elif target != old_path:
+            return match.group(0)
+        else:
+            target = new_path
+        count += 1
+        return f"<{target}>" if bracketed else target
+
+    return _LINK_TARGET_RE.sub(swap, markdown), count
 
 
 def _write_text(path, text):

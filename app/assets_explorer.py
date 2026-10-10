@@ -91,6 +91,10 @@ class AssetsTree(QTreeView):
 
 class AssetsExplorer(QFrame):
     changed = Signal()  # something under assets/ changed (here or outside the app)
+    # Files or folders were renamed or moved here: [(old path, new path,
+    # is a folder)], paths relative to assets/. Links to them in notes are
+    # now out of date.
+    moved = Signal(list)
     failed = Signal(str)  # an operation's error message
 
     def __init__(self):
@@ -128,6 +132,8 @@ class AssetsExplorer(QFrame):
         # Ctrl+C on the selected file: its link, ready to paste into the editor.
         copy = QShortcut(QKeySequence.StandardKey.Copy, self.tree, context=Qt.ShortcutContext.WidgetShortcut)
         copy.activated.connect(self._copy_selected)
+        rename = QShortcut(QKeySequence(Qt.Key.Key_F2), self.tree, context=Qt.ShortcutContext.WidgetShortcut)
+        rename.activated.connect(self._rename_selected)
         layout.addWidget(self.tree, 1)
 
         self._hint = label("", "explorer-hint")
@@ -228,22 +234,54 @@ class AssetsExplorer(QFrame):
         if self._run(lambda: self.api.add_assets(subdir, paths)):
             self.tree.expand(self.model.index(folder))
 
-    def rename_folder(self, path):
+    def rename(self, path, new_name=None):
+        """Rename the file or folder at `path` -- asking for the new name
+        unless one is given. Links to it in notes aren't rewritten.
+        """
         parent, name = self.subdir(str(Path(path).parent)), Path(path).name
+        is_folder = Path(path).is_dir()
+        operation = self.api.rename_asset_folder if is_folder else self.api.rename_asset
+        def report(listing):
+            old = f"{parent}/{name}" if parent else name
+            new = f"{parent}/{listing['name']}" if parent else listing["name"]
+            if new != old:
+                self.moved.emit([(old, new, is_folder)])
+
+        if new_name is not None:
+            try:
+                listing = operation(parent, name, new_name)
+            except (PipelineError, OSError) as err:
+                self.failed.emit(str(err))
+                return
+            self._notify.start()
+            report(listing)
+            return
         dialog = NameDialog(
-            self, "Rename folder", "New name", "Rename", lambda new: self.api.rename_asset_folder(parent, name, new), text=name
+            self,
+            "Rename folder" if is_folder else "Rename file",
+            "New name",
+            "Rename",
+            lambda new: operation(parent, name, new),
+            text=name,
         )
         if dialog.exec():
             self._notify.start()
+            report(dialog.result_value)
+
+    def _rename_selected(self):
+        paths = self.selected_paths()
+        if len(paths) == 1:
+            self.rename(paths[0])
 
     def delete(self, paths):
         """Delete the files and folders at `paths`, after asking."""
         names = [Path(p).name for p in paths]
         folders = [p for p in paths if Path(p).is_dir()]
         what = f"“{names[0]}”" if len(names) == 1 else f"these {len(names)} items"
-        text = f"Delete {what}?" if not folders else f"Delete {what}, and everything inside?"
+        text = f"Move {what} to the trash?" if not folders else f"Move {what}, and everything inside, to the trash?"
         box = QMessageBox(QMessageBox.Icon.Warning, "Delete", text, parent=self)
-        delete = box.addButton("Delete", QMessageBox.ButtonRole.DestructiveRole)
+        box.setInformativeText("Where the system has no trash for this location, they're deleted for good.")
+        delete = box.addButton("Move to Trash", QMessageBox.ButtonRole.DestructiveRole)
         box.setDefaultButton(box.addButton(QMessageBox.StandardButton.Cancel))
         box.exec()
         if box.clickedButton() is not delete:
@@ -260,14 +298,20 @@ class AssetsExplorer(QFrame):
         there, ones from anywhere else are copied in.
         """
         assets, dest = self._assets_dir(), self.subdir(folder)
-        outside = []
+        outside, moves = [], []
         for path in map(Path, paths):
             if assets not in path.parents:
                 outside.append(str(path))
             elif path.is_dir():
                 self.failed.emit(f"{path.name} is a folder; only files can be moved.")
             elif path.parent != Path(folder):
-                self._run(lambda: self.api.move_assets(self.subdir(str(path.parent)), [path.name], dest))
+                source = self.subdir(str(path.parent))
+                self._run(lambda: self.api.move_assets(source, [path.name], dest))
+                if not path.exists():  # it went (a name already taken there stays put)
+                    old = f"{source}/{path.name}" if source else path.name
+                    moves.append((old, f"{dest}/{path.name}" if dest else path.name, False))
+        if moves:
+            self.moved.emit(moves)
         if outside:
             self.add_files(outside, folder)
         self.tree.expand(self.model.index(folder))
@@ -329,8 +373,7 @@ class AssetsExplorer(QFrame):
             target = targets[0]
             menu.addAction("Copy Markdown Link", lambda: self.copy_link(target))
             menu.addAction("Copy Path", lambda: self.copy_path(target))
-            if Path(target).is_dir():
-                menu.addAction("Rename…", lambda: self.rename_folder(target))
+            menu.addAction("Rename…", lambda: self.rename(target))
         if targets:
             menu.addAction("Delete…", lambda: self.delete(targets))
             menu.addSeparator()

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- The PDF preview pane (see ../webviews.py's PdfView): PDF.js showing
+     the PDF the app hands it. Only this folder's own scripts and Qt's
+     bundled qwebchannel.js run; PDF.js draws pages on canvases, with
+     fonts and images it builds in memory (data: and blob:). -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' qrc:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src data: blob:">
+<title>PDF preview</title>
+<link rel="stylesheet" href="pdf_viewer.css">
+<link rel="stylesheet" href="pdf.css">
+<script src="qrc:///qtwebchannel/qwebchannel.js" defer></script>
+<script src="pdfviewer.js" defer></script>
+<script src="pdf_bridge.js" defer></script>
+</head>
+<body>
+<div id="viewerContainer" tabindex="0">
+  <div id="viewer" class="pdfViewer"></div>
+</div>
+</body>
+</html>

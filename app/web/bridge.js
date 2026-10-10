@@ -16,6 +16,7 @@ new QWebChannel(qt.webChannelTransport, (channel) => {
     height: window.innerHeight,
     onChange: (doc) => bridge.docChanged(generation, doc),
     onBlur: () => bridge.blurred(),
+    onCursor: (line, lines) => bridge.cursorMoved(generation, line, lines),
   });
   window.addEventListener("resize", () => CodeEditor.setHeight(window.innerHeight));
 

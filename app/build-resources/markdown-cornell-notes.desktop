@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Markdown Cornell Notes
+GenericName=Meeting Notes Editor
+Comment=Cornell-style meeting notes from Markdown, with a live PDF preview
+Exec=markdown-cornell-notes app APP_FLAGS=--desktop
+Icon=markdown-cornell-notes
+Terminal=false
+Categories=Office;
+Keywords=notes;markdown;cornell;pdf;latex;
+StartupWMClass=markdown-cornell-notes

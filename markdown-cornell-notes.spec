@@ -5,7 +5,7 @@
 #
 # Keep Version in step with app/package.json.
 Name:           markdown-cornell-notes
-Version:        2.0.0
+Version:        2.2.0
 Release:        1%{?dist}
 Summary:        Cornell-style meeting notes generator (LaTeX/Markdown)
 
@@ -73,12 +73,27 @@ exec make -f /usr/share/markdown-cornell-notes/Makefile "$@"
 LAUNCHER
 chmod 755 %{buildroot}%{_bindir}/%{name}
 
+# An application-menu entry for the editor app, with its icon. Started
+# from there, the app opens the last project used (--desktop; see
+# app/main.py), there being no project directory to run it from.
+install -D -m 644 app/build-resources/%{name}.desktop %{buildroot}%{_datadir}/applications/%{name}.desktop
+install -D -m 644 app/build-resources/icon.png %{buildroot}%{_datadir}/icons/hicolor/512x512/apps/%{name}.png
+
 %files
 %license LICENSE
 %doc README.md
 %{_bindir}/%{name}
 %{_datadir}/%{name}/
+%{_datadir}/applications/%{name}.desktop
+%{_datadir}/icons/hicolor/512x512/apps/%{name}.png
 
 %changelog
+* Sat Oct 10 2026 Todd C. Takala <todd.c.takala@gmail.com> - 2.2.0-1
+- Version 2.2.0; see docs/release-notes/2.2.0.md.
+
+* Sat Oct 10 2026 Todd C. Takala <todd.c.takala@gmail.com> - 2.1.0-1
+- Editor: find and replace, renaming notes and asset files, File > New
+  Project and Open Recent.
+
 * Sat Oct 10 2026 Todd C. Takala <todd.c.takala@gmail.com> - 2.0.0-1
 - First RPM package. The editor app is now built on Qt (PySide6).

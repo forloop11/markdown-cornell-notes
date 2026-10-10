@@ -1,0 +1,5 @@
+# The editor app (app/main.py); `make build` and the rest of the command
+# line need none of this. Tested with PySide6 6.8 and 6.12.
+PySide6>=6.8
+# zoneinfo has no system time zone database to read on Windows.
+tzdata; sys_platform == "win32"

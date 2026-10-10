@@ -1,0 +1,54 @@
+/* The editor pane's page: a toolbar over a CodeMirror editor, filling the
+   web view. Fixed Dracula colors to match the editor's theme in
+   ../frontend_src/editor.js, regardless of the app's light/dark mode. */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #282a36;
+}
+
+#toolbar {
+  /* border-box: its rendered height (offsetHeight) is subtracted from the
+     view's height in editor.js's setHeight(), so padding/border must count
+     as part of that measured height rather than adding on top of it. */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  row-gap: 4px;
+  padding: 5px 6px;
+  background: #21222c;
+  border-bottom: 1px solid #44475a;
+}
+#toolbar button {
+  background: transparent;
+  border: none;
+  color: #c8cad6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 5px 8px;
+  border-radius: 4px;
+  line-height: 1;
+  cursor: pointer;
+}
+#toolbar button:hover { background: #44475a; color: #f8f8f2; }
+#toolbar .divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 3px 5px;
+  background: #44475a;
+}
+
+#editor {
+  overflow: hidden;
+  background: #282a36;
+  font: 14px ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+#editor .cm-editor { height: 100%; }
+#editor .cm-editor.cm-focused { outline: none; }
+#editor .cm-scroller { overflow: auto; }

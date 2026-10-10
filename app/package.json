@@ -2,16 +2,9 @@
   "name": "markdown-cornell-notes-editor",
   "private": true,
   "version": "1.0.0",
-  "description": "Electron desktop editor for markdown-cornell-notes. Run with `make app` from a project directory; see docs/editor-app.md.",
-  "main": "main.js",
-  "desktopName": "markdown-cornell-notes.desktop",
+  "description": "Builds the CodeMirror bundle (web/editor.js) for the markdown-cornell-notes editor app. The app itself is Python (PySide6) and doesn't need Node.js to run; see docs/editor-app.md.",
   "scripts": {
-    "start": "electron .",
-    "build:editor": "esbuild frontend_src/editor.js --bundle --minify --format=iife --outfile=renderer/editor.js",
-    "test": "node --test \"test/*.test.js\"",
-    "dist:win": "electron-builder --win nsis --x64 --publish never",
-    "dist:mac": "electron-builder --mac dir --arm64 --publish never",
-    "dist:linux": "electron-builder --linux AppImage --x64 --publish never"
+    "build:editor": "esbuild frontend_src/editor.js --bundle --minify --format=iife --outfile=web/editor.js"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -23,144 +16,9 @@
     "@codemirror/state": "^6.4.1",
     "@codemirror/view": "^6.34.1",
     "@lezer/highlight": "^1.2.1",
-    "electron": "^44.6.0",
-    "electron-builder": "^26.15.3",
     "esbuild": "^0.24.0"
   },
   "author": "Todd C. Takala",
   "homepage": "https://github.com/forloop11/markdown-cornell-notes",
-  "license": "MIT",
-  "build": {
-    "appId": "io.github.forloop11.markdown-cornell-notes",
-    "productName": "Markdown Cornell Notes",
-    "copyright": "Copyright © Todd C. Takala",
-    "directories": {
-      "output": "../dist/windows",
-      "buildResources": "build-resources"
-    },
-    "files": [
-      "main.js",
-      "preload.js",
-      "lib/**",
-      "renderer/**",
-      "package.json"
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "build-resources/icon.png",
-      "extraResources": [
-        {
-          "from": "../dist/windows-stage/pipeline",
-          "to": "pipeline"
-        },
-        {
-          "from": "../dist/windows-stage/python",
-          "to": "python"
-        },
-        {
-          "from": "../dist/windows-stage/pandoc",
-          "to": "pandoc"
-        },
-        {
-          "from": "../dist/windows-stage/texlive",
-          "to": "texlive"
-        },
-        {
-          "from": "../dist/windows-stage/THIRD-PARTY-NOTICES.txt",
-          "to": "THIRD-PARTY-NOTICES.txt"
-        }
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Markdown Cornell Notes",
-      "artifactName": "Markdown-Cornell-Notes-Setup-${version}.exe",
-      "license": "../dist/windows-stage/LICENSE.txt"
-    },
-    "mac": {
-      "target": [
-        {
-          "target": "dir",
-          "arch": [
-            "arm64"
-          ]
-        }
-      ],
-      "category": "public.app-category.productivity",
-      "icon": "build-resources/icon.png",
-      "identity": null,
-      "hardenedRuntime": false,
-      "extraResources": [
-        {
-          "from": "../dist/macos-stage/pipeline",
-          "to": "pipeline"
-        },
-        {
-          "from": "../dist/macos-stage/python",
-          "to": "python"
-        },
-        {
-          "from": "../dist/macos-stage/pandoc",
-          "to": "pandoc"
-        },
-        {
-          "from": "../dist/macos-stage/texlive",
-          "to": "texlive"
-        },
-        {
-          "from": "../dist/macos-stage/THIRD-PARTY-NOTICES.txt",
-          "to": "THIRD-PARTY-NOTICES.txt"
-        }
-      ]
-    },
-    "linux": {
-      "target": [
-        {
-          "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "category": "Office",
-      "icon": "build-resources/icon.png",
-      "executableName": "markdown-cornell-notes",
-      "synopsis": "Cornell-style meeting notes from Markdown, with a live PDF preview",
-      "artifactName": "Markdown-Cornell-Notes-${version}-x86_64.AppImage",
-      "extraResources": [
-        {
-          "from": "../dist/linux-stage/pipeline",
-          "to": "pipeline"
-        },
-        {
-          "from": "../dist/linux-stage/python",
-          "to": "python"
-        },
-        {
-          "from": "../dist/linux-stage/pandoc",
-          "to": "pandoc"
-        },
-        {
-          "from": "../dist/linux-stage/texlive",
-          "to": "texlive"
-        },
-        {
-          "from": "../dist/linux-stage/THIRD-PARTY-NOTICES.txt",
-          "to": "THIRD-PARTY-NOTICES.txt"
-        }
-      ],
-      "syncDesktopName": true
-    }
-  }
+  "license": "MIT"
 }

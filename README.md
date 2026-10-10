@@ -1,10 +1,10 @@
 # Markdown Cornell Notes
 
-![Demo of the editor app: typing a new section with a cue-column question and a summary line in Markdown, clicking Render, and the Cornell-notes PDF updating beside it](assets/markdown-cornell-notes-demo.gif)
+![Tutorial: filling in the meeting details, writing notes in Markdown with a cue and a summary line, clicking Render to build the Cornell-notes PDF, adding an image through the assets explorer and pasting its link into the notes, rendering again, then hiding the explorer and switching to dark mode](assets/tutorial.gif)
 
-*The optional [editor app](docs/editor-app.md) — a desktop app for editing
-notes beside a live PDF preview, with autosave, one-click rendering, and
-light and dark themes.*
+*The optional [editor app](docs/editor-app.md) — a desktop app for writing
+notes beside their PDF, with autosave, one-click rendering, an assets
+explorer, and light and dark themes.*
 
 A Cornell-style meeting notes template for LaTeX. Each page has a header
 (topic, date, attendees, time), a large notes panel with a cue column
@@ -37,8 +37,20 @@ Ready-to-run editor apps, with everything needed to make PDFs built in:
 Each release page has install steps. The apps aren't code-signed yet, so
 Windows and macOS warn on first launch, and the AppImage may need FUSE 2
 installed; the steps there explain what to do. Earlier and later versions
-are on the [Releases](https://github.com/forloop11/markdown-cornell-notes/releases) page. To use the command line, or your system's
-own TeX Live and pandoc, see [Quick start](#quick-start).
+are on the [Releases](https://github.com/forloop11/markdown-cornell-notes/releases) page.
+
+**These downloads are the previous version of the app.** The editor has
+since been rebuilt on Qt, and gained the assets explorer, Markdown import,
+Markdown/LaTeX export, and the other features shown above; those builds
+haven't been published as a release yet. Until they are, get the current
+app by [building it](docs/installation.md) (`make appimage`, `make
+windows`, or `make macos`) or [running it from a checkout](#quick-start).
+The new builds need macOS 14 or later, or a Linux distribution with glibc
+2.34 or later (Ubuntu 22.04, Debian 12, Fedora 35), and the new AppImage
+no longer needs FUSE 2.
+
+To use the command line, or your system's own TeX Live and pandoc, see
+[Quick start](#quick-start).
 
 ## Table of contents
 
@@ -48,8 +60,6 @@ own TeX Live and pandoc, see [Quick start](#quick-start).
   - [Requirements](#requirements)
   - [Quick start](#quick-start)
   - [Using the editor app](#using-the-editor-app)
-    - [Details card](#details-card)
-    - [Assets card](#assets-card)
   - [Documentation](#documentation)
   - [Other Makefile targets](#other-makefile-targets)
   - [License](#license)
@@ -62,22 +72,23 @@ own TeX Live and pandoc, see [Quick start](#quick-start).
 - Python 3 (standard library only, no pip packages required)
 - [pandoc](https://pandoc.org/), for converting `md/notes.md` to LaTeX
 - For the optional [editor app](docs/editor-app.md) only:
-  [Node.js](https://nodejs.org/) with npm
+  [PySide6](https://doc.qt.io/qtforpython-6/) (Qt for Python) 6.8 or later
 
 To just use the editor, you can skip all of this: the
 [downloadable apps](#download) for Windows, macOS, and Linux bundle it with
-Python, pandoc, and TeX built in.
+Python, Qt, pandoc, and TeX built in.
 
-On Fedora, the build tools are one command away:
+On Fedora, the build tools are one command away (PySide6 for the editor
+app is installed separately, with pip — see [Quick start](#quick-start)):
 
 ```sh
-sudo dnf install pandoc latexmk texlive-scheme-medium nodejs npm
+sudo dnf install pandoc latexmk texlive-scheme-medium
 ```
 
 On Debian/Ubuntu:
 
 ```sh
-sudo apt install pandoc latexmk texlive-latex-extra nodejs npm
+sudo apt install pandoc latexmk texlive-latex-extra
 ```
 
 ## Quick start
@@ -100,37 +111,62 @@ To customize the header fields and notes content, see
 a live PDF preview:
 
 ```sh
-cd app && npm install && cd ..   # once, to fetch Electron
+python3 -m venv app/.venv                                # once: a place for PySide6...
+app/.venv/bin/pip install -r app/requirements.txt        # ...and PySide6 itself
 make app
 ```
 
+`make app` opens the project in the current directory — in a checkout,
+that's the repo itself, with its example notes.
+
 ## Using the editor app
 
-### Details card
+The animation at the top of this page walks through a whole session. In
+words:
 
-The **Details** card holds the header printed at the top of every page:
-topic, date, start and end time, timezone, location, and attendees.
-Changes save as you type. Collapse the card to see a one-line summary
-instead. When you click **Render**, the PDF header updates, and the PDF is
-renamed after the new topic, date, and location.
+1. **Fill in the details.** The **Details** section holds the header
+   printed at the top of every page: topic, date, start and end time,
+   timezone, location, and attendees. The date has a calendar, each time a
+   picker (hours, and minutes in steps of five — or type any time), and
+   the timezone a search-as-you-type list. Fold the section away to see a
+   one-line summary instead and give the panes below more room.
+2. **Write your notes** in Markdown in the editor on the left. Its toolbar
+   and `/` shortcuts insert formatting for you; a line starting `^1` puts a
+   note in page 1's cue column, and `^^1` in its summary band (see
+   [Editing notes](docs/editing-notes.md)).
+3. **Click Render** (Ctrl+R) to build the PDF, shown on the right with the
+   whole page fitted to the pane (the preview's own toolbar zooms in). It's
+   saved in the project's `pdf/` folder, named after the topic, date, and
+   location; **Download PDF** saves a copy anywhere else.
+4. **Add images and other files** with the **assets explorer** down the
+   left side, which shows the project's `assets/` folder: drag files in
+   (or between folders), then double-click one to copy a link to it, e.g.
+   `![pipeline](assets/diagrams/pipeline.png)`, and paste that into your
+   notes. Typing `](` in the editor also suggests asset paths. The red
+   hamburger button at the left of the app bar hides and shows the
+   explorer.
 
-![Demo of the Details card: filling in the topic, date, times, timezone, location, and attendees, collapsing the card to its one-line summary, and rendering so the PDF header and file name update](assets/details-card-demo.gif)
+Everything saves as you type; there is no Save button. The editor and
+preview size themselves to the window. Also:
 
-### Assets card
-
-The **Assets** card manages the images and other files your notes link to,
-kept in the project's `assets/` folder. Create folders, upload files, and
-click **Copy** next to a file to copy its path. Paste that path into an
-image or link in your notes, e.g. `![Pipeline](assets/diagrams/pipeline.png)`.
-Typing `](` in the editor also suggests asset paths.
-
-![Demo of the Assets card: creating a diagrams folder, uploading an image into it, copying its path into the notes as an image, and rendering so the image appears in the PDF](assets/assets-card-demo.gif)
+- **Several notes:** the dropdown in the app bar switches between the
+  project's notes; **+** makes a new one and the trash button deletes one.
+- **File menu:** *Import Markdown File…* brings an existing `.md` file
+  from anywhere on your computer into the project; *Export Markdown…* and
+  *Export LaTeX…* save the open note as a `.md` or a single self-contained
+  `.tex` file; *Open Project Folder…* switches to another folder of notes.
+- **View menu:** *Appearance* switches between light, dark, and your
+  desktop's setting; *Zoom Editor In/Out* changes the editor's text size.
+- **Spellcheck** underlines misspellings in the editor, with suggestions
+  on right-click (US English in the downloadable builds; see the
+  [editor app](docs/editor-app.md) page to add a language).
 
 ## Documentation
 
-- **[Editor app](docs/editor-app.md)** — the desktop app: an app bar
-  for switching files, rendering, and save/build status; a collapsible
-  note-details form; an assets manager; a Markdown editor with a
+- **[Editor app](docs/editor-app.md)** — the desktop app: importing
+  existing Markdown files and exporting notes as Markdown or LaTeX; an app bar
+  for switching files, rendering, and save/build status; an assets
+  explorer; a collapsible note-details form; a Markdown editor with a
   formatting toolbar and autocompletion; and a live PDF preview.
 - **[Editing notes](docs/editing-notes.md)** — the `yaml`/`md` file format,
   pagination, cue-column and summary-band directives, multi-topic
@@ -153,15 +189,17 @@ Typing `](` in the editor also suggests asset paths.
   demonstrates this pipeline's Markdown syntax without touching your own
   notes.
 - `make app` — opens the [editor app](docs/editor-app.md) on the
-  current directory's project (run `npm install` in `app/` once first).
-- `make test` — runs the unit tests (pytest for `scripts/`, Node's test
-  runner for `app/`).
+  current directory's project (install PySide6 into `app/.venv` once
+  first, as above).
+- `make test` — runs the unit tests with pytest: `scripts/`, the app's
+  backend, and — where PySide6 is installed — the app's window. Needs
+  pytest: `app/.venv/bin/pip install -r requirements-dev.txt`.
 - `make clean` — removes pdflatex's intermediate files, keeps the PDF.
 - `make distclean` — also removes the generated `build/` files and the PDF.
 - `make deb` — packages this project as a `.deb`; see
   [Installation](docs/installation.md#installing-as-a-system-package).
 - `make windows` — builds the Windows installer for the editor app, with
-  Python, pandoc, and TeX bundled; see
+  Python, Qt, pandoc, and TeX bundled; see
   [Installation](docs/installation.md#installing-on-windows).
 - `make macos` — builds the editor app for Apple Silicon Macs as a zip,
   bundled the same way; see
@@ -169,6 +207,9 @@ Typing `](` in the editor also suggests asset paths.
 - `make appimage` — builds the editor app for x86_64 Linux as a
   single-file AppImage, bundled the same way; see
   [Installation](docs/installation.md#running-the-linux-appimage).
+- `make install-appimage` — installs that AppImage for you: into
+  `~/Applications`, with an application-menu entry and icon.
+  `make uninstall-appimage` removes it again.
 - `make init` — scaffolds a fresh `md/`, `yaml/`, `settings/page.yaml`,
   `pdf/`, and `assets/` (with the `tux.jpg` the example note embeds) in the
   current directory from the bundled defaults. Only needed when using the

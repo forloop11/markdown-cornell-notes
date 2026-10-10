@@ -3,24 +3,30 @@
 # cache, the TeX tree, and staging the pieces every platform's bundle has
 # in common.
 #
-# Every bundle carries, as electron-builder extraResources (see "build" in
-# app/package.json):
+# Every bundle carries a resources folder holding:
 #
-#   pipeline/  scripts/, settings/template.tex, and the defaults `init`
-#              copies (same file set as the .deb's)
-#   python/    a self-contained CPython (stdlib only, which is all
-#              scripts/ uses)
+#   pipeline/  the editor app (app/), scripts/, settings/template.tex, and
+#              the defaults `init` copies (same file set as the .deb's)
+#   python/    a self-contained CPython, with PySide6 (Qt) installed into
+#              it and pruned to the modules the app uses. It runs the app
+#              and, from the app, scripts/ (stdlib only)
 #   pandoc/    the pandoc binary
 #   texlive/   a TinyTeX (minimal TeX Live) tree with that platform's
 #              binaries and just the packages settings/template.tex needs
+#   qtwebengine_dictionaries/
+#              the editor's en-US spellcheck dictionary
 #
-# The packaged app runs the build steps itself rather than `make build`
-# (see Pipeline.buildDirect in app/lib/pipeline.js) -- no make, shell, or
-# Perl needed, so latexmk isn't either.
+# app/main.py recognizes that layout (pandoc/ and texlive/ next to
+# pipeline/) as a standalone build. The app runs the build steps itself
+# there rather than `make build` (see Pipeline.build_direct in
+# app/pipeline.py) -- no make, shell, or Perl needed, so latexmk isn't
+# either.
 #
-# The TeX tree is assembled once, on an x86_64 Linux host, with TinyTeX's
-# own Linux tlmgr: install the extra packages, then `tlmgr platform add`
-# each target platform's binaries. Downloads are cached in
+# Everything is assembled on an x86_64 Linux host, for all three targets:
+# pip installs PySide6's wheels for the target platform (they're prebuilt,
+# so nothing is compiled), and the TeX tree is put together once with
+# TinyTeX's own Linux tlmgr: install the extra packages, then `tlmgr
+# platform add` each target platform's binaries. Downloads are cached in
 # dist/bundle-cache/; delete it to start fresh.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -37,7 +43,19 @@ TEX_PACKAGES="pgf cm-super"
 # own, which the AppImage bundles); each bundle copies just its own
 # bin/<platform>.
 TEX_PLATFORMS="windows universal-darwin"
-BUILDER_IMAGE="docker.io/electronuserland/builder:wine"
+# python-build-standalone's relocatable CPython: the Linux and macOS
+# bundles' Python, and (the Linux one) what runs pip for all three.
+PBS_RELEASE="20261009" # the release carrying $PYTHON_VERSION
+# PySide6-WebEngine's version; pip resolves the PySide6-Addons,
+# PySide6-Essentials, and shiboken6 it goes with.
+PYSIDE_VERSION="6.12.0.140"
+TZDATA_VERSION="2026.5"
+# chromium/deps/hunspell_dictionaries: the commit and file the en-US
+# spellcheck dictionary comes from.
+DICTIONARY_COMMIT="cee14e319bb7603a1157bb4d1e216be64ee82b77"
+DICTIONARY_FILE="en-US-10-2.bdic"
+
+APP_VERSION="$(sed -n 's/^  "version": "\(.*\)",$/\1/p' "$ROOT/app/package.json")"
 
 mkdir -p "$CACHE"
 
@@ -82,10 +100,57 @@ stage_texlive() {
 # stage_pipeline <dest>
 stage_pipeline() {
   local f
-  for f in scripts/*.py settings/template.tex settings/page.yaml md/notes-example.md yaml/notes-example.yaml assets/tux.jpg; do
+  for f in app/*.py app/web/* app/build-resources/* scripts/*.py settings/template.tex settings/page.yaml \
+    md/notes-example.md yaml/notes-example.yaml assets/tux.jpg; do
     mkdir -p "$1/$(dirname "$f")"
     cp "$ROOT/$f" "$1/$f"
   done
+}
+
+# The Linux CPython, unpacked in the cache as the build's own Python.
+BUILD_PYTHON_HOME="$CACHE/build-python-$PYTHON_VERSION-$PBS_RELEASE"
+BUILD_PYTHON="$BUILD_PYTHON_HOME/python/bin/python3"
+PBS_LINUX_TARBALL="$CACHE/cpython-$PYTHON_VERSION-$PBS_RELEASE-x86_64-unknown-linux-gnu.tar.gz"
+
+prepare_build_python() {
+  download "https://github.com/astral-sh/python-build-standalone/releases/download/$PBS_RELEASE/cpython-$PYTHON_VERSION%2B$PBS_RELEASE-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz" \
+    "$PBS_LINUX_TARBALL"
+  if [ ! -x "$BUILD_PYTHON" ]; then
+    mkdir -p "$BUILD_PYTHON_HOME"
+    tar -xzf "$PBS_LINUX_TARBALL" -C "$BUILD_PYTHON_HOME"
+  fi
+}
+
+# stage_pyside <site-packages dir> <pip platform tag> [more pip packages...]:
+# PySide6 for that platform (its wheels come from pip's cache after the
+# first build), minus the Qt modules the app doesn't use.
+stage_pyside() {
+  local site="$1" platform="$2"
+  shift 2
+  prepare_build_python
+  echo "Installing PySide6 $PYSIDE_VERSION ($platform)..."
+  mkdir -p "$site"
+  PIP_CACHE_DIR="$CACHE/pip" "$BUILD_PYTHON" -m pip install --quiet --disable-pip-version-check \
+    --target "$site" --platform "$platform" --python-version "${PYTHON_VERSION%.*}" \
+    --only-binary=:all: --no-compile \
+    "PySide6-WebEngine==$PYSIDE_VERSION" "$@"
+  # pip's --target leaves console-script launchers behind; nothing uses them.
+  rm -rf "${site:?}/bin"
+  "$BUILD_PYTHON" "$ROOT/scripts/bundle_prune_qt.py" "$site"
+}
+
+# stage_dictionary <resources dir>
+stage_dictionary() {
+  local file="$CACHE/hunspell-$DICTIONARY_COMMIT-$DICTIONARY_FILE"
+  if [ ! -f "$file" ]; then
+    echo "Downloading $DICTIONARY_FILE..."
+    curl -fL --retry 3 \
+      "https://chromium.googlesource.com/chromium/deps/hunspell_dictionaries/+/$DICTIONARY_COMMIT/$DICTIONARY_FILE?format=TEXT" |
+      base64 -d > "$file.part"
+    mv "$file.part" "$file"
+  fi
+  mkdir -p "$1/qtwebengine_dictionaries"
+  cp "$file" "$1/qtwebengine_dictionaries/en-US.bdic"
 }
 
 # write_notices <dest file> <python description> <python license file>
@@ -110,31 +175,26 @@ Python $PYTHON_VERSION, $2 (resources/python)
   Copyright (C) Python Software Foundation.
   License: PSF License Agreement -- see $3.
   Source code: https://www.python.org/downloads/source/
-EOF
-}
 
-# run_builder <electron-builder args...>: electron-builder inside its
-# container image (podman or docker), which has the Wine that editing a
-# Windows .exe's icon and version info needs.
-run_builder() {
-  local container="${CONTAINER:-$(command -v podman || command -v docker || true)}"
-  if [ -z "$container" ]; then
-    echo "Needs podman or docker to run electron-builder's image ($BUILDER_IMAGE)." >&2
-    exit 1
-  fi
-  if [ ! -d "$ROOT/app/node_modules/electron-builder" ]; then
-    echo "Run 'npm ci' in app/ first." >&2
-    exit 1
-  fi
-  echo "Packaging with electron-builder (in $BUILDER_IMAGE)..."
-  mkdir -p "$CACHE/builder-cache"
-  # label=disable: on SELinux hosts (e.g. Fedora), lets the container read
-  # the bind mounts without relabeling the checkout.
-  "$container" run --rm \
-    --security-opt label=disable \
-    -v "$ROOT":/project \
-    -v "$CACHE/builder-cache":/root/.cache \
-    -w /project/app \
-    "$BUILDER_IMAGE" \
-    npx electron-builder "$@"
+Qt 6 and Qt for Python (PySide6) $PYSIDE_VERSION (in resources/python's
+site-packages, as PySide6 and shiboken6)
+  Copyright (C) The Qt Company Ltd. and other contributors.
+  License: GNU LGPL, version 3 (Qt WebEngine: LGPL v3 with parts under
+  other licenses, including the Chromium project's BSD-style license) --
+  see https://doc.qt.io/qt-6/licensing.html and
+  https://doc.qt.io/qt-6/qtwebengine-licensing.html. The libraries are
+  separate files that you may replace with your own builds.
+  Source code: https://download.qt.io/official_releases/qt/ and
+  https://download.qt.io/official_releases/QtForPython/
+
+en-US spellcheck dictionary (resources/qtwebengine_dictionaries)
+  Derived from SCOWL (http://wordlist.aspell.net/), via the Chromium
+  project's hunspell_dictionaries -- see its README_en_US.txt for the
+  copyright notices and (permissive) license terms:
+  https://chromium.googlesource.com/chromium/deps/hunspell_dictionaries/+/$DICTIONARY_COMMIT/README_en_US.txt
+
+CodeMirror 6 (compiled into pipeline/app/web/editor.js)
+  Copyright (C) Marijn Haverbeke and others. License: MIT.
+  Source code: https://github.com/codemirror
+EOF
 }

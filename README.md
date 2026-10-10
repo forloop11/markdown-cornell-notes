@@ -38,18 +38,13 @@ Ready-to-run editor apps, with everything needed to make PDFs built in:
   system's own TeX Live and pandoc.
 - **Fedora:** [RPM package, version 2.2.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.2.0) — the same, as
   an RPM.
-- **macOS 14+ on Apple silicon (M1 or later):** [macOS app, version 2.0.0 — test build](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0).
-  It hasn't been run on a Mac yet and isn't notarized; see its
-  [release notes](docs/release-notes/macos-2.0.0.md) before trying it.
-- **Windows 10/11 (64-bit):** [Windows installer, version 2.0.0 — test build](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0).
-  It hasn't been run on Windows yet and isn't code-signed; see its
-  [release notes](docs/release-notes/windows-2.0.0.md) before trying it.
+- **macOS 14+ on Apple silicon (M1 or later):** [macOS app, version 2.2.0 — test build](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.2.0).
+  It hasn't been run on a Mac yet and isn't notarized.
+- **Windows 10/11 (64-bit):** [Windows installer, version 2.2.0 — test build](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.2.0).
+  It hasn't been run on Windows yet and isn't code-signed.
 
-**The Windows and macOS downloads are older than this page.** They are
-2.0.0 test builds, and lack what's been added since: the PDF.js preview
-(which keeps its place and follows the editor), auto-render, the trash,
-link updating, find and replace, renaming, New Project, and Open Recent.
-The [2.2.0 release notes](docs/release-notes/2.2.0.md) list what's new.
+The [2.2.0 release notes](docs/release-notes/2.2.0.md) list what's new,
+and say what to expect from the two test builds before trying them.
 
 The release page has install steps. The apps aren't code-signed, so
 Windows and macOS warn on first launch; the steps there explain what to

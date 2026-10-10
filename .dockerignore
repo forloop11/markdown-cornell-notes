@@ -8,6 +8,7 @@ __pycache__
 *.fdb_latexmk
 *.synctex.gz
 app/node_modules
+app/.venv
 pdf/*.pdf
 .claude
 .agents

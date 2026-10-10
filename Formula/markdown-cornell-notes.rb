@@ -24,8 +24,8 @@ class MarkdownCornellNotes < Formula
     # here, libexec) and drop a thin `make -f` wrapper on the PATH. No
     # rsync --exclude list needed here (unlike build_deb.sh) since the
     # GitHub tarball/HEAD checkout only ever contains git-tracked files --
-    # /build/, /dist/, __pycache__/, and node_modules/ are all gitignored
-    # and never make it into the archive in the first place.
+    # /build/, /dist/, __pycache__/, node_modules/, and app/.venv/ are all
+    # gitignored and never make it into the archive in the first place.
     libexec.install Dir["*"]
 
     (bin/"markdown-cornell-notes").write <<~SH
@@ -56,11 +56,13 @@ class MarkdownCornellNotes < Formula
         markdown-cornell-notes init
         markdown-cornell-notes build
 
-      The optional editor app is an Electron desktop app. It needs Node.js
-      (`brew install node`); the first `markdown-cornell-notes app` then
-      downloads Electron itself into your npm cache:
+      The optional editor app is a Python (PySide6/Qt) desktop app. It
+      needs PySide6, which Homebrew's Python only installs into a virtual
+      environment -- make one, then point the app at it:
 
-        cd ~/notes && markdown-cornell-notes app
+        python3 -m venv ~/.venvs/cornell-notes
+        ~/.venvs/cornell-notes/bin/pip install PySide6
+        cd ~/notes && markdown-cornell-notes app APP_PYTHON=~/.venvs/cornell-notes/bin/python
     EOS
   end
 
@@ -76,13 +78,14 @@ class MarkdownCornellNotes < Formula
 
     # Runs the scripts/ unit test suite (see tests/, pytest.ini) via the
     # Homebrew-provided `pytest` binary rather than the Makefile's own
-    # `test` target (`python3 -m pytest`, plus the Node app tests):
-    # that needs pytest importable by the depends_on "python@3.13"
+    # `test` target (`python3 -m pytest`): that needs pytest importable by
+    # the depends_on "python@3.13"
     # interpreter specifically, which the separate `pytest` formula
     # doesn't provide -- it's a self-contained binary, not a module
     # installed into some other formula's site-packages. pytest.ini's
-    # `pythonpath = scripts` still makes `simple_yaml` and friends
-    # importable no matter which interpreter built the pytest binary.
+    # `pythonpath = app scripts` still makes `simple_yaml` and friends
+    # importable no matter which interpreter built the pytest binary, and
+    # the editor window's own tests skip themselves without PySide6.
     cd libexec do
       system "pytest"
     end

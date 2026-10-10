@@ -38,7 +38,7 @@ LATEXMK  := latexmk
 # in that recursive call) -- checking the *default* $(MD)/$(YAML) here would
 # wrongly demand a project the example build never touches. It still needs
 # $(SETTINGS_YAML) though, since that one isn't overridden.
-NO_PROJECT_NEEDED := init deb windows macos appimage clean distclean app test
+NO_PROJECT_NEEDED := init deb windows macos appimage install-appimage uninstall-appimage clean distclean app test
 NEEDS_PROJECT := $(filter-out $(NO_PROJECT_NEEDED),$(or $(MAKECMDGOALS),build))
 NEEDS_MD_YAML := $(filter-out build-example,$(NEEDS_PROJECT))
 ifneq ($(NEEDS_MD_YAML),)
@@ -70,7 +70,7 @@ EXAMPLE_MD       := $(MCN_ROOT)md/notes-example.md
 EXAMPLE_YAML     := $(MCN_ROOT)yaml/notes-example.yaml
 EXAMPLE_BUILDDIR := build/example
 
-.PHONY: build clean distclean build-example app deb windows macos appimage init test
+.PHONY: build clean distclean build-example app deb windows macos appimage install-appimage uninstall-appimage init test
 
 build: $(PDF)
 	$(LATEXMK) -c -jobname=$(JOBNAME) -outdir=$(OUTDIR) $(TEX)
@@ -93,41 +93,34 @@ build: $(PDF)
 build-example:
 	$(MAKE) -f $(lastword $(MAKEFILE_LIST)) build MD=$(EXAMPLE_MD) YAML=$(EXAMPLE_YAML) BUILDDIR=$(EXAMPLE_BUILDDIR)
 
-# Opens the Electron editor app on the project in the CWD (see
-# docs/editor-app.md). Uses the checkout's own Electron once `npm install`
-# has been run in app/; otherwise (e.g. an installed .deb/Homebrew package,
-# whose app/ is read-only) npx fetches the version app/package.json pins
-# into the user's npm cache on first run. Either way needs Node.js + npm.
+# Opens the editor app on the project in the CWD (see docs/editor-app.md).
+# It's a Python (PySide6/Qt) desktop app, so it needs PySide6 with Qt
+# WebEngine on top of the build's own requirements: from a checkout,
 #
-# ELECTRON_RUN_AS_NODE is cleared because some tools (VS Code, for one) set
-# it for their child processes, and it makes Electron start as plain Node
-# instead of opening a window. ELECTRON_FLAGS passes extra Electron/Chromium
-# switches, e.g. `make app ELECTRON_FLAGS=--no-sandbox` where the OS blocks
-# Electron's sandbox (see docs/editor-app.md).
-ELECTRON_BIN   := $(MCN_ROOT)app/node_modules/.bin/electron
-ELECTRON_FLAGS ?=
+#     python3 -m venv app/.venv && app/.venv/bin/pip install -r app/requirements.txt
+#
+# sets that up where this target looks first. Otherwise it runs with
+# python3 -- for a system-wide PySide6, e.g. the distribution's packages an
+# installed .deb recommends -- or whichever interpreter APP_PYTHON names.
+#
+# APP_FLAGS passes extra Qt/Chromium switches, e.g. `make app
+# APP_FLAGS=--no-sandbox` where the OS blocks Chromium's sandbox (see
+# docs/editor-app.md).
+APP_PYTHON ?= $(if $(wildcard $(MCN_ROOT)app/.venv/bin/python),$(MCN_ROOT)app/.venv/bin/python,python3)
+APP_FLAGS  ?=
 app:
-	@if [ -x "$(ELECTRON_BIN)" ]; then \
-		exec env -u ELECTRON_RUN_AS_NODE "$(ELECTRON_BIN)" "$(MCN_ROOT)app" $(ELECTRON_FLAGS); \
-	fi; \
-	if ! command -v npx >/dev/null 2>&1; then \
-		echo "The editor app needs Node.js and npm (for npx) -- install them, then run this again." >&2; \
-		exit 1; \
-	fi; \
-	version=$$(node -p "require('$(MCN_ROOT)app/package.json').devDependencies.electron") && \
-	exec env -u ELECTRON_RUN_AS_NODE npx --yes "electron@$$version" "$(MCN_ROOT)app" $(ELECTRON_FLAGS)
+	@exec "$(APP_PYTHON)" "$(MCN_ROOT)app/main.py" $(APP_FLAGS)
 
-# Unit tests: the build scripts' Python helpers via pytest (requires `pip
-# install -r requirements-dev.txt` first), then the editor app's main-process
-# code (app/lib/) via Node's built-in test runner -- no `npm install`
-# needed. The app tests run against a temp-dir project (see
-# app/test/helpers.js), never the CWD's own md/yaml/assets, so neither half
-# needs (or touches) a scaffolded project. Rendering is only covered where
-# pandoc and pdflatex are installed (the app's direct-build test skips
-# itself otherwise).
+# Unit tests, via pytest (requires `pip install -r requirements-dev.txt`
+# first): the build scripts' Python helpers and the editor app's backend
+# (app/pipeline.py, app/api.py, app/header_form.py), plus the app's window
+# itself where PySide6 is installed (tests/test_window.py skips itself
+# otherwise, so run with APP_PYTHON's interpreter to include it). Everything
+# runs against temp-dir projects (see tests/conftest.py), never the CWD's
+# own md/yaml/assets, so no scaffolded project is needed (or touched).
+# Rendering is only covered where pandoc and pdflatex are installed.
 test:
-	cd $(MCN_ROOT) && python3 -m pytest
-	cd $(MCN_ROOT)app && node --test "test/*.test.js"
+	cd $(MCN_ROOT) && "$(APP_PYTHON)" -m pytest
 
 # Packages this project as a .deb (dist/markdown-cornell-notes_<version>.deb)
 # for Debian/Ubuntu -- see scripts/build_deb.sh for what it stages and which
@@ -137,24 +130,33 @@ deb:
 
 # Builds the Windows installer for the editor app
 # (dist/windows/Markdown-Cornell-Notes-Setup-<version>.exe), with Python,
-# pandoc, and a minimal TeX Live bundled in -- see scripts/build_windows.sh.
-# Needs an x86_64 Linux host with podman or docker, and `npm ci` in app/.
+# Qt (PySide6), pandoc, and a minimal TeX Live bundled in -- see
+# scripts/build_windows.sh. Needs an x86_64 Linux host, with NSIS's
+# makensis or else podman or docker to run it in.
 windows:
 	$(MCN_ROOT)scripts/build_windows.sh
 
 # Builds the editor app for Apple Silicon Macs
 # (dist/macos/Markdown-Cornell-Notes-<version>-arm64-mac.zip), bundled the
-# same way and ad-hoc signed -- see scripts/build_macos.sh. Same host
-# requirements as `windows`; no Mac needed.
+# same way and ad-hoc signed -- see scripts/build_macos.sh. Needs an
+# x86_64 Linux host; no Mac.
 macos:
 	$(MCN_ROOT)scripts/build_macos.sh
 
 # Builds the editor app for x86_64 Linux as a single-file AppImage
 # (dist/linux/Markdown-Cornell-Notes-<version>-x86_64.AppImage), bundled
-# the same way -- see scripts/build_appimage.sh. Same host requirements as
-# `windows`.
+# the same way -- see scripts/build_appimage.sh. Needs an x86_64 Linux host.
 appimage:
 	$(MCN_ROOT)scripts/build_appimage.sh
+
+# Installs that AppImage for the current user -- into ~/Applications (or
+# APPIMAGE_DIR), with an application-menu entry and icon -- and removes it
+# again; see scripts/install_appimage.sh. Run `make appimage` first.
+install-appimage:
+	$(MCN_ROOT)scripts/install_appimage.sh install
+
+uninstall-appimage:
+	$(MCN_ROOT)scripts/install_appimage.sh uninstall
 
 # Scaffolds a fresh project (md/, yaml/, settings/page.yaml, pdf/, assets/)
 # in the CWD from the bundled defaults, so the installed package -- whose

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- The markdown editor pane: the only part of the app drawn by a web
+     page (see ../webviews.py's EditorView). Only this folder's own scripts
+     and Qt's bundled qwebchannel.js run; CodeMirror injects its styles
+     inline. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' qrc:; style-src 'self' 'unsafe-inline'">
+<title>Markdown editor</title>
+<link rel="stylesheet" href="editor.css">
+<script src="qrc:///qtwebchannel/qwebchannel.js" defer></script>
+<script src="editor.js" defer></script>
+<script src="bridge.js" defer></script>
+</head>
+<body>
+<div id="editor-host"></div>
+</body>
+</html>

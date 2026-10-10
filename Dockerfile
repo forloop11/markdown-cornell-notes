@@ -4,9 +4,10 @@
 # and drops a markdown-cornell-notes launcher on PATH. Depends list mirrors
 # the .deb's Depends line in scripts/build_deb.sh.
 #
-# The image is for the CLI (`build`, `init`, ...) only: the editor app is an
-# Electron desktop window, which has no display to open in here. app/ is
-# still staged so the image's file set matches the .deb's.
+# The image is for the CLI (`build`, `init`, ...) only: the editor app is a
+# Qt desktop window, which has no display to open in here (and its PySide6
+# dependency isn't installed). app/ is still staged so the image's file set
+# matches the .deb's.
 #
 # trixie, not bookworm: bookworm's pandoc (2.17) predates the LaTeX writer
 # change that emits \st{...} for strikethrough -- it emits \sout{...}

@@ -147,6 +147,21 @@ STANDALONE_IMAGE_RE = re.compile(
 )
 
 
+# Newer pandoc (3.2 on) wraps an image that has no explicit size in
+# \pandocbounded{...}, a macro its own LaTeX template defines to shrink
+# an image that would overflow the page. This document doesn't load that
+# template (so the macro is undefined), and doesn't need it: template.tex
+# already fits unsized images to the notes panel's width.
+PANDOCBOUNDED_RE = re.compile(r"\\pandocbounded\{(\\includegraphics(?:\[[^\]]*\])?\{[^}]*\})\}")
+
+
+def unwrap_pandocbounded(latex):
+    """Reduce each \\pandocbounded{\\includegraphics...} to the bare
+    \\includegraphics call inside it.
+    """
+    return PANDOCBOUNDED_RE.sub(lambda m: m.group(1), latex)
+
+
 def center_standalone_images(latex):
     """Horizontally center a standalone image paragraph in the notes
     panel, the same way delongtable() centers tables. \\centering is
@@ -344,8 +359,9 @@ def escape_stray_backslashes(markdown):
 def markdown_to_latex(markdown):
     """Convert a chunk of `markdown` to LaTeX via pandoc, then apply this
     module's post-processing (stray-backslash escaping beforehand;
-    relative-link rebasing, longtable-to-tabular, and standalone-image
-    centering on pandoc's output). Raises RuntimeError if pandoc itself
+    relative-link rebasing, \\pandocbounded unwrapping,
+    longtable-to-tabular, and standalone-image centering on pandoc's
+    output). Raises RuntimeError if pandoc itself
     fails.
     """
     markdown = escape_stray_backslashes(markdown)
@@ -377,7 +393,7 @@ def markdown_to_latex(markdown):
     )
     if result.returncode != 0:
         raise RuntimeError(f"pandoc failed: {result.stderr}")
-    latex = rebase_relative_links(result.stdout.strip())
+    latex = unwrap_pandocbounded(rebase_relative_links(result.stdout.strip()))
     return center_standalone_images(delongtable(latex))
 
 

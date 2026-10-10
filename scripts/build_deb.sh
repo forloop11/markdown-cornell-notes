@@ -3,9 +3,9 @@
 # No compiled code here -- this just stages the pipeline (Makefile, scripts,
 # settings, app) under /usr/share, drops a /usr/bin launcher, and declares
 # the system deps (texlive, pandoc, latexmk) apt already knows about.
-# The optional Electron editor app needs Node.js + npm (`make app` fetches
-# Electron itself through npx on first run -- see the Makefile) --
-# Recommends rather than Depends, since `make build` itself doesn't need it.
+# The optional editor app is a PySide6 (Qt) desktop app (see `make app` in
+# the Makefile): its Qt bindings are Recommends rather than Depends, since
+# `make build` itself doesn't need them.
 set -eu
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -25,6 +25,8 @@ rsync -a \
   --exclude dist \
   --exclude '__pycache__' \
   --exclude 'node_modules' \
+  --exclude '.venv' \
+  --exclude '.pytest_cache' \
   --exclude '.claude' \
   --exclude '.agents' \
   --exclude 'pdf/*.pdf' \
@@ -51,11 +53,11 @@ Section: text
 Priority: optional
 Architecture: all
 Depends: python3, make, pandoc, latexmk, texlive-latex-extra, texlive-latex-recommended, texlive-pictures
-Recommends: nodejs, npm
+Recommends: python3-pyside6.qtwidgets, python3-pyside6.qtsvg, python3-pyside6.qtwebchannel, python3-pyside6.qtwebenginewidgets
 Maintainer: Todd C. Takala <todd.c.takala@gmail.com>
 Description: Cornell-style meeting notes generator (LaTeX/Markdown)
  Generates Cornell-note-taking-system PDFs from YAML header files and
- Markdown content, with an optional desktop editor app (Electron).
+ Markdown content, with an optional desktop editor app (Qt).
 EOF
 
 DEB_FILE="$DIST_DIR/${PKG_NAME}_${VERSION}.deb"

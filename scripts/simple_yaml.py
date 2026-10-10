@@ -9,7 +9,7 @@ import os
 
 def _unescape_double_quoted(inner):
     r"""Reverse the `\` -> `\\`, `"` -> `\"` escaping applied by the editor
-    app's writeHeader (app/lib/pipeline.js). A backslash before any other
+    app's write_header (app/pipeline.py). A backslash before any other
     character isn't an escape sequence this format produces, so it's left
     as-is.
     """

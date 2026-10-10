@@ -1,5 +1,5 @@
 """Tests for scripts/markdown_to_pages.py's escape_stray_backslashes."""
-from markdown_to_pages import escape_stray_backslashes
+from markdown_to_pages import center_standalone_images, escape_stray_backslashes, unwrap_pandocbounded
 
 
 def test_prose_backslash_is_doubled():
@@ -109,3 +109,19 @@ def test_backslash_followed_by_space_is_stray():
     still a stray, dangerous backslash and must be doubled.
     """
     assert escape_stray_backslashes("a path ending in C:\\Users\\ soon") == "a path ending in C:\\\\Users\\\\ soon"
+
+
+def test_pandocbounded_wrapper_around_an_unsized_image_is_removed():
+    # What pandoc 3.2+ emits for ![Tux](assets/tux.jpg): a macro only its
+    # own LaTeX template defines.
+    wrapped = r"\pandocbounded{\includegraphics[keepaspectratio,alt={Tux}]{assets/tux.jpg}}"
+    bare = r"\includegraphics[keepaspectratio,alt={Tux}]{assets/tux.jpg}"
+    assert unwrap_pandocbounded(wrapped) == bare
+    assert unwrap_pandocbounded(f"text {wrapped} inline") == f"text {bare} inline"
+    # Unwrapped, a standalone image is centered like a sized one.
+    assert center_standalone_images(unwrap_pandocbounded(wrapped)) == "{\\centering\n" + bare + "\\par}"
+
+
+def test_a_sized_image_without_the_wrapper_is_left_alone():
+    sized = r"\includegraphics[width=0.78125in,height=\textheight,keepaspectratio,alt={T}]{assets/t.jpg}"
+    assert unwrap_pandocbounded(sized) == sized

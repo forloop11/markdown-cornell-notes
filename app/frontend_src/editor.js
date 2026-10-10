@@ -1,10 +1,10 @@
-// CodeMirror 6 editor for the Cornell notes Electron app.
+// CodeMirror 6 editor for the Cornell notes editor app.
 //
 // Bundled (see ../package.json's build:editor script) into a single IIFE at
-// ../renderer/editor.js that exposes window.CodeEditor -- a small imperative
-// API (mount/setDoc/getDoc/setHeight/setAssets) that app/renderer/app.js
-// drives directly. It mounts straight into the page rather than inside an
-// iframe, so there's no cross-frame message protocol between the two.
+// ../web/editor.js that exposes window.CodeEditor -- a small imperative API
+// (mount/setDoc/getDoc/setHeight/setAssets). The page it runs in
+// (../web/index.html) is shown in a Qt web view; ../web/bridge.js connects
+// this API to the Python side (../webviews.py's EditorView).
 import { EditorState, EditorSelection } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers, highlightActiveLine } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
@@ -14,8 +14,6 @@ import { html } from "@codemirror/lang-html";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { tags as t } from "@lezer/highlight";
 import { autocompletion, startCompletion } from "@codemirror/autocomplete";
-
-const DEBOUNCE_MS = 500;
 
 // Dracula (https://draculatheme.com/) -- fixed rather than following the
 // page's light/dark setting: a fixed dark theme keeps syntax colors
@@ -116,37 +114,15 @@ const codeLanguages = (info) => {
 let view = null;
 let container = null;
 let toolbar = null;
-let debounceTimer = null;
-let lastNotifiedDoc = null;
-// mount()'s onChange callback -- called with the full document text after
-// edits settle (DEBOUNCE_MS) or immediately on blur.
+// mount()'s callbacks: onChange(doc) with the full document text after
+// every edit, and onBlur() when the editor loses focus. Debouncing saves is
+// the Python side's job (see ../window.py), so neither waits here.
 let onChange = () => {};
+let onBlur = () => {};
 // Filenames from assets/ (see pipeline.list_asset_files() on the Python
 // side), used by assetPathCompletions below. Set via setAssets(), since the
-// asset list can change (upload/delete) without the open file changing.
+// asset list can change (add/delete) without the open file changing.
 let assetFiles = [];
-
-function notify(doc) {
-  if (doc === lastNotifiedDoc) return;
-  lastNotifiedDoc = doc;
-  onChange(doc);
-}
-
-function scheduleNotify(doc) {
-  if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => notify(doc), DEBOUNCE_MS);
-}
-
-// Notify immediately rather than waiting out the debounce, and cancel any
-// pending debounced notification (it would just be a redundant no-op once
-// this runs, since notify() no-ops on an unchanged doc anyway).
-function flushNow(doc) {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-    debounceTimer = null;
-  }
-  notify(doc);
-}
 
 // Tab isn't bound by @codemirror/commands' defaultKeymap (that's what
 // @codemirror/commands' separate indentWithTab is for, which we don't use
@@ -175,9 +151,8 @@ function makeState(doc) {
       // requirement: CodeMirror 6's editable surface is a real
       // contenteditable DOM tree (unlike e.g. Ace, which paints styled
       // divs/canvas over an offscreen textarea), so turning this on makes
-      // Chromium's own spellchecker underline misspelled words -- and
-      // right-click -> "Add to dictionary" (see ../main.js's context menu)
-      // adds to its per-user dictionary, not app state.
+      // Chromium's own spellchecker underline misspelled words, with
+      // suggestions on right-click (see ../webviews.py's context menu).
       EditorView.contentAttributes.of({
         spellcheck: "true",
         autocorrect: "off",
@@ -185,16 +160,11 @@ function makeState(doc) {
       }),
       EditorView.lineWrapping,
       EditorView.updateListener.of((update) => {
-        if (update.docChanged) {
-          scheduleNotify(update.state.doc.toString());
-        }
+        if (update.docChanged) onChange(update.state.doc.toString());
       }),
-      // Flush immediately on blur rather than leaving the last edit(s)
-      // sitting in the debounce window, so the autosave fires as soon as
-      // the user clicks away (e.g. to switch files or close the tab).
-      EditorView.domEventHandlers({
-        blur: (_event, editorView) => flushNow(editorView.state.doc.toString()),
-      }),
+      // So the autosave can fire as soon as the user clicks away (e.g. to
+      // switch files) rather than waiting out its debounce.
+      EditorView.domEventHandlers({ blur: () => onBlur() }),
     ],
   });
 }
@@ -586,39 +556,33 @@ function buildToolbar() {
 }
 
 // Subtracts the toolbar's own rendered height from the editor's so the two
-// together still add up to `height` -- the same value app.js uses for the
-// PDF pane's iframe, so the two panes' bottoms line up. The toolbar can wrap
-// onto a second row in a narrow pane, so this is re-run on window resize.
+// together still add up to `height` -- the web view's own height, which
+// bridge.js passes in again whenever the view is resized (the toolbar can
+// wrap onto a second row in a narrow pane).
 function setHeight(height) {
   if (!container) return;
-  container.dataset.height = String(height);
   container.style.height = `${height - toolbar.offsetHeight}px`;
 }
 
 // Mounts the toolbar + editor into `el` (an empty element), showing `doc`.
-// `onChange(doc)` is called with the full text once edits settle.
-function mount(el, { doc = "", height = 600, assets = [], onChange: callback } = {}) {
+// `onChange(doc)` is called with the full text after every edit, `onBlur()`
+// when the editor loses focus.
+function mount(el, { doc = "", height = 600, assets = [], onChange: changed, onBlur: blurred } = {}) {
   container = document.createElement("div");
   container.id = "editor";
   toolbar = buildToolbar();
   el.replaceChildren(toolbar, container);
   assetFiles = assets;
-  onChange = callback || (() => {});
-  lastNotifiedDoc = doc;
+  onChange = changed || (() => {});
+  onBlur = blurred || (() => {});
   view = new EditorView({ state: makeState(doc), parent: container });
   setHeight(height);
-  window.addEventListener("resize", () => setHeight(Number(container.dataset.height)));
 }
 
 // Replaces the whole document (e.g. after switching files), resetting undo
-// history and cancelling any pending change notification for the old one.
+// history. Not an edit: onChange isn't called.
 function setDoc(doc) {
   if (!view) return;
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-    debounceTimer = null;
-  }
-  lastNotifiedDoc = doc;
   view.setState(makeState(doc));
 }
 

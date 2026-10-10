@@ -37,9 +37,10 @@ cd ~/notes
 markdown-cornell-notes app
 ```
 
-opens the [editor app](editor-app.md) on that project (it needs Node.js and
-npm — the package only Recommends them, since `build` doesn't; the first
-run downloads Electron into your npm cache). Running `build` outside an
+opens the [editor app](editor-app.md) on that project (it needs PySide6 —
+the package only Recommends the distribution's PySide6 packages, since
+`build` doesn't; see the editor app's page for using a virtual environment
+instead). Running `build` outside an
 initialized directory fails with a clear "run `markdown-cornell-notes init`
 first" message rather than a permission error, and the app shows the same
 advice in its window.
@@ -56,12 +57,12 @@ afterward (it keeps the old code loaded in memory until restarted).
 
 To just install it, download the installer from the
 [Windows release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.0). The rest of this section covers
-building it yourself.
+building it yourself, and describes the build this source tree makes — the
+published release predates the app's move from Electron to Qt.
 
 `make windows` builds a Windows installer for the editor app:
 
 ```sh
-cd app && npm ci && cd ..   # once, for electron-builder
 make windows                # -> dist/windows/Markdown-Cornell-Notes-Setup-<version>.exe
 ```
 
@@ -69,11 +70,13 @@ Copy the `.exe` to a Windows PC and run it. It installs for the current
 user only (no administrator rights needed, under
 `%LOCALAPPDATA%\Programs`), adds Start menu and desktop shortcuts, and
 uninstalls from Settings > Apps like any other program. Nothing else needs
-installing: the app bundles everything a build needs — Python (the
-official embeddable build), pandoc, and a minimal TeX Live
+installing: the app bundles everything it and a build need — Python (the
+official embeddable build), Qt (PySide6), pandoc, and a minimal TeX Live
 ([TinyTeX](https://github.com/rstudio/tinytex-releases) plus the packages
 `settings/template.tex` uses). Their licenses are listed in
-`THIRD-PARTY-NOTICES.txt` in the install folder's `resources`.
+`THIRD-PARTY-NOTICES.txt` in the install folder's `resources`. The app
+has no `.exe` of its own: its shortcuts start the bundled `pythonw.exe`
+(Python without a console window) on `app/main.py`.
 
 On first launch the app creates a project in `Documents\Cornell Notes`,
 holding the example notes, and opens it. **File > Open Project Folder…**
@@ -83,37 +86,43 @@ isn't one yet); the app reopens whichever folder you used last.
 On Windows the app has no `make` or Unix shell to run `make build` with,
 so Render runs the same steps itself: the three scripts in `scripts/`,
 then `pdflatex` (rerun until LaTeX stops asking for another pass, as
-latexmk would) — see `Pipeline.buildDirect` in `app/lib/pipeline.js`.
+latexmk would) — see `Pipeline.build_direct` in `app/pipeline.py`.
 The output is the same PDF.
 
-Building the installer needs an x86_64 Linux host with podman or docker.
+Building the installer needs an x86_64 Linux host — no Windows.
 `scripts/build_windows.sh` downloads pinned versions of TinyTeX, pandoc,
-and Python into `dist/bundle-cache/` (reused on later runs, and shared
-with `make macos`; the shared steps live in `scripts/bundle_common.sh`),
-installs the
-extra TeX packages and the TeX Windows binaries with TinyTeX's own Linux
-`tlmgr`, then runs [electron-builder](https://www.electron.build/) inside
-its `electronuserland/builder:wine` image to produce the NSIS installer.
-The installer is about 285 MB.
+Python, and PySide6's Windows wheels into `dist/bundle-cache/` (reused on
+later runs, and shared with `make macos` and `make appimage`; the shared
+steps live in `scripts/bundle_common.sh`), installs the extra TeX packages
+and the TeX Windows binaries with TinyTeX's own Linux `tlmgr`, trims
+PySide6 to the Qt modules the app uses (`scripts/bundle_prune_qt.py`), and
+compiles the installer with [NSIS](https://nsis.sourceforge.io/)'s
+`makensis` — the host's if it has one, else in a container (podman or
+docker). The installer is about 270 MB.
+
+The Windows build hasn't been run on Windows by this project's tooling:
+it's checked only as far as a Linux host can — that the installer
+compiles, and that nothing kept from Qt still refers to a module that was
+trimmed away.
 
 The installer isn't code-signed, so Windows SmartScreen shows an
 "unrecognized app" warning the first time; choose **More info > Run
-anyway**. Signing it needs a code-signing certificate — see
-electron-builder's [Windows code signing](https://www.electron.build/code-signing-win)
-docs, which this build's `win` settings in `app/package.json` can pick up.
+anyway**. Signing it needs a code-signing certificate, applied to the
+`.exe` after the build (e.g. with `signtool` or `osslsigncode`).
 
 ## Installing the macOS app (Apple Silicon)
 
 To just install it, download the zip from the
 [macOS release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.1). The rest of this section covers
-building it yourself.
+building it yourself, and describes the build this source tree makes — the
+published release predates the app's move from Electron to Qt (and runs on
+macOS 13).
 
 `make macos` builds the editor app for Apple Silicon Macs (M1 and later,
-macOS 13 or newer) as a zip, with the same bundled Python, pandoc, and TeX
-as the Windows installer:
+macOS 14 or newer — what Qt's own builds need) as a zip, with the same
+bundled Python, Qt, pandoc, and TeX as the Windows installer:
 
 ```sh
-cd app && npm ci && cd ..   # once, for electron-builder
 make macos                  # -> dist/macos/Markdown-Cornell-Notes-<version>-arm64-mac.zip
 ```
 
@@ -142,29 +151,41 @@ How it's built: everything happens on the same x86_64 Linux host as
 `universal-darwin` binaries to the shared TeX tree; pandoc is its official
 arm64 macOS build; Python is
 [python-build-standalone](https://github.com/astral-sh/python-build-standalone)'s
-relocatable CPython (python.org has no embeddable macOS build).
-electron-builder assembles the `.app` in its container image, then
+relocatable CPython (python.org has no embeddable macOS build), with
+PySide6's macOS wheels installed into it. `scripts/build_macos.sh`
+assembles the `.app` folder itself. Its executable is a small launcher
+(`scripts/macos_launcher.c`) that starts the bundled Python on
+`app/main.py`, cross-compiled with [zig](https://ziglang.org/) (a pinned
+download, like the rest); then
 [rcodesign](https://github.com/indygreg/apple-platform-rs/tree/main/apple-codesign)
 ad-hoc signs every executable in it — Apple Silicon won't run code with no
-signature at all. The zip is about 350 MB. The macOS build hasn't been run
-on a Mac by this project's tooling; it's checked only for signatures,
-architecture, and bundle layout.
+signature at all. The zip is about 525 MB (Qt's macOS builds are
+universal, carrying Intel code too).
+
+The macOS build hasn't been run on a Mac by this project's tooling; it's
+checked only for signatures, architecture, bundle layout, and that nothing
+kept from Qt still refers to a module that was trimmed away. One thing to
+expect until someone does: because the launcher hands over to the bundled
+Python, the menu bar may name the app after Python rather than "Markdown
+Cornell Notes".
 
 ## Running the Linux AppImage
 
 To just run it, download the AppImage from the
 [Linux release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.2). The rest of this section covers
-building it yourself.
+building it yourself, and describes the build this source tree makes — the
+published release predates the app's move from Electron to Qt (it needs
+FUSE 2 to mount, and runs on older distributions).
 
 `make appimage` builds the editor app for x86_64 Linux as an
 [AppImage](https://appimage.org/): a single executable file with the same
-bundled Python, pandoc, and TeX as the Windows and macOS builds, so it
-needs no `make`, TeX Live, pandoc, Python, or Node.js on the machine it
+bundled Python, Qt, pandoc, and TeX as the Windows and macOS builds, so it
+needs no `make`, TeX Live, pandoc, Python, or PySide6 on the machine it
 runs on.
 
 ```sh
-cd app && npm ci && cd ..   # once, for electron-builder
 make appimage               # -> dist/linux/Markdown-Cornell-Notes-<version>-x86_64.AppImage
+                            #    and the .AppImage.zsync file next to it
 ```
 
 There's nothing to install — make the file executable and run it:
@@ -174,33 +195,49 @@ chmod +x Markdown-Cornell-Notes-*-x86_64.AppImage
 ./Markdown-Cornell-Notes-*-x86_64.AppImage
 ```
 
+To have it in your application menu instead, `make install-appimage`
+copies the one you built to `~/Applications` (or `APPIMAGE_DIR`) and adds
+a menu entry and icon for it, all for the current user only;
+`make uninstall-appimage` removes them again.
+
 Like the other standalone builds, it opens a project in
 `~/Documents/Cornell Notes` on first launch, and **File > Open Project
 Folder…** switches folders. To remove it, delete the file (your notes stay
 where they are).
 
-Two things can stop an AppImage from starting, depending on the
-distribution:
+What it needs from the machine it runs on:
 
-- **"AppImages require FUSE to run"** (`error loading libfuse.so.2`):
-  mounting an AppImage needs the FUSE 2 library, which newer
-  distributions don't install by default. Install it (`sudo dnf install
-  fuse-libs` on Fedora, `sudo apt install libfuse2t64` — or `libfuse2` on
-  older releases — on Debian/Ubuntu), or skip mounting altogether with
+- **glibc 2.34 or newer** — Ubuntu 22.04, Debian 12, Fedora 35, RHEL 9, or
+  later. That floor comes from Qt's own builds.
+- **The usual desktop libraries** (X11/Wayland, OpenGL, fontconfig, NSS,
+  ALSA), which a desktop install already has. The one that's commonly
+  missing is `libxcb-cursor`, which Qt needs on X11 sessions: `sudo apt
+  install libxcb-cursor0` on Debian/Ubuntu, `sudo dnf install
+  xcb-util-cursor` on Fedora.
+- **Nothing for mounting**: the AppImage's runtime is static, so unlike
+  older AppImages it doesn't need the FUSE 2 library (`libfuse2`). Where
+  FUSE isn't available at all (some containers),
   `./Markdown-Cornell-Notes-*-x86_64.AppImage --appimage-extract-and-run`
-  (slower to start: it unpacks about 800 MB to `/tmp` each time).
-- **An error about the sandbox** (Ubuntu 24.04 and later): add
-  `--no-sandbox`, as described in the
-  [editor app's Linux sandbox note](editor-app.md).
+  unpacks it to `/tmp` and runs it from there instead.
+
+If it stops with **an error about the sandbox** (Ubuntu 24.04 and later),
+add `--no-sandbox`, as described in the
+[editor app's Linux sandbox note](editor-app.md).
+
+**Updates:** the AppImage carries update information pointing at this
+project's latest GitHub release, so
+[AppImageUpdate](https://github.com/AppImageCommunity/AppImageUpdate) and
+similar tools can update it in place — provided each release publishes the
+`.AppImage.zsync` file the build writes alongside the AppImage.
 
 How it's built: `scripts/build_appimage.sh` stages the TeX tree's own
 `x86_64-linux` binaries, pandoc's static Linux build, and
 [python-build-standalone](https://github.com/astral-sh/python-build-standalone)'s
-relocatable CPython, then runs electron-builder's `AppImage` target in the
-same container image as the other builds. The file is about 325 MB.
-It has been run end to end on Fedora (Render with every system build tool
-hidden from `PATH`), and its bundled Python, pandoc, and TeX also build
-the example in a bare Debian 11 container.
+relocatable CPython with PySide6's Linux wheels installed into it, then
+packs that folder with
+[appimagetool](https://github.com/AppImage/appimagetool). The file is about
+335 MB. It has been run on Fedora: launched as the AppImage, and
+driven through a Render with every system build tool hidden from `PATH`.
 
 ## Installing on macOS (Homebrew)
 
@@ -224,7 +261,8 @@ brew install --HEAD https://raw.githubusercontent.com/forloop11/markdown-cornell
 ```
 
 This pulls in `pandoc` and `python@3.13` automatically (the optional
-[editor app](editor-app.md) additionally needs `brew install node`), but not
+[editor app](editor-app.md) additionally needs PySide6 in a virtual
+environment — the formula's caveats give the commands), but not
 LaTeX itself — MacTeX/BasicTeX are Homebrew *casks*, not formulas, and MacTeX
 alone is several GB. `brew install` prints exact `tlmgr` instructions for
 the lightweight BasicTeX path after installing; see the formula's

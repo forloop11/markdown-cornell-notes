@@ -33,43 +33,60 @@
 │   │                          settings.tex
 │   ├── build_deb.sh           `make deb`: packages a .deb (see installation.md).
 │   ├── build_windows.sh       `make windows`: the Windows installer, with
-│   │                          Python/pandoc/TeX bundled (see installation.md).
+│   │                          Python/Qt/pandoc/TeX bundled (see installation.md).
 │   ├── build_macos.sh         `make macos`: the Apple Silicon macOS app zip,
 │   │                          bundled the same way.
 │   ├── build_appimage.sh      `make appimage`: the x86_64 Linux AppImage,
 │   │                          bundled the same way.
+│   ├── install_appimage.sh    `make install-appimage` / `uninstall-appimage`:
+│   │                          puts the built AppImage in ~/Applications
+│   │                          with a menu entry and icon.
 │   ├── bundle_common.sh       Shared by those three: pinned versions, the
 │   │                          download cache, the TeX tree, staging.
+│   ├── bundle_prune_qt.py     Trims the bundled PySide6 to the Qt modules
+│   │                          the app uses.
+│   ├── macos_launcher.c       The macOS app's executable, which starts the
+│   │                          bundled Python on app/main.py.
+│   ├── make_icons.py          Regenerates the app icon's .ico and .icns.
+│   ├── make_tutorial_gif.py   Records the README's tutorial
+│   │                          (assets/tutorial.gif) from the real app.
 │   └── topic_slug.py          yaml/notes.yaml's topic+date -> output PDF's
 │                              filename
 ├── build/              Generated .tex fragments (gitignored, rebuilt by
                         make).
 ├── pdf/                Output PDF (see Naming the output PDF in
                         editing-notes.md).
-├── app/                The Electron editor app; see editor-app.md.
-│   ├── main.js           Main process: the window, IPC handlers, save dialog,
-│   │                     right-click/spellcheck menu.
-│   ├── preload.js        Exposes the main process's operations to the page
-│   │                     as window.mcn.
-│   ├── lib/
-│   │   ├── api.js          Everything the page can ask for (files, render,
-│   │   │                   assets), as plain functions main.js wires to IPC.
-│   │   ├── pipeline.js     Header/markdown/asset file I/O, project setup,
-│   │   │                   and builds (`make build`, or the same steps run
-│   │   │                   directly on Windows).
-│   │   └── header-form.js  Converts between the yaml header fields and the
-│   │                       app's header form (date/time/timezone pickers).
-│   ├── renderer/         The app's page: HTML, CSS, app.js, and editor.js
+├── app/                The editor app (Python, PySide6/Qt); see editor-app.md.
+│   ├── main.py           Entry point: starts Qt, finds the project (and, in
+│   │                     a standalone build, the bundled tools).
+│   ├── window.py         The window: app bar, Details form, panes, menus,
+│   │                     autosave, and rendering.
+│   ├── assets_explorer.py  The assets file explorer down the left side.
+│   ├── webviews.py       The two Qt WebEngine panes: the markdown editor
+│   │                     and the PDF preview.
+│   ├── widgets.py        Small widgets the window is built from (cards,
+│   │                     chips, the time and timezone fields).
+│   ├── theme.py          Light/dark colors, style sheet, and icons.
+│   ├── api.py            Everything the window can ask for (files, render,
+│   │                     assets), as plain methods with no Qt in them.
+│   ├── pipeline.py       Header/markdown/asset file I/O, project setup,
+│   │                     and builds (`make build`, or the same steps run
+│   │                     directly on Windows and in standalone builds).
+│   ├── header_form.py    Converts between the yaml header fields and the
+│   │                     app's header form (date/time/timezone fields).
+│   ├── web/              The editor pane's page: index.html, editor.css,
+│   │                     bridge.js (its link to webviews.py), and editor.js
 │   │                     (the built CodeMirror bundle -- markdown/HTML/LaTeX
-│   │                     highlighting + native spellcheck).
-│   ├── frontend_src/     Source for renderer/editor.js (`npm run
-│   │                     build:editor`).
-│   ├── test/             The app's tests (`node --test`, run by `make test`).
-│   ├── build-resources/  The app icon (icon.svg, rendered to icon.png) for
-│   │                     the Windows, macOS, and AppImage builds.
-│   └── package.json      Electron + build tooling (`npm install` once, in a
-│                         git checkout).
-├── tests/              pytest tests for scripts/.
+│   │                     highlighting, toolbar, autocompletion).
+│   ├── frontend_src/     Source for web/editor.js (`npm run build:editor`).
+│   ├── build-resources/  The app icon (icon.svg, rendered to icon.png, and
+│   │                     from that to icon.ico/.icns by
+│   │                     scripts/make_icons.py) and the style sheet's
+│   │                     dropdown arrows.
+│   ├── requirements.txt  What the app needs from pip (PySide6).
+│   └── package.json      Build tooling for web/editor.js only (`npm
+│                         install` once, to rebuild it).
+├── tests/              pytest tests for scripts/ and app/ (`make test`).
 └── Makefile            `make build` / `make app` / `make test` / `make
                         clean` / `make distclean`.
 ```

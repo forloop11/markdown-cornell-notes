@@ -66,8 +66,7 @@ it, `sudo dnf remove markdown-cornell-notes`; your notes are untouched.
 
 ## Known issues
 
-- **Ubuntu 24.04-style sandbox errors don't apply on Fedora**, but if the
-  editor ever refuses to start with a message about its sandbox,
+- **If the editor refuses to start with a message about its sandbox**,
   `markdown-cornell-notes app APP_FLAGS=--no-sandbox` starts it without.
 - **No spellcheck dictionary is included** (the AppImage has US English);
   the [editor app](https://github.com/forloop11/markdown-cornell-notes/blob/main/docs/editor-app.md)

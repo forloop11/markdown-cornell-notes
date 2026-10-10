@@ -30,7 +30,7 @@ University or the Pauk estate.
 
 Ready-to-run editor apps, with everything needed to make PDFs built in:
 
-- **Linux (64-bit Intel/AMD):** [AppImage, version 2.0.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0)
+- **Linux (64-bit Intel/AMD):** [AppImage, version 2.1.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.1.0)
   — the current app, as shown above. Needs a distribution with glibc 2.34
   or later (Ubuntu 22.04, Debian 12, Fedora 35, or newer).
 - **macOS 14+ on Apple silicon (M1 or later):** [macOS app, version 2.0.0 — test build](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0).
@@ -154,11 +154,15 @@ Everything saves as you type; there is no Save button. The editor and
 preview size themselves to the window. Also:
 
 - **Several notes:** the dropdown in the app bar switches between the
-  project's notes; **+** makes a new one and the trash button deletes one.
+  project's notes; **+** makes a new one, the pencil renames one, and the
+  trash button deletes one.
+- **Find and replace** in the editor with Ctrl+F.
 - **File menu:** *Import Markdown File…* brings an existing `.md` file
   from anywhere on your computer into the project; *Export Markdown…* and
   *Export LaTeX…* save the open note as a `.md` or a single self-contained
-  `.tex` file; *Open Project Folder…* switches to another folder of notes.
+  `.tex` file; *New Project…* sets up a fresh folder of notes wherever you
+  choose, *Open Project Folder…* switches to an existing one, and *Open
+  Recent* lists the ones you've used lately.
 - **View menu:** *Appearance* switches between light, dark, and your
   desktop's setting; *Zoom Editor In/Out* changes the editor's text size.
 - **Spellcheck** underlines misspellings in the editor, with suggestions

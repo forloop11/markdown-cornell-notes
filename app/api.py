@@ -163,6 +163,13 @@ class Api:
         except OSError as err:
             raise PipelineError(f"Couldn't autosave {filename}: {err}") from err
 
+    def rename_file(self, filename, new_name):
+        """Rename a note (its markdown file and header together),
+        returning (the filename actually used, the new file list).
+        """
+        file = self.pipeline.rename_markdown_file(filename, new_name)
+        return file, self.pipeline.list_markdown_files()
+
     def delete_file(self, filename):
         """Delete `filename` and its header, returning the new file list."""
         self.pipeline.delete_markdown_file(filename)
@@ -255,6 +262,10 @@ class Api:
 
     def rename_asset_folder(self, subdir, name, new_name):
         self.pipeline.rename_asset_folder(name, new_name, subdir)
+        return self.asset_listing(subdir)
+
+    def rename_asset(self, subdir, name, new_name):
+        self.pipeline.rename_asset(name, new_name, subdir)
         return self.asset_listing(subdir)
 
     def delete_asset_folder(self, subdir, name):

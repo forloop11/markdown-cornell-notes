@@ -1,7 +1,7 @@
 {
   "name": "markdown-cornell-notes-editor",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Builds the CodeMirror bundle (web/editor.js) for the markdown-cornell-notes editor app. The app itself is Python (PySide6) and doesn't need Node.js to run; see docs/editor-app.md.",
   "scripts": {
     "build:editor": "esbuild frontend_src/editor.js --bundle --minify --format=iife --outfile=web/editor.js"
@@ -13,6 +13,7 @@
     "@codemirror/lang-markdown": "^6.3.1",
     "@codemirror/language": "^6.10.6",
     "@codemirror/legacy-modes": "^6.4.1",
+    "@codemirror/search": "^6.7.2",
     "@codemirror/state": "^6.4.1",
     "@codemirror/view": "^6.34.1",
     "@lezer/highlight": "^1.2.1",

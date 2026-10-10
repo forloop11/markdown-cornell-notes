@@ -61,6 +61,7 @@ AUTOSAVE_MS = 500
 FLUSH_TIMEOUT_MS = 3000
 EDITOR_ZOOM_STEPS = [0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0]
 DATE_FORMAT = "yyyy-MM-dd"
+MAX_RECENT = 8  # how many project folders File > Open Recent remembers
 # The least height the editor and PDF preview are given; see _build_panes.
 MIN_PANE_HEIGHT = 260
 
@@ -221,8 +222,11 @@ class MainWindow(QMainWindow):
         self.file_select.setAccessibleName("Markdown file")
         self.file_select.activated.connect(lambda _: self.select_file(self.file_select.currentText()))
         self.new_file_button = icon_button("plus", "New file", self.create_file)
+        self.rename_file_button = icon_button("pencil", "Rename file", self.rename_file)
         self.delete_file_button = icon_button("trash", "Delete file", self.delete_file)
-        self.file_controls = group(self.file_select, self.new_file_button, self.delete_file_button)
+        self.file_controls = group(
+            self.file_select, self.new_file_button, self.rename_file_button, self.delete_file_button
+        )
 
         self.save_status = QLabel()
         self.save_status.setProperty("kind", "save-status")
@@ -381,9 +385,13 @@ class MainWindow(QMainWindow):
             return item
 
         file_menu = bar.addMenu("&File")
+        action(file_menu, "&New Project…", self.new_project, "Ctrl+Shift+N")
         action(file_menu, "&Open Project Folder…", self.choose_project, QKeySequence.StandardKey.Open)
+        self.recent_menu = file_menu.addMenu("Open &Recent")
+        self.recent_menu.aboutToShow.connect(self._fill_recent_menu)
         action(file_menu, "&Show Project Folder", self.show_project_folder)
         file_menu.addSeparator()
+        action(file_menu, "Rena&me Note…", self.rename_file)
         action(file_menu, "&Import Markdown File…", self.import_markdown, "Ctrl+I")
         self.export_actions = [
             action(file_menu, "Export &Markdown…", self.export_markdown, "Ctrl+E"),
@@ -413,6 +421,9 @@ class MainWindow(QMainWindow):
             # The focused widget handles these keys itself; the menu is
             # for the mouse (and for showing what the keys are).
             item.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
+
+        edit_menu.addSeparator()
+        action(edit_menu, "&Find and Replace…", self.editor.open_search, QKeySequence.StandardKey.Find)
 
         view_menu = bar.addMenu("&View")
         # Light, dark, or whichever the desktop is set to. (The editor pane
@@ -520,6 +531,9 @@ class MainWindow(QMainWindow):
             self.api.init_project()
         if self.packaged:
             self.settings.setValue("projectRoot", str(self.api.project_root))
+        # Most recent first, for File > Open Recent.
+        root = str(self.api.project_root)
+        self.settings.setValue("recentProjects", [root, *(p for p in self.recent_projects() if p != root)][:MAX_RECENT])
         # Showing the project folder tells two app windows (two projects) apart.
         self.setWindowTitle(f"{APP_NAME} — {self.api.project_root}")
         self._reset()
@@ -585,10 +599,66 @@ class MainWindow(QMainWindow):
         button): pick a folder and switch to it.
         """
         folder = QFileDialog.getExistingDirectory(self, "Open Project Folder", str(self.api.project_root))
+        if folder:
+            self.switch_project(folder)
+
+    def switch_project(self, folder):
+        """Leave the current project for the one in `folder`, saving
+        anything pending to the current one first.
+        """
+        self._flush(lambda: (self._wait_for_render(), self.open_project(folder)))
+
+    def recent_projects(self):
+        """The project folders opened lately, most recent first."""
+        recent = self.settings.value("recentProjects", [])
+        # (QSettings hands a one-item list back as a bare string.)
+        return [recent] if isinstance(recent, str) else list(recent or [])
+
+    def _fill_recent_menu(self):
+        """File > Open Recent: the other projects opened lately that are
+        still there.
+        """
+        self.recent_menu.clear()
+        current = str(self.api.project_root)
+        others = [p for p in self.recent_projects() if p != current and Path(p).is_dir()]
+        for path in others:
+            self.recent_menu.addAction(path, lambda p=path: self.switch_project(p))
+        if not others:
+            self.recent_menu.addAction("No other recent projects").setEnabled(False)
+        self.recent_menu.addSeparator()
+        clear = self.recent_menu.addAction("Clear List", lambda: self.settings.setValue("recentProjects", [current]))
+        clear.setEnabled(bool(others))
+
+    def new_project(self, folder=None):
+        """File > New Project...: pick (or make) a folder anywhere, set up
+        a notes project in it -- the same files `make init` creates, with
+        the example notes to start from -- and switch to it.
+        """
+        if folder is None:
+            folder = QFileDialog.getExistingDirectory(
+                self, "New Project: choose or create a folder for it", str(self.api.project_root.parent)
+            )
         if not folder:
             return
+        # Set the new project up before leaving the current one, so a
+        # folder that can't take one leaves everything as it was.
+        try:
+            candidate = Api(folder, **self.api_options)
+            already_a_project = candidate.initialized()
+            if not already_a_project:
+                candidate.init_project()
+        except (PipelineError, OSError) as err:
+            self.show_message(f"Couldn't create a project in {folder}: {err}")
+            return
+
+        def switch():
+            self._wait_for_render()
+            self.open_project(folder)
+            if already_a_project:
+                self.show_message(f"{folder} already holds a notes project, so it was opened as it is.", "warning")
+
         # Save anything pending to the current project first.
-        self._flush(lambda: (self._wait_for_render(), self.open_project(folder)))
+        self._flush(switch)
 
     # --- Messages -------------------------------------------------------------
 
@@ -752,6 +822,7 @@ class MainWindow(QMainWindow):
             self.file_select.setCurrentText(self.selected)
         self.new_file_button.setEnabled(not busy)
         self.delete_file_button.setEnabled(not busy and bool(self.selected))
+        self.rename_file_button.setEnabled(not busy and bool(self.selected))
         self.render_button.setEnabled(not busy and bool(self.selected))
         self.download_button.setEnabled(not busy and bool(self.pdf))
         for item in getattr(self, "export_actions", []):
@@ -847,6 +918,41 @@ class MainWindow(QMainWindow):
                 self.show_message(f"Couldn't export to {path}: {err}")
 
         self._flush(export)
+
+    def rename_file(self, new_name=None):
+        """Rename the open note -- its markdown file and header together
+        -- asking for the new name unless one is given. What's in the
+        editor stays as it is.
+        """
+        name = self.selected
+        if not name or self.header is None or self.render_thread is not None:
+            return
+
+        def rename():
+            if new_name is None:
+                dialog = NameDialog(
+                    self, "Rename note", "New name", "Rename", lambda new: self.api.rename_file(name, new), text=Path(name).stem
+                )
+                if not dialog.exec():
+                    return
+                file, files = dialog.result_value
+            else:
+                try:
+                    file, files = self.api.rename_file(name, new_name)
+                except (PipelineError, OSError) as err:
+                    self.show_message(str(err))
+                    return
+            # What's known about the note goes with it to its new name.
+            for record in (self.last_saved, self.rendered):
+                if name in record:
+                    record[file] = record.pop(name)
+            self.selected = file
+            self.settings.setValue("selectedFile", file)
+            self._set_files(files)
+            self.editor_caption.setText(file)
+
+        # Saved under the old name first, so the rename moves current text.
+        self._flush(rename)
 
     def delete_file(self):
         name = self.selected

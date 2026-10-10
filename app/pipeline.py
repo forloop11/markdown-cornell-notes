@@ -307,6 +307,30 @@ class Pipeline:
         self.write_header(filename, {field: "" for field in HEADER_FIELDS})
         return filename
 
+    def rename_markdown_file(self, name, new_name):
+        """Rename `name` (one of list_markdown_files()) and its paired
+        header yaml after the sanitized stem of `new_name`, returning the
+        filename actually used. PDFs already built keep their names (they
+        come from the header, not from this one).
+        """
+        if name not in self.list_markdown_files():
+            raise PipelineError(f"{name} not found.")
+        filename = self.markdown_name_for(new_name)
+        if filename == name:
+            return name
+        old_path, new_path = self.md_dir / name, self.md_dir / filename
+        old_yaml, new_yaml = self.yaml_path_for(name), self.yaml_path_for(filename)
+        # (samefile: a change of capitals only, where the file system
+        # doesn't tell those apart, isn't a collision.)
+        if new_path.exists() and not new_path.samefile(old_path):
+            raise PipelineError(f"{filename} already exists.")
+        if new_yaml.exists() and not (old_yaml.exists() and new_yaml.samefile(old_yaml)):
+            raise PipelineError(f"yaml/{new_yaml.name} already exists.")
+        old_path.rename(new_path)
+        if old_yaml.exists():
+            old_yaml.rename(new_yaml)
+        return filename
+
     def delete_markdown_file(self, name):
         """Delete `name` (one of list_markdown_files()) and its paired
         header yaml. Refuses to delete the last remaining markdown file.
@@ -400,6 +424,23 @@ class Pipeline:
         if not path.is_file():
             raise PipelineError(f"{name} not found in {_display_dir(subdir)}/.")
         path.unlink()
+
+    def rename_asset(self, old_name, new_name, subdir=""):
+        """Rename the file assets/<subdir>/<old_name> to the sanitized form
+        of `new_name`, returning the name actually used. Notes that link to
+        it aren't touched.
+        """
+        _check_plain_name(old_name)
+        base = self.resolve_asset_dir(subdir)
+        old_path = base / old_name
+        if not old_path.is_file():
+            raise PipelineError(f"{old_name} not found in {_display_dir(subdir)}/.")
+        safe_name = _sanitize_name(new_name)
+        new_path = base / safe_name
+        if new_path != old_path and new_path.exists() and not new_path.samefile(old_path):
+            raise PipelineError(f"{safe_name} already exists in {_display_dir(subdir)}/.")
+        old_path.rename(new_path)
+        return safe_name
 
     def move_asset(self, name, src_subdir, dest_subdir):
         """Move assets/<src_subdir>/<name> into assets/<dest_subdir>/,

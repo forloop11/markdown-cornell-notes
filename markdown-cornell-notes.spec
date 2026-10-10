@@ -5,7 +5,7 @@
 #
 # Keep Version in step with app/package.json.
 Name:           markdown-cornell-notes
-Version:        2.0.0
+Version:        2.1.0
 Release:        1%{?dist}
 Summary:        Cornell-style meeting notes generator (LaTeX/Markdown)
 
@@ -80,5 +80,9 @@ chmod 755 %{buildroot}%{_bindir}/%{name}
 %{_datadir}/%{name}/
 
 %changelog
+* Sat Oct 10 2026 Todd C. Takala <todd.c.takala@gmail.com> - 2.1.0-1
+- Editor: find and replace, renaming notes and asset files, File > New
+  Project and Open Recent.
+
 * Sat Oct 10 2026 Todd C. Takala <todd.c.takala@gmail.com> - 2.0.0-1
 - First RPM package. The editor app is now built on Qt (PySide6).

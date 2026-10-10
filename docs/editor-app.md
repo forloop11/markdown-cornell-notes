@@ -35,7 +35,14 @@ Apple Silicon, and the
 Python, Qt, pandoc, and TeX instead, and keep their project in
 `Documents/Cornell Notes` rather than a directory you start them from.
 
-The window shows the project folder in its title bar. **File > Open
+The window shows the project folder in its title bar. **File > New
+Project…** (Ctrl+Shift+N) starts a fresh project: pick or create a folder
+anywhere, and the app sets it up with the example notes (the same files
+`make init` creates) and switches to it. It won't overwrite anything: a
+folder that already has an `md`, `yaml`, `settings`, `pdf`, or `assets`
+folder is refused with a message, unless it's already a notes project, in
+which case it's simply opened. **File > Open Recent** lists the other
+projects you've had open lately, to switch back with one click. **File > Open
 Project Folder…** (Ctrl+O) switches to a different folder, and **File >
 Show Project Folder** opens the current one in your file manager. If the
 folder isn't a project yet (no `md/` and `yaml/`), the app says so and
@@ -65,8 +72,8 @@ of the desktop (or back to **System**), and the app remembers the choice.
 The editor pane keeps its own dark theme in every mode.
 
 Along the top, an app bar stays pinned while you scroll. On the left are
-the dropdown to switch between the files in `md/` and **+** (new file) /
-trash (delete file) buttons; on the right, a status area,
+the dropdown to switch between the files in `md/` and **+** (new file),
+pencil (rename file), and trash (delete file) buttons; on the right, a status area,
 **Download PDF**, and **Render**. The status area shows a small
 "Saved"/"Saving…" autosave indicator, a "Preview out of date" chip (see
 below), and — once you've clicked Render — a success/failure chip. On
@@ -93,7 +100,8 @@ Explorer** (Ctrl+B); the app remembers which. In it:
   is relative to the project, as the build expects. Ctrl+C on the selected
   file (or files — one link per line) copies the same.
 - **Right-click** for Copy Markdown Link, Copy Path (just
-  `assets/diagrams/flow.png`), Rename (folders), Delete (with a
+  `assets/diagrams/flow.png`), Rename (F2 does the same; links to the
+  file in your notes aren't rewritten to match), Delete (with a
   confirmation; several selected items at once works too), New Folder, Add
   Files, and Show in File Manager.
 
@@ -131,6 +139,11 @@ The header form is per markdown file — each `md/<stem>.md` has its own
 paired `yaml/<stem>.yaml`, so switching files in the dropdown also switches
 the header fields shown, and creating a file creates a blank paired yaml
 alongside it (deleting a file removes its yaml too).
+
+Renaming a note (the pencil button, or **File > Rename Note…**) renames
+its markdown file and its header together, and leaves what's in the editor
+alone. PDFs already built from it keep their names, which come from the
+topic, date, and location rather than the file's name.
 
 The **File** menu moves notes in and out of the project:
 
@@ -183,6 +196,12 @@ the window that's a web page (`app/web/`) — which is also what gives it
 Chromium's built-in spellcheck: misspelled words get the usual squiggly
 underline, and the right-click menu offers spelling suggestions.
 **View > Zoom Editor In/Out** changes its text size.
+
+**Edit > Find and Replace…** (Ctrl+F, also from inside the editor) opens a
+search panel along the editor's top: Enter and Shift+Enter step through
+the matches, which are all highlighted; **replace** and **replace all**
+change them; and it can match case, whole words, or a regular expression.
+Esc closes it. Selecting a word also highlights its other occurrences.
 
 Spellcheck needs a dictionary. The standalone builds come with US English;
 run any other way, the app has none until you give it one. In both cases

@@ -318,8 +318,8 @@ needs another entitlement.
 ## Running the Linux AppImage
 
 To just run it, download the AppImage from the
-[Linux release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0); its
-[release notes](release-notes/linux-2.0.0.md) cover running it. The rest
+[Linux release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.1.0); its
+[release notes](release-notes/linux-2.1.0.md) cover running it. The rest
 of this section covers building it yourself. (Version 1.0, the
 [earlier Electron-based release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.2), runs on older
 distributions but needs FUSE 2 to mount.)

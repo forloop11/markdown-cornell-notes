@@ -242,3 +242,53 @@ def test_render_with_an_image_that_has_no_explicit_size(tmp_path):
     success, log, pdf_path = p.render("notes.md", "build/app-test")
     assert success, log[-2000:]
     assert pdf_path.is_file()
+
+
+def test_rename_markdown_file_moves_the_note_and_its_header_together(p, project):
+    p.create_markdown_file("draft")
+    p.write_markdown_file("draft.md", "# Draft\n")
+    p.write_header("draft.md", {**blank(), "topic": "Kickoff"})
+    assert p.rename_markdown_file("draft.md", "Kickoff Notes!") == "Kickoff-Notes.md"
+    assert p.list_markdown_files() == ["Kickoff-Notes.md"]
+    assert p.read_markdown_file("Kickoff-Notes.md") == "# Draft\n"
+    assert p.read_header("Kickoff-Notes.md")["topic"] == "Kickoff"
+    assert not (project / "yaml" / "draft.yaml").exists()
+    # Its own name again is no change, not a collision.
+    assert p.rename_markdown_file("Kickoff-Notes.md", "Kickoff-Notes") == "Kickoff-Notes.md"
+
+
+def test_rename_markdown_file_refuses_a_taken_name_a_blank_one_and_unknown_files(p, project):
+    p.create_markdown_file("one")
+    p.create_markdown_file("two")
+    for call in (
+        lambda: p.rename_markdown_file("one.md", "two"),
+        lambda: p.rename_markdown_file("one.md", "  "),
+        lambda: p.rename_markdown_file("missing.md", "three"),
+        lambda: p.rename_markdown_file("../yaml/one.yaml", "three"),
+    ):
+        with pytest.raises(PipelineError):
+            call()
+    # A stray header in the way is a collision too: it isn't overwritten.
+    (project / "yaml" / "three.yaml").write_text('topic: "keep me"\n')
+    with pytest.raises(PipelineError):
+        p.rename_markdown_file("one.md", "three")
+    assert p.list_markdown_files() == ["one.md", "two.md"]
+    assert "keep me" in (project / "yaml" / "three.yaml").read_text()
+
+
+def test_rename_asset_renames_a_file_in_place(p, project):
+    p.create_asset_folder("pics")
+    p.save_asset("old name.png", b"png", "pics")
+    assert p.rename_asset("old-name.png", "New Name.png", "pics") == "New-Name.png"
+    assert p.list_asset_files() == ["pics/New-Name.png"]
+    p.save_asset("other.png", b"x", "pics")
+    for call in (
+        lambda: p.rename_asset("other.png", "New-Name.png", "pics"),  # taken
+        lambda: p.rename_asset("nope.png", "x.png", "pics"),
+        lambda: p.rename_asset("pics", "album"),  # a folder, not a file
+        lambda: p.rename_asset("../md/notes.md", "x.md"),
+        lambda: p.rename_asset("other.png", "   ", "pics"),
+    ):
+        with pytest.raises(PipelineError):
+            call()
+    assert p.list_asset_files() == ["pics/New-Name.png", "pics/other.png"]

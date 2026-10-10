@@ -2,7 +2,7 @@
 //
 // Bundled (see ../package.json's build:editor script) into a single IIFE at
 // ../web/editor.js that exposes window.CodeEditor -- a small imperative API
-// (mount/setDoc/getDoc/setHeight/setAssets). The page it runs in
+// (mount/setDoc/getDoc/setHeight/setAssets/openSearch). The page it runs in
 // (../web/index.html) is shown in a Qt web view; ../web/bridge.js connects
 // this API to the Python side (../webviews.py's EditorView).
 import { EditorState, EditorSelection } from "@codemirror/state";
@@ -14,6 +14,7 @@ import { html } from "@codemirror/lang-html";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { tags as t } from "@lezer/highlight";
 import { autocompletion, startCompletion } from "@codemirror/autocomplete";
+import { search, searchKeymap, highlightSelectionMatches, openSearchPanel } from "@codemirror/search";
 
 // Dracula (https://draculatheme.com/) -- fixed rather than following the
 // page's light/dark setting: a fixed dark theme keeps syntax colors
@@ -47,6 +48,32 @@ const draculaEditorTheme = EditorView.theme(
       color: dracula.comment,
       border: "none",
     },
+    // The find/replace panel and its matches, in the editor's own colors
+    // rather than @codemirror/search's stock light ones.
+    ".cm-panels": { backgroundColor: "#21222c", color: dracula.foreground },
+    ".cm-panels.cm-panels-top": { borderBottom: `1px solid ${dracula.currentLine}` },
+    ".cm-search": { padding: "6px 8px", fontFamily: "system-ui, sans-serif", fontSize: "13px" },
+    ".cm-search label": { display: "inline-flex", alignItems: "center", gap: "4px", margin: "0 8px 0 0" },
+    ".cm-textfield": {
+      backgroundColor: dracula.background,
+      color: dracula.foreground,
+      border: `1px solid ${dracula.comment}`,
+      borderRadius: "4px",
+      padding: "3px 6px",
+    },
+    ".cm-button": {
+      backgroundImage: "none",
+      backgroundColor: dracula.currentLine,
+      color: dracula.foreground,
+      border: `1px solid ${dracula.comment}`,
+      borderRadius: "4px",
+      padding: "3px 8px",
+    },
+    ".cm-button:hover": { backgroundColor: dracula.comment },
+    ".cm-panel.cm-search [name=close]": { color: dracula.foreground, fontSize: "18px", cursor: "pointer" },
+    ".cm-searchMatch": { backgroundColor: "rgba(241, 250, 140, 0.25)", outline: `1px solid ${dracula.yellow}` },
+    ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "rgba(255, 184, 108, 0.55)" },
+    ".cm-selectionMatch": { backgroundColor: "rgba(139, 233, 253, 0.18)" },
     // @codemirror/autocomplete's own baseTheme otherwise renders the
     // completion tooltip in its stock light colors, clashing with
     // everything else in this always-dark editor.
@@ -142,7 +169,11 @@ function makeState(doc) {
       lineNumbers(),
       highlightActiveLine(),
       history(),
-      keymap.of([{ key: "Tab", run: insertTab }, ...defaultKeymap, ...historyKeymap]),
+      keymap.of([{ key: "Tab", run: insertTab }, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+      // Find and replace (Ctrl/Cmd+F), in a panel along the top of the
+      // editor; other occurrences of the selected word are highlighted.
+      search({ top: true }),
+      highlightSelectionMatches(),
       draculaEditorTheme,
       syntaxHighlighting(draculaHighlightStyle, { fallback: true }),
       markdown({ codeLanguages }),
@@ -594,4 +625,11 @@ function setAssets(assets) {
   assetFiles = Array.isArray(assets) ? assets : [];
 }
 
-window.CodeEditor = { mount, setDoc, getDoc, setHeight, setAssets };
+// Opens the find/replace panel (as Ctrl/Cmd+F in the editor does), with
+// the selection, if any, as what to look for.
+function openSearch() {
+  if (!view) return;
+  openSearchPanel(view);
+}
+
+window.CodeEditor = { mount, setDoc, getDoc, setHeight, setAssets, openSearch };

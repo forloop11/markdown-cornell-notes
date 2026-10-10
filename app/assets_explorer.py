@@ -128,6 +128,8 @@ class AssetsExplorer(QFrame):
         # Ctrl+C on the selected file: its link, ready to paste into the editor.
         copy = QShortcut(QKeySequence.StandardKey.Copy, self.tree, context=Qt.ShortcutContext.WidgetShortcut)
         copy.activated.connect(self._copy_selected)
+        rename = QShortcut(QKeySequence(Qt.Key.Key_F2), self.tree, context=Qt.ShortcutContext.WidgetShortcut)
+        rename.activated.connect(self._rename_selected)
         layout.addWidget(self.tree, 1)
 
         self._hint = label("", "explorer-hint")
@@ -228,13 +230,31 @@ class AssetsExplorer(QFrame):
         if self._run(lambda: self.api.add_assets(subdir, paths)):
             self.tree.expand(self.model.index(folder))
 
-    def rename_folder(self, path):
+    def rename(self, path, new_name=None):
+        """Rename the file or folder at `path` -- asking for the new name
+        unless one is given. Links to it in notes aren't rewritten.
+        """
         parent, name = self.subdir(str(Path(path).parent)), Path(path).name
+        is_folder = Path(path).is_dir()
+        operation = self.api.rename_asset_folder if is_folder else self.api.rename_asset
+        if new_name is not None:
+            self._run(lambda: operation(parent, name, new_name))
+            return
         dialog = NameDialog(
-            self, "Rename folder", "New name", "Rename", lambda new: self.api.rename_asset_folder(parent, name, new), text=name
+            self,
+            "Rename folder" if is_folder else "Rename file",
+            "New name",
+            "Rename",
+            lambda new: operation(parent, name, new),
+            text=name,
         )
         if dialog.exec():
             self._notify.start()
+
+    def _rename_selected(self):
+        paths = self.selected_paths()
+        if len(paths) == 1:
+            self.rename(paths[0])
 
     def delete(self, paths):
         """Delete the files and folders at `paths`, after asking."""
@@ -329,8 +349,7 @@ class AssetsExplorer(QFrame):
             target = targets[0]
             menu.addAction("Copy Markdown Link", lambda: self.copy_link(target))
             menu.addAction("Copy Path", lambda: self.copy_path(target))
-            if Path(target).is_dir():
-                menu.addAction("Rename…", lambda: self.rename_folder(target))
+            menu.addAction("Rename…", lambda: self.rename(target))
         if targets:
             menu.addAction("Delete…", lambda: self.delete(targets))
             menu.addSeparator()

@@ -410,3 +410,120 @@ def test_editor_and_preview_fill_the_window_and_follow_its_size(window):
     window.details_card.set_expanded(True)
     assert settle(1400, 600) == MIN_PANE_HEIGHT
     assert scroll.verticalScrollBar().maximum() > 0
+
+
+def test_file_new_project_sets_one_up_in_the_chosen_folder_and_switches_to_it(window, scaffolded, tmp_path):
+    type_in_editor(window, "KEEP ")  # unsaved work in the project being left
+    fresh = tmp_path / "Team Notes"
+    fresh.mkdir()
+    window.new_project(str(fresh))
+    wait_until(lambda: window.api.project_root == fresh and window.header is not None, what="the new project")
+
+    for file in ("md/notes.md", "yaml/notes.yaml", "settings/page.yaml", "assets/tux.jpg"):
+        assert (fresh / file).is_file(), file
+    assert (fresh / "pdf").is_dir()
+    assert window.selected == "notes.md"
+    assert str(fresh) in window.windowTitle()
+    assert window.messages.count() == 0
+    wait_until(lambda: explorer_names(window) == ["tux.jpg"], what="the explorer to follow")
+    # The project that was open got its last edit before the switch.
+    assert (scaffolded / "md" / "notes.md").read_text(encoding="utf-8").startswith("KEEP ")
+
+
+def test_file_new_project_never_overwrites_what_a_folder_already_holds(window, scaffolded, tmp_path):
+    # A folder with something in the way: refused, and the window stays put.
+    taken = tmp_path / "taken"
+    (taken / "assets").mkdir(parents=True)
+    (taken / "assets" / "mine.txt").write_text("precious")
+    window.new_project(str(taken))
+    QTest.qWait(200)
+    assert window.api.project_root == scaffolded
+    assert window.messages.count() == 1
+    assert not (taken / "md").exists()
+    assert (taken / "assets" / "mine.txt").read_text() == "precious"
+
+    # An existing project: opened as it is, with a note saying so.
+    other = tmp_path / "other"
+    other.mkdir()
+    Pipeline(other).init_project()
+    (other / "md" / "notes.md").write_text("# Mine\n", encoding="utf-8")
+    window.new_project(str(other))
+    wait_until(lambda: window.api.project_root == other and window.header is not None, what="the existing project")
+    assert window.editor.doc == "# Mine\n"
+    assert window.messages.count() == 1
+
+
+def test_renaming_the_open_note_keeps_whats_in_the_editor(window, scaffolded):
+    type_in_editor(window, "FRESH ")  # not saved yet when the rename starts
+    window.rename_file("Kickoff Meeting")
+    wait_until(lambda: window.selected == "Kickoff-Meeting.md", what="the rename")
+    assert window.files == ["Kickoff-Meeting.md"]
+    assert window.file_select.currentText() == "Kickoff-Meeting.md"
+    assert window.editor_caption.text() == "Kickoff-Meeting.md"
+    assert not (scaffolded / "md" / "notes.md").exists()
+    assert (scaffolded / "yaml" / "Kickoff-Meeting.yaml").is_file()
+    assert (scaffolded / "md" / "Kickoff-Meeting.md").read_text(encoding="utf-8").startswith("FRESH ")
+    assert window.editor.doc.startswith("FRESH ") and window.topic.text() == "Example Meeting"
+
+    # Later edits land in the renamed file (typing carries on after "FRESH ").
+    type_in_editor(window, "MORE ")
+    wait_until(
+        lambda: (scaffolded / "md" / "Kickoff-Meeting.md").read_text(encoding="utf-8").startswith("FRESH MORE "),
+        what="the autosave",
+    )
+    assert QSettings().value("selectedFile") == "Kickoff-Meeting.md"
+
+    window.api.create_file("taken")
+    window.rename_file("taken")
+    wait_until(lambda: window.messages.count() == 1, what="the refusal")
+    assert window.selected == "Kickoff-Meeting.md"
+
+
+def test_assets_explorer_renames_files_as_well_as_folders(window, scaffolded):
+    assets = scaffolded / "assets"
+    window.explorer.rename(str(assets / "tux.jpg"), "Penguin Photo.jpg")
+    assert (assets / "Penguin-Photo.jpg").is_file() and not (assets / "tux.jpg").exists()
+    wait_until(lambda: window.editor._assets == ["Penguin-Photo.jpg"], what="the editor's completions")
+
+    window.api.create_asset_folder("", "pics")
+    window.explorer.rename(str(assets / "pics"), "album")
+    assert (assets / "album").is_dir()
+
+    window.explorer.rename(str(assets / "Penguin-Photo.jpg"), "album")  # taken: reported
+    assert window.messages.count() == 1
+
+
+def test_open_recent_lists_the_other_projects_opened_lately(window, scaffolded, tmp_path):
+    def entries():
+        window._fill_recent_menu()
+        return [a.text() for a in window.recent_menu.actions() if not a.isSeparator()]
+
+    assert entries() == ["No other recent projects", "Clear List"]
+
+    second = tmp_path / "second"
+    second.mkdir()
+    window.new_project(str(second))
+    wait_until(lambda: window.api.project_root == second and window.header is not None, what="the second project")
+    assert entries() == [str(scaffolded), "Clear List"]
+
+    # Picking it switches back, and the list reorders around the current one.
+    window.recent_menu.actions()[0].trigger()
+    wait_until(lambda: window.api.project_root == scaffolded and window.header is not None, what="the switch back")
+    assert entries() == [str(second), "Clear List"]
+    assert window.recent_projects() == [str(scaffolded), str(second)]
+
+    # A folder that has since gone isn't offered.
+    shutil.rmtree(second)
+    assert entries() == ["No other recent projects", "Clear List"]
+
+
+def test_find_and_replace_panel_opens_in_the_editor(window):
+    window.editor.open_search()
+    found = []
+    window.editor.page().runJavaScript(
+        "JSON.stringify([!!document.querySelector('.cm-search'), !!document.querySelector('.cm-search [name=replace]')])",
+        0,
+        found.append,
+    )
+    wait_until(lambda: found, what="the editor to answer")
+    assert found[0] == "[true,true]"

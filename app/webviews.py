@@ -142,6 +142,12 @@ class EditorView(QWebEngineView):
         if self._ready:
             self._run("CodeEditor.setAssets", self._assets)
 
+    def open_search(self):
+        """Open the editor's find/replace panel, and put the keyboard in it."""
+        self.setFocus()
+        if self._ready:
+            self._run("CodeEditor.openSearch")
+
     def fetch_doc(self, callback):
         """Call `callback()` once `doc` is certain to match the editor --
         including any keystroke whose report is still on its way.

@@ -1,6 +1,6 @@
 # Markdown Cornell Notes
 
-![The editor app: app bar, note details, Markdown editor, and rendered PDF preview](assets/README/screenshot.png)
+![Demo of the editor app: typing a new section with a cue-column question and a summary line in Markdown, clicking Render, and the Cornell-notes PDF updating beside it](assets/markdown-cornell-notes-demo.gif)
 
 ---
 

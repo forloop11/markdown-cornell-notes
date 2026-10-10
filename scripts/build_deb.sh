@@ -6,6 +6,10 @@
 # The optional editor app is a PySide6 (Qt) desktop app (see `make app` in
 # the Makefile): its Qt bindings are Recommends rather than Depends, since
 # `make build` itself doesn't need them.
+#
+# Usage: scripts/build_deb.sh [version]   (or `make deb`)
+# The version defaults to `git describe`'s (e.g. 2.0.0-3-gabc1234 a few
+# commits after the v2.0.0 tag); pass one to name a release exactly.
 set -eu
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -14,6 +18,7 @@ VERSION="${VERSION:-0.0.0}"
 
 DIST_DIR="$REPO_ROOT/dist"
 PKG_NAME="markdown-cornell-notes"
+DEB_IMAGE="docker.io/library/debian:trixie-slim" # only used without a dpkg-deb on the host
 STAGE="$DIST_DIR/${PKG_NAME}_${VERSION}"
 
 rm -rf "$STAGE"
@@ -61,6 +66,20 @@ Description: Cornell-style meeting notes generator (LaTeX/Markdown)
 EOF
 
 DEB_FILE="$DIST_DIR/${PKG_NAME}_${VERSION}.deb"
-dpkg-deb --build --root-owner-group "$STAGE" "$DEB_FILE" >&2
+if command -v dpkg-deb > /dev/null; then
+  dpkg-deb --build --root-owner-group "$STAGE" "$DEB_FILE" >&2
+else
+  # Not a Debian-family host (e.g. Fedora): run dpkg-deb in a Debian
+  # container instead, which has it built in.
+  container="${CONTAINER:-$(command -v podman || command -v docker || true)}"
+  if [ -z "$container" ]; then
+    echo "Needs dpkg-deb, or podman or docker to run it in $DEB_IMAGE." >&2
+    exit 1
+  fi
+  # label=disable: on SELinux hosts, lets the container read the bind
+  # mount without relabeling the checkout.
+  "$container" run --rm --security-opt label=disable -v "$DIST_DIR":/dist "$DEB_IMAGE" \
+    dpkg-deb --build --root-owner-group "/dist/${PKG_NAME}_${VERSION}" "/dist/${PKG_NAME}_${VERSION}.deb" >&2
+fi
 
 echo "$DEB_FILE"

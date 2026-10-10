@@ -13,10 +13,19 @@ A standalone [editor app](editor-app.md) build — a
 
 ## Installing as a system package
 
+To just install it, download the `.deb` from the
+[v2.0.0 release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0); its
+[release notes](release-notes/deb-2.0.0.md) cover installing it. To build
+it yourself:
+
 ```sh
 make deb                      # -> dist/markdown-cornell-notes_<version>.deb
 sudo apt install ./dist/markdown-cornell-notes_*.deb
 ```
+
+`make deb` works on any host: without `dpkg-deb` (e.g. on Fedora) it runs
+it in a Debian container, with podman or docker. The version comes from
+`git describe`; `scripts/build_deb.sh 2.0.0` names one exactly.
 
 This stages the Makefile, scripts, `settings/template.tex`, and the app
 under `/usr/share/markdown-cornell-notes` (read-only, like any installed

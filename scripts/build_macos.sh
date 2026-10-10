@@ -6,11 +6,27 @@
 # for what the bundle holds and how it's put together.
 #
 # Runs on an x86_64 Linux host -- no Mac needed: the .app is a folder
-# assembled here from prebuilt downloads, then rcodesign (from
-# apple-codesign, run here on Linux) ad-hoc signs it. That's not an Apple
-# Developer ID signature, and the app isn't notarized, so Gatekeeper still
-# blocks it on first launch until the user allows it (see
-# docs/installation.md).
+# assembled here from prebuilt downloads, then signed with rcodesign (from
+# apple-codesign, run here on Linux).
+#
+# Signing comes in two strengths:
+#
+# - By default the app is only ad-hoc signed. That's not an Apple
+#   Developer ID signature, and the app isn't notarized, so Gatekeeper
+#   blocks it on first launch until the user allows it (see
+#   docs/installation.md).
+# - With an Apple Developer account, set these (all paths to files kept
+#   outside the repository) and it's signed with your Developer ID,
+#   notarized by Apple, and stapled, so it opens without a warning:
+#
+#     MACOS_SIGN_P12                your "Developer ID Application"
+#                                   certificate and its private key (.p12)
+#     MACOS_SIGN_P12_PASSWORD_FILE  a file holding that .p12's password
+#     MACOS_NOTARY_API_KEY          an App Store Connect API key, as the
+#                                   JSON file `rcodesign
+#                                   encode-app-store-connect-api-key` makes
+#
+#   docs/installation.md walks through getting each of them.
 #
 # The .app's own executable is a small launcher (scripts/macos_launcher.c,
 # cross-compiled here with zig) that starts the bundled Python on
@@ -105,8 +121,48 @@ cat > "$APP/Contents/Info.plist" <<EOF
 </plist>
 EOF
 
-echo "Ad-hoc signing..."
-"$rcodesign" sign "$APP"
+if [ -n "${MACOS_SIGN_P12:-}" ]; then
+  echo "Signing with the Developer ID certificate in $MACOS_SIGN_P12..."
+  if [ -z "${MACOS_SIGN_P12_PASSWORD_FILE:-}" ]; then
+    echo "Set MACOS_SIGN_P12_PASSWORD_FILE to a file holding the password of $MACOS_SIGN_P12." >&2
+    exit 1
+  fi
+  for file in "$MACOS_SIGN_P12" "$MACOS_SIGN_P12_PASSWORD_FILE"; do
+    [ -f "$file" ] || { echo "No such file: $file" >&2; exit 1; }
+  done
+  # --for-notarization: the hardened runtime and a secure timestamp on
+  # every signature, both of which Apple's notary service insists on (and
+  # a check that the certificate is a Developer ID one).
+  #
+  # The hardened runtime blocks things Python and Qt's Chromium need
+  # unless the entitlements file allows them. rcodesign applies both only
+  # to the launcher unless each program inside is named, which is what
+  # macos_sign_scopes.py's output does.
+  entitlements="$ROOT/scripts/macos_entitlements.plist"
+  mapfile -t scopes < <("$BUILD_PYTHON" "$ROOT/scripts/macos_sign_scopes.py" "$APP" "$entitlements")
+  # MACOS_SIGN_EXTRA_ARGS: for trying the signing step with a certificate
+  # Apple didn't issue (e.g. "--code-signature-flags runtime" in place of
+  # the default, which insists on a Developer ID).
+  # shellcheck disable=SC2086
+  "$rcodesign" sign ${MACOS_SIGN_EXTRA_ARGS---for-notarization} \
+    --p12-file "$MACOS_SIGN_P12" --p12-password-file "$MACOS_SIGN_P12_PASSWORD_FILE" \
+    --entitlements-xml-file "$entitlements" \
+    "${scopes[@]}" \
+    "$APP"
+  if [ -n "${MACOS_NOTARY_API_KEY:-}" ]; then
+    [ -f "$MACOS_NOTARY_API_KEY" ] || { echo "No such file: $MACOS_NOTARY_API_KEY" >&2; exit 1; }
+    echo "Submitting to Apple for notarization (usually a few minutes)..."
+    # Uploads the app, waits for Apple's verdict, and staples the ticket
+    # to the .app -- so it opens without a warning even offline. Stapling
+    # comes before zipping: a zip itself can't carry a ticket.
+    "$rcodesign" notary-submit --api-key-file "$MACOS_NOTARY_API_KEY" --staple "$APP"
+  else
+    echo "Signed but NOT notarized (MACOS_NOTARY_API_KEY isn't set): Gatekeeper will still warn." >&2
+  fi
+else
+  echo "Ad-hoc signing (MACOS_SIGN_P12 isn't set: Gatekeeper will block the first launch)..."
+  "$rcodesign" sign "$APP"
+fi
 
 zip_file="$OUT/Markdown-Cornell-Notes-$APP_VERSION-arm64-mac.zip"
 # -y keeps symlinks (Qt's frameworks are full of them) as symlinks.

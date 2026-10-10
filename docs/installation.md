@@ -1,13 +1,15 @@
 # Installation
 
-Three ways to install this outside of a git checkout, all packaging the
+Four ways to install this outside of a git checkout, all packaging the
 Makefile/scripts/template the same way and dropping a `markdown-cornell-notes`
-launcher on the `PATH`: a `.deb`, a Homebrew formula, and a Docker image.
+launcher on the `PATH`: a `.deb`, an
+[RPM](#installing-on-fedora-and-rhel-family-systems-rpm), a Homebrew
+formula, and a Docker image.
 A standalone [editor app](editor-app.md) build — a
 [Windows installer](#installing-on-windows), a
-[macOS app](#installing-the-macos-app-apple-silicon) for Apple Silicon, or
-a [Linux AppImage](#running-the-linux-appimage) — comes with everything it
-needs bundled in.
+[macOS app](#installing-the-macos-app-apple-silicon) for Apple Silicon, a
+[Linux AppImage](#running-the-linux-appimage), or a
+[snap](#building-the-snap) — comes with everything it needs bundled in.
 
 ## Installing as a system package
 
@@ -52,6 +54,64 @@ that file is then a no-op even though its contents changed — use `sudo dpkg
 -i dist/markdown-cornell-notes_*.deb` instead, which reinstalls
 unconditionally, and close and reopen any already-running editor app
 afterward (it keeps the old code loaded in memory until restarted).
+
+## Installing on Fedora and RHEL-family systems (RPM)
+
+`make rpm` builds the RPM counterpart of the `.deb`, from
+`markdown-cornell-notes.spec`:
+
+```sh
+make rpm                      # -> dist/rpm/markdown-cornell-notes-<version>-1.<dist>.noarch.rpm
+sudo dnf install ./dist/rpm/markdown-cornell-notes-*.noarch.rpm
+```
+
+It's laid out and used exactly like the `.deb` above — everything under
+`/usr/share/markdown-cornell-notes`, a `markdown-cornell-notes` launcher,
+one project per directory. `dnf` brings in what a build needs (pandoc,
+latexmk, and the handful of TeX Live packages the template uses, by name
+rather than a whole TeX scheme) and, as a weak dependency, `python3-pyside6`
+for the [editor app](editor-app.md). Building the package needs `rpmbuild`
+(`sudo dnf install rpm-build`), or podman or docker to run it in a Fedora
+container.
+
+It has been installed in a clean Fedora 44 container, where it built the
+example PDF with only the dependencies `dnf` resolved, and the app's tests
+pass against Fedora's own PySide6 (6.11).
+
+### Publishing it with COPR
+
+[COPR](https://copr.fedorainfracloud.org/) is Fedora's free service for
+personal package repositories; with a project there, people install with
+
+```sh
+sudo dnf copr enable forloop11/markdown-cornell-notes
+sudo dnf install markdown-cornell-notes
+```
+
+and get new versions through `dnf upgrade`. Those commands fail with a 404
+until the project exists and has a finished build. To set it up, once:
+
+1. Push this repository's `markdown-cornell-notes.spec` and
+   `.copr/Makefile` to GitHub (COPR builds from what's there, not from
+   your working copy).
+2. Sign in to [copr.fedorainfracloud.org](https://copr.fedorainfracloud.org/)
+   with a [Fedora account](https://accounts.fedoraproject.org/).
+3. **New Project**: name it `markdown-cornell-notes`, and tick the build
+   targets to offer it for — e.g. the current `fedora-*-x86_64` releases
+   (the package is the same for every architecture, so one per release is
+   enough).
+4. In the project, **Packages > New Package**: source type **SCM**, clone
+   URL `https://github.com/forloop11/markdown-cornell-notes.git`, spec
+   file `markdown-cornell-notes.spec`, and **make srpm** as the way to
+   build the source RPM. That last choice runs `.copr/Makefile`, which
+   packs the repository at the commit being built.
+5. **Rebuild** the package. When the build goes green, the `dnf` commands
+   above work.
+
+For later versions: change `Version` in the spec (keeping it in step with
+`app/package.json`; `make rpm` checks), add a `%changelog` entry, push,
+and rebuild in COPR — or turn on the package's auto-rebuild option with a
+GitHub webhook to have a push do it.
 
 ## Installing on Windows
 
@@ -144,7 +204,8 @@ xattr -dr com.apple.quarantine "/Applications/Markdown Cornell Notes.app"
 ```
 
 After that it opens normally. A smooth first launch needs a Developer ID
-signature and notarization, which need an Apple Developer account.
+signature and notarization, which need an Apple Developer account — see
+[Signing and notarizing](#signing-and-notarizing-the-macos-app) below.
 
 How it's built: everything happens on the same x86_64 Linux host as
 `make windows` — no Mac needed. TinyTeX's Linux `tlmgr` adds TeX Live's
@@ -169,13 +230,90 @@ expect until someone does: because the launcher hands over to the bundled
 Python, the menu bar may name the app after Python rather than "Markdown
 Cornell Notes".
 
+### Signing and notarizing the macOS app
+
+With an [Apple Developer](https://developer.apple.com/programs/) account,
+`make macos` can sign the app with your Developer ID and have Apple
+notarize it, so it opens on other people's Macs with no warning to get
+past. It does so when three environment variables name the credentials;
+without them it ad-hoc signs as described above. All of it runs on the
+Linux build host.
+
+One-time setup — keep every file it produces **outside the repository**
+(they are your signing identity):
+
+1. **Make a private key and a certificate signing request:**
+
+   ```sh
+   rcodesign=dist/bundle-cache/apple-codesign-*/rcodesign    # downloaded by `make macos`
+   openssl genrsa -out developer-id.key 2048
+   $rcodesign generate-certificate-signing-request \
+     --pem-file developer-id.key --csr-pem-file developer-id.csr
+   ```
+
+2. **Get the certificate.** At
+   [developer.apple.com/account](https://developer.apple.com/account) >
+   Certificates, add a certificate of type **Developer ID Application**
+   (only the account holder can), upload `developer-id.csr`, and download
+   the `.cer` file it gives you.
+
+3. **Combine the certificate and key into a `.p12`,** with a password of
+   your choosing, saved in a file of its own:
+
+   ```sh
+   openssl x509 -inform DER -in developerID_application.cer -out developer-id.pem
+   openssl pkcs12 -export -inkey developer-id.key -in developer-id.pem -out developer-id.p12
+   ```
+
+4. **Make an App Store Connect API key,** which is what submits the app
+   for notarization: at
+   [appstoreconnect.apple.com](https://appstoreconnect.apple.com) > Users
+   and Access > Integrations, create a key (the Developer role is enough)
+   and download its `.p8` file — it's offered once. Note the key ID and
+   the issuer ID shown there, then:
+
+   ```sh
+   $rcodesign encode-app-store-connect-api-key -o notary-key.json \
+     <issuer ID> <key ID> AuthKey_<key ID>.p8
+   ```
+
+Then, for each build:
+
+```sh
+export MACOS_SIGN_P12=~/keys/developer-id.p12
+export MACOS_SIGN_P12_PASSWORD_FILE=~/keys/developer-id.password
+export MACOS_NOTARY_API_KEY=~/keys/notary-key.json
+make macos
+```
+
+The build signs every executable in the app with the hardened runtime
+(which notarization requires), giving the ones that run the app — the
+bundled Python and Qt's WebEngine helper — the entitlements in
+`scripts/macos_entitlements.plist` that Chromium's JavaScript engine
+needs. It then uploads the app to Apple, waits for the verdict (usually a
+few minutes), staples the approval to the `.app`, and zips it. With
+`MACOS_NOTARY_API_KEY` unset, it signs but skips notarization.
+
+If Apple rejects the submission, the build stops with a submission ID;
+`$rcodesign notary-log --api-key-file notary-key.json <submission ID>`
+prints what it objected to.
+
+This path has been exercised only as far as a Linux host without Apple
+credentials can take it: with a self-made test certificate, every program
+in the bundle comes out signed with the hardened runtime and the right
+entitlements. Signing with a real Developer ID, notarization itself, and —
+above all — running the result on a Mac are untested. The hardened runtime
+is strict, so expect that a first run on a Mac may turn up a program that
+needs another entitlement.
+
 ## Running the Linux AppImage
 
 To just run it, download the AppImage from the
-[Linux release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.2). The rest of this section covers
-building it yourself, and describes the build this source tree makes — the
-published release predates the app's move from Electron to Qt (it needs
-FUSE 2 to mount, and runs on older distributions).
+[Linux release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0); its
+[release notes](release-notes/linux-2.0.0.md) cover running it. The rest
+of this section covers building it yourself. (Version 1.0, the
+[earlier Electron-based release](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.2), runs on older
+distributions but needs FUSE 2 to mount.)
 
 `make appimage` builds the editor app for x86_64 Linux as an
 [AppImage](https://appimage.org/): a single executable file with the same
@@ -238,6 +376,53 @@ packs that folder with
 [appimagetool](https://github.com/AppImage/appimagetool). The file is about
 335 MB. It has been run on Fedora: launched as the AppImage, and
 driven through a Render with every system build tool hidden from `PATH`.
+
+## Building the snap
+
+`snap/snapcraft.yaml` packages the editor app as a
+[snap](https://snapcraft.io/), for the Snap Store. It wraps the same
+self-contained bundle as the AppImage — Python, Qt, pandoc, TeX, and the
+app — so it needs nothing else installed.
+
+**This packaging hasn't been built or run yet**: it's written to
+snapcraft's documentation, and the first build is the test. The parts
+most likely to need adjusting are noted below.
+
+Build it with [snapcraft](https://snapcraft.io/docs/snapcraft), which
+runs most smoothly on Ubuntu:
+
+```sh
+snapcraft                                                   # -> markdown-cornell-notes_<version>_amd64.snap
+sudo snap install --dangerous ./markdown-cornell-notes_*.snap    # --dangerous: a local file, not from the store
+markdown-cornell-notes
+```
+
+Without an Ubuntu machine, the **Snap** workflow in GitHub Actions builds
+it: run it from the repository's Actions tab, then download the `.snap`
+from the run's artifacts. It only builds; it publishes nothing.
+
+To publish, make a free account at [snapcraft.io](https://snapcraft.io),
+then:
+
+```sh
+snapcraft login
+snapcraft register markdown-cornell-notes    # once: claims the name
+snapcraft upload --release=stable ./markdown-cornell-notes_*.snap
+```
+
+How it differs from the AppImage, being confined:
+
+- **Notes folder:** as usual it opens `Documents/Cornell Notes`, in your
+  real home folder. It can open any other folder in your home that isn't
+  hidden (the `home` interface); for notes on an external drive, run
+  `sudo snap connect markdown-cornell-notes:removable-media` once.
+- **Chromium's sandbox is off** inside the snap (it can't be set up under
+  confinement); the snap's own confinement stands in for it. So there's no
+  `--no-sandbox` to add on Ubuntu 24.04.
+- **Desktop libraries** come from the GNOME runtime snap, plus the handful
+  of packages listed under `stage-packages`. If the app fails to start
+  with a missing-library error, that list is where to add it.
+- **Its own settings** are kept under `~/snap/markdown-cornell-notes/`.
 
 ## Installing on macOS (Homebrew)
 

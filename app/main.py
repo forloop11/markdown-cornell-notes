@@ -102,7 +102,9 @@ def main():
 
     # Matches the desktop entry (markdown-cornell-notes.desktop), so
     # desktops match the running window to it.
-    QGuiApplication.setDesktopFileName("markdown-cornell-notes")
+    # (MCN_DESKTOP_FILE_NAME: for a package whose entry is named
+    # differently, as a snap's is.)
+    QGuiApplication.setDesktopFileName(os.environ.get("MCN_DESKTOP_FILE_NAME", "markdown-cornell-notes"))
     if sys.platform == "win32":
         # Its own taskbar identity (and so the window's icon there), rather
         # than being grouped under Python's.
@@ -121,7 +123,11 @@ def main():
         if remembered and Path(remembered).is_dir():
             window = MainWindow(remembered, **options)
         else:
-            documents = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
+            # MCN_DOCUMENTS_DIR: where "Documents" really is, for a package
+            # that runs the app with a home directory of its own (a snap).
+            documents = os.environ.get("MCN_DOCUMENTS_DIR") or QStandardPaths.writableLocation(
+                QStandardPaths.StandardLocation.DocumentsLocation
+            )
             window = MainWindow(Path(documents) / "Cornell Notes", scaffold_if_missing=True, **options)
     else:
         # Same "operate on CWD" model as the CLI: `make app` (or the

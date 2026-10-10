@@ -30,24 +30,22 @@ University or the Pauk estate.
 
 Ready-to-run editor apps, with everything needed to make PDFs built in:
 
-- **Windows 10/11 (64-bit):** [Windows installer](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.0)
-- **macOS 13+ on Apple silicon (M1 or later):** [macOS app](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.1)
-- **Linux (64-bit Intel/AMD):** [AppImage](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.2)
+- **Linux (64-bit Intel/AMD):** [AppImage, version 2.0.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v2.0.0)
+  — the current app, as shown above. Needs a distribution with glibc 2.34
+  or later (Ubuntu 22.04, Debian 12, Fedora 35, or newer).
+- **Windows 10/11 (64-bit):** [Windows installer, version 1.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.0)
+- **macOS 13+ on Apple silicon (M1 or later):** [macOS app, version 1.0](https://github.com/forloop11/markdown-cornell-notes/releases/tag/v1.0.1)
 
 Each release page has install steps. The apps aren't code-signed yet, so
-Windows and macOS warn on first launch, and the AppImage may need FUSE 2
-installed; the steps there explain what to do. Earlier and later versions
-are on the [Releases](https://github.com/forloop11/markdown-cornell-notes/releases) page.
+Windows and macOS warn on first launch; the steps there explain what to
+do. Other versions are on the [Releases](https://github.com/forloop11/markdown-cornell-notes/releases) page.
 
-**These downloads are the previous version of the app.** The editor has
-since been rebuilt on Qt, and gained the assets explorer, Markdown import,
-Markdown/LaTeX export, and the other features shown above; those builds
-haven't been published as a release yet. Until they are, get the current
-app by [building it](docs/installation.md) (`make appimage`, `make
-windows`, or `make macos`) or [running it from a checkout](#quick-start).
-The new builds need macOS 14 or later, or a Linux distribution with glibc
-2.34 or later (Ubuntu 22.04, Debian 12, Fedora 35), and the new AppImage
-no longer needs FUSE 2.
+**The Windows and macOS downloads are still version 1.0**, from before the
+editor was rebuilt on Qt: they lack the assets explorer, Markdown import,
+Markdown/LaTeX export, and the other version 2 features shown above. To
+get version 2 on those systems now, [build it](docs/installation.md)
+(`make windows` or `make macos`) — those builds haven't been tried on
+Windows or a Mac yet, which is why they aren't published.
 
 To use the command line, or your system's own TeX Live and pandoc, see
 [Quick start](#quick-start).
@@ -173,7 +171,7 @@ preview size themselves to the window. Also:
   documents, linking assets, and how the output PDF is named.
 - **[Project structure](docs/project-structure.md)** — what lives in each
   directory and how the build scripts fit together.
-- **[Installation](docs/installation.md)** — installing as a `.deb`, via
+- **[Installation](docs/installation.md)** — installing as a `.deb` or RPM, via
   Homebrew on macOS, with the Windows or macOS app or the Linux AppImage,
   or running with Docker,
   instead of using a git checkout directly.
@@ -198,6 +196,9 @@ preview size themselves to the window. Also:
 - `make distclean` — also removes the generated `build/` files and the PDF.
 - `make deb` — packages this project as a `.deb`; see
   [Installation](docs/installation.md#installing-as-a-system-package).
+- `make rpm` — packages it as an RPM for Fedora and RHEL-family systems;
+  see [Installation](docs/installation.md#installing-on-fedora-and-rhel-family-systems-rpm),
+  which also covers publishing it through Fedora COPR.
 - `make windows` — builds the Windows installer for the editor app, with
   Python, Qt, pandoc, and TeX bundled; see
   [Installation](docs/installation.md#installing-on-windows).

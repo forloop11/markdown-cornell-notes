@@ -1,0 +1,124 @@
+# The editor app as a snap, for the Snap Store (https://snapcraft.io).
+#
+# It wraps the same self-contained Linux bundle the AppImage does --
+# Python, Qt (PySide6), pandoc, TeX, and the app, assembled by
+# scripts/build_appimage.sh -- so the snap needs nothing else installed to
+# write notes and build PDFs.
+#
+# Build:    snapcraft            (on Ubuntu; or the "Snap" GitHub workflow)
+# Try it:   sudo snap install --dangerous ./markdown-cornell-notes_*.snap
+# Publish:  snapcraft upload --release=stable ./markdown-cornell-notes_*.snap
+#
+# See docs/installation.md, "Building the snap".
+name: markdown-cornell-notes
+title: Markdown Cornell Notes
+summary: Cornell-style meeting notes from Markdown, with a PDF preview
+description: |
+  Write meeting notes in Markdown, fill in the topic, date, and attendees,
+  and click Render to get a printable Cornell-style PDF: a header, a large
+  notes panel with a cue column beside it, and a summary band below.
+
+  The editor shows your notes beside the PDF, saves as you type, and has an
+  assets explorer for the images and files your notes link to. Everything
+  needed to build the PDFs (TeX, pandoc, Python) is included.
+license: MIT
+website: https://github.com/forloop11/markdown-cornell-notes
+source-code: https://github.com/forloop11/markdown-cornell-notes
+issues: https://github.com/forloop11/markdown-cornell-notes/issues
+icon: app/build-resources/icon.png
+
+# The version is the app's own (app/package.json); see the part below.
+adopt-info: bundle
+base: core24
+grade: stable
+confinement: strict
+platforms:
+  amd64:
+
+apps:
+  markdown-cornell-notes:
+    command: bin/markdown-cornell-notes
+    desktop: share/applications/markdown-cornell-notes.desktop
+    # GNOME's runtime supplies the desktop libraries Qt's Linux builds
+    # link against (X11, Wayland, OpenGL, fontconfig, ...) and the
+    # desktop, wayland, x11, and opengl plugs.
+    extensions: [gnome]
+    plugs:
+      # Notes live in the user's own folders (Documents/Cornell Notes by
+      # default; any folder they open) -- not hidden ones, which a
+      # confined snap can't reach.
+      - home
+      # ...and optionally on other drives, once the user connects this:
+      #   sudo snap connect markdown-cornell-notes:removable-media
+      - removable-media
+      # What Chromium (Qt WebEngine: the editor and PDF panes) needs from
+      # the system, e.g. shared memory.
+      - browser-support
+    environment:
+      # Chromium's own sandbox can't be set up inside a snap's confinement;
+      # the snap's confinement stands in for it.
+      QTWEBENGINE_DISABLE_SANDBOX: "1"
+      # The app's entry as snapd installs it, so desktops match the
+      # running window to it.
+      MCN_DESKTOP_FILE_NAME: markdown-cornell-notes_markdown-cornell-notes
+
+parts:
+  bundle:
+    plugin: nil
+    source: .
+    build-packages:
+      - curl
+      - perl # TinyTeX's tlmgr
+      - rsync
+      - unzip
+      - xz-utils
+    # The libraries Qt's Linux builds expect from the system beyond what
+    # the GNOME runtime carries.
+    stage-packages:
+      - libasound2t64
+      - libnspr4
+      - libnss3
+      - libxcb-cursor0
+      - libxcb-icccm4
+      - libxcb-image0
+      - libxcb-keysyms1
+      - libxcb-render-util0
+      - libxcb-shape0
+      - libxcb-xkb1
+      - libxkbcommon-x11-0
+      - libxkbfile1
+      - libxtst6
+    override-pull: |
+      craftctl default
+      craftctl set version="$(sed -n 's/^  "version": "\(.*\)",$/\1/p' app/package.json)"
+    override-build: |
+      # Stage the bundle exactly as the AppImage build does (it downloads
+      # pinned copies of TinyTeX, pandoc, CPython, and PySide6), without
+      # packing an AppImage.
+      MCN_STAGE_ONLY=1 scripts/build_appimage.sh
+      cp -a dist/linux-stage/AppDir/resources "$CRAFT_PART_INSTALL/resources"
+
+      install -D -m 755 /dev/stdin "$CRAFT_PART_INSTALL/bin/markdown-cornell-notes" <<'LAUNCHER'
+      #!/bin/sh
+      # Starts the editor app with the Python bundled in the snap. A snap
+      # runs with a home directory of its own; SNAP_REAL_HOME is the
+      # user's, where their Documents folder is.
+      export MCN_DOCUMENTS_DIR="${SNAP_REAL_HOME:-$HOME}/Documents"
+      exec "$SNAP/resources/python/bin/python3" "$SNAP/resources/pipeline/app/main.py" "$@"
+      LAUNCHER
+
+      install -D -m 644 app/build-resources/icon.png "$CRAFT_PART_INSTALL/share/icons/markdown-cornell-notes.png"
+      install -D -m 644 /dev/stdin "$CRAFT_PART_INSTALL/share/applications/markdown-cornell-notes.desktop" <<'DESKTOP'
+      [Desktop Entry]
+      Type=Application
+      Name=Markdown Cornell Notes
+      Comment=Cornell-style meeting notes from Markdown, with a live PDF preview
+      Exec=markdown-cornell-notes %U
+      Icon=${SNAP}/share/icons/markdown-cornell-notes.png
+      Terminal=false
+      Categories=Office;
+      DESKTOP
+    # Everything in the bundle is prebuilt and already as small as it gets;
+    # leave its binaries exactly as they are.
+    build-attributes:
+      - no-patchelf

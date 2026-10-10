@@ -38,7 +38,7 @@ LATEXMK  := latexmk
 # in that recursive call) -- checking the *default* $(MD)/$(YAML) here would
 # wrongly demand a project the example build never touches. It still needs
 # $(SETTINGS_YAML) though, since that one isn't overridden.
-NO_PROJECT_NEEDED := init deb windows macos appimage install-appimage uninstall-appimage clean distclean app test
+NO_PROJECT_NEEDED := init deb rpm windows macos appimage install-appimage uninstall-appimage clean distclean app test
 NEEDS_PROJECT := $(filter-out $(NO_PROJECT_NEEDED),$(or $(MAKECMDGOALS),build))
 NEEDS_MD_YAML := $(filter-out build-example,$(NEEDS_PROJECT))
 ifneq ($(NEEDS_MD_YAML),)
@@ -70,7 +70,7 @@ EXAMPLE_MD       := $(MCN_ROOT)md/notes-example.md
 EXAMPLE_YAML     := $(MCN_ROOT)yaml/notes-example.yaml
 EXAMPLE_BUILDDIR := build/example
 
-.PHONY: build clean distclean build-example app deb windows macos appimage install-appimage uninstall-appimage init test
+.PHONY: build clean distclean build-example app deb rpm windows macos appimage install-appimage uninstall-appimage init test
 
 build: $(PDF)
 	$(LATEXMK) -c -jobname=$(JOBNAME) -outdir=$(OUTDIR) $(TEX)
@@ -127,6 +127,12 @@ test:
 # system packages it declares as Depends.
 deb:
 	$(MCN_ROOT)scripts/build_deb.sh
+
+# Packages this project as an RPM (dist/rpm/) for Fedora and RHEL-family
+# systems, the same way -- see scripts/build_rpm.sh and
+# markdown-cornell-notes.spec. Needs rpmbuild, or podman or docker.
+rpm:
+	$(MCN_ROOT)scripts/build_rpm.sh
 
 # Builds the Windows installer for the editor app
 # (dist/windows/Markdown-Cornell-Notes-Setup-<version>.exe), with Python,

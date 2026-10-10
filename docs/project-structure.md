@@ -32,6 +32,9 @@
 │   ├── yaml_to_settings.py    settings/page.yaml -> build/cornell-page-
 │   │                          settings.tex
 │   ├── build_deb.sh           `make deb`: packages a .deb (see installation.md).
+│   ├── build_rpm.sh           `make rpm`: packages an RPM from
+│   │                          markdown-cornell-notes.spec (at the top level,
+│   │                          with .copr/Makefile for Fedora COPR builds).
 │   ├── build_windows.sh       `make windows`: the Windows installer, with
 │   │                          Python/Qt/pandoc/TeX bundled (see installation.md).
 │   ├── build_macos.sh         `make macos`: the Apple Silicon macOS app zip,
@@ -47,6 +50,10 @@
 │   │                          the app uses.
 │   ├── macos_launcher.c       The macOS app's executable, which starts the
 │   │                          bundled Python on app/main.py.
+│   ├── macos_entitlements.plist  What the macOS app's programs may do
+│   │                          under Apple's hardened runtime.
+│   ├── macos_sign_scopes.py   Lists the programs in the .app for Developer
+│   │                          ID signing (see build_macos.sh).
 │   ├── make_icons.py          Regenerates the app icon's .ico and .icns.
 │   ├── make_tutorial_gif.py   Records the README's tutorial
 │   │                          (assets/tutorial.gif) from the real app.
@@ -86,6 +93,8 @@
 │   ├── requirements.txt  What the app needs from pip (PySide6).
 │   └── package.json      Build tooling for web/editor.js only (`npm
 │                         install` once, to rebuild it).
+├── snap/               snapcraft.yaml: the editor app as a snap (see
+│                       installation.md).
 ├── tests/              pytest tests for scripts/ and app/ (`make test`).
 └── Makefile            `make build` / `make app` / `make test` / `make
                         clean` / `make distclean`.

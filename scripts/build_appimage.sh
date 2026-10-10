@@ -19,6 +19,10 @@
 # written next to it: publish both in the GitHub release, and
 # AppImageUpdate and similar tools can update the app from the latest one.
 #
+# With MCN_STAGE_ONLY set, it stops once the bundle is staged
+# (dist/linux-stage/AppDir/resources) -- the same Linux bundle the snap
+# wraps (see snap/snapcraft.yaml).
+#
 # Usage: scripts/build_appimage.sh   (or `make appimage`)
 set -euo pipefail
 # shellcheck source=bundle_common.sh
@@ -37,10 +41,6 @@ download "https://github.com/jgm/pandoc/releases/download/$PANDOC_VERSION/pandoc
 # Only for pandoc's license files, which the Linux tarball doesn't include.
 download "https://github.com/jgm/pandoc/releases/download/$PANDOC_VERSION/pandoc-$PANDOC_VERSION-windows-x86_64.zip" \
   "$CACHE/pandoc-$PANDOC_VERSION-windows.zip"
-download "https://github.com/AppImage/appimagetool/releases/download/$APPIMAGETOOL_VERSION/appimagetool-x86_64.AppImage" \
-  "$CACHE/appimagetool-$APPIMAGETOOL_VERSION-x86_64.AppImage"
-download "https://github.com/AppImage/type2-runtime/releases/download/$APPIMAGE_RUNTIME_VERSION/runtime-x86_64" \
-  "$CACHE/appimage-runtime-$APPIMAGE_RUNTIME_VERSION-x86_64"
 prepare_build_python
 prepare_tex
 
@@ -66,6 +66,16 @@ write_notices "$RES/THIRD-PARTY-NOTICES.txt" \
   "python-build-standalone $PBS_RELEASE (https://github.com/astral-sh/python-build-standalone)" \
   "python/lib/python${PYTHON_VERSION%.*}/LICENSE.txt"
 cp "$ROOT/LICENSE" "$RES/LICENSE.txt"
+
+if [ -n "${MCN_STAGE_ONLY:-}" ]; then
+  echo "Staged $RES (MCN_STAGE_ONLY is set: not packing an AppImage)."
+  exit 0
+fi
+
+download "https://github.com/AppImage/appimagetool/releases/download/$APPIMAGETOOL_VERSION/appimagetool-x86_64.AppImage" \
+  "$CACHE/appimagetool-$APPIMAGETOOL_VERSION-x86_64.AppImage"
+download "https://github.com/AppImage/type2-runtime/releases/download/$APPIMAGE_RUNTIME_VERSION/runtime-x86_64" \
+  "$CACHE/appimage-runtime-$APPIMAGE_RUNTIME_VERSION-x86_64"
 
 # The AppDir's own files: what runs, and how desktops show it.
 cat > "$APPDIR/AppRun" <<'EOF'

@@ -43,6 +43,7 @@ def test_write_header_then_read_header_round_trips(p):
         "time": "10:00--10:30 EDT",
         "timezone": "America/Detroit",
         "location": "Zoom",
+        "layout": "plain",
     }
     p.write_header("notes.md", fields)
     assert p.read_header("notes.md") == fields
@@ -242,6 +243,22 @@ def test_render_with_an_image_that_has_no_explicit_size(tmp_path):
     success, log, pdf_path = p.render("notes.md", "build/app-test")
     assert success, log[-2000:]
     assert pdf_path.is_file()
+
+
+@pytest.mark.skipif(
+    not (shutil.which("pdflatex") and shutil.which("pandoc")), reason="needs pdflatex and pandoc"
+)
+def test_render_a_plain_layout_document(tmp_path):
+    p = Pipeline(tmp_path / "plain", tools={"direct_build": True})
+    p.project_root.mkdir()
+    p.init_project()
+    p.write_header("notes.md", {**p.read_header("notes.md"), "layout": "plain"})
+    p.write_markdown_file("notes.md", "First page.\n\n^1 A cue\n\n<!-- pagebreak -->\n\nSecond page.\n")
+    success, log, pdf_path = p.render("notes.md", "build/app-test")
+    assert success, log[-2000:]
+    assert "\\cnplainlayouttrue" in (p.project_root / "build/app-test/cornell-header.tex").read_text()
+    # The page break still starts a new page; the cue has nowhere to go.
+    assert "(2 pages" in log
 
 
 def test_rename_markdown_file_moves_the_note_and_its_header_together(p, project):

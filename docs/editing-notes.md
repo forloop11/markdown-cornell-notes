@@ -1,7 +1,8 @@
 # Editing notes
 
 - **`yaml/notes.yaml`** — the header fields (`topic`, `date`, `attendees`,
-  `time`, `timezone`, `location`). Applied to every page automatically.
+  `time`, `timezone`, `location`), plus an optional `layout` (see
+  [Plain documents](#plain-documents)). Applied to every page automatically.
   Paired with its markdown file by name: `md/<stem>.md` goes with
   `yaml/<stem>.yaml`.
 - **`md/notes.md`** — the notes panel content, written in Markdown.
@@ -39,6 +40,31 @@ Run `make build` again and both files flow through to the PDF.
 > content. Replace it with your own notes; until you do, it doubles as a
 > working reference for what's supported (its HTML comments also note
 > what isn't, and why).
+
+## Plain documents
+
+Set `layout: plain` in a note's header yaml to build it as a plain
+document instead of a Cornell page:
+
+```yaml
+topic: Project Proposal
+date: 2026-11-04
+layout: plain
+```
+
+The header box, cue column, and summary band go away. The header fields
+become a title block at the top of page 1 instead: the topic as the title,
+then a line with the date and the Time row's text, then the attendees, with
+a rule underneath. Blank fields are left out, and with a blank header
+there's no title block at all. The Markdown fills the full page width at
+the normal type size, with 1-inch margins (`plain_margin` in
+`settings/page.yaml`; see [customization](customization.md)) and the page
+number centered at the foot of each page. A `<!-- pagebreak -->` still
+starts a new page. `^<page>` cue lines and `^^<page>` summary lines have
+nowhere to go, so a plain document leaves them out.
+
+`layout: cornell` (or no `layout` at all) is the usual Cornell page. Any
+other value stops the build with an error naming the file.
 
 ## Pagination
 

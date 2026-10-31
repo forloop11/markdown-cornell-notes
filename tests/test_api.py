@@ -20,6 +20,7 @@ HEADER = {
     "timezone": "America/Detroit",
     "tz_hint": "",
     "attendees": "Lily",
+    "layout": "plain",
 }
 
 

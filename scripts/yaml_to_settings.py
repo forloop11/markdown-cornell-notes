@@ -2,9 +2,9 @@
 """Convert settings/page.yaml into build/cornell-page-settings.tex.
 
 Controls page geometry (paper size, margin), header/cue-column/
-summary-band sizing (as fractions of the page), and spacing (padding,
-border inset) -- the "TEMPLATE CONFIGURATION" knobs in
-settings/template.tex.
+summary-band sizing (as fractions of the page), spacing (padding,
+border inset), and the plain layout's own margin (plain_margin) -- the
+"TEMPLATE CONFIGURATION" knobs in settings/template.tex.
 Field values are passed through to LaTeX as-is (lengths and decimals,
 not prose), so no escaping is needed.
 
@@ -23,6 +23,7 @@ FRAC_MACROS = {
 LENGTH_MACROS = {
     "padding": "cnPad",
     "border_inset": "cnBorderInset",
+    "plain_margin": "cnPlainMargin",
 }
 KNOWN_FIELDS = set(GEOMETRY_FIELDS) | set(FRAC_MACROS) | set(LENGTH_MACROS)
 

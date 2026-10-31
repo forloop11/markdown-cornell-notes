@@ -1,7 +1,7 @@
 """Conversion between a markdown file's stored header fields (see
 pipeline.HEADER_FIELDS) and the header form the editor UI edits:
 Topic/Location, a Date picker, Start/End time fields, a Timezone field,
-and Attendees.
+Attendees, and the page Layout.
 
 The form doesn't map 1:1 onto the stored fields -- "time" is composed
 from Start/End/Timezone (e.g. "10:00--10:30 PDT"), and an entry written
@@ -21,7 +21,13 @@ TZ_OPTIONS = sorted(z for z in zoneinfo.available_timezones() if z != "Factory")
 _TZ_SET = frozenset(TZ_OPTIONS)
 
 # The form's keys, as the window fills and reads them (see window.py).
-FORM_FIELDS = ["topic", "location", "date", "start", "end", "timezone", "tz_hint", "attendees"]
+FORM_FIELDS = ["topic", "location", "date", "start", "end", "timezone", "tz_hint", "attendees", "layout"]
+
+# The page layouts a note can use (scripts/yaml_to_header.py's "layout"
+# field), as (stored value, the form's name for it); the first is the
+# default, for a header that doesn't set one.
+LAYOUTS = [("cornell", "Cornell notes"), ("plain", "Plain document")]
+_LAYOUT_SET = frozenset(value for value, _ in LAYOUTS)
 
 # Recognizes the legacy "time" field convention "HH:MM--HH:MM TZ, location"
 # (also accepting a single "-"/en dash, or "to" for the range) -- from
@@ -119,6 +125,14 @@ def compose_time_field(start, end, tz_name, ref_date, tz_hint=""):
     return time_part
 
 
+def normalize_layout(value):
+    """`value` as one of LAYOUTS' stored values -- the default (Cornell)
+    if it's blank or not a layout the build knows.
+    """
+    value = (value or "").strip().lower()
+    return value if value in _LAYOUT_SET else LAYOUTS[0][0]
+
+
 def form_from_header(fields, today=None):
     """The header form's initial values for stored header `fields` (a dict
     covering every name in pipeline.HEADER_FIELDS).
@@ -144,6 +158,7 @@ def form_from_header(fields, today=None):
         "timezone": fields["timezone"] if fields["timezone"] in _TZ_SET else "",
         "tz_hint": tz_hint,
         "attendees": fields["attendees"],
+        "layout": normalize_layout(fields["layout"]),
     }
 
 
@@ -170,4 +185,5 @@ def header_from_form(form):
         # restored next time this file is opened.
         "timezone": tz_name,
         "location": values["location"],
+        "layout": normalize_layout(values["layout"]),
     }

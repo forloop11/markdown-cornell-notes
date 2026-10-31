@@ -14,6 +14,11 @@
 %   |           Summary band (for hand writing)            |
 %   +----------------------------------------------------+
 %
+% A header yaml with "layout: plain" swaps all of this for a plain
+% document instead: a title block from the header fields on page 1, then
+% the notes as ordinary full-width text with normal margins and a page
+% number at the foot of each page (see \ifcnplainlayout below).
+%
 % Usage: call \cornellpage{notes} once per page (see example at bottom).
 % Header fields come from notes.yaml and apply to every page; page
 % numbers are automatic. Adjustable knobs are in the
@@ -169,6 +174,10 @@
 % keeps notes.yaml's "time" and "location" fields independent, so the
 % Time row always reflects the current "location" value.
 \newcommand{\cnHdrLocation}{}
+% notes.yaml's "layout" field: true for "layout: plain" (set by the
+% generated header file), false -- the Cornell page -- otherwise.
+\newif\ifcnplainlayout
+\cnplainlayoutfalse
 \IfFileExists{\cnBuildDir/cornell-header.tex}{\input{\cnBuildDir/cornell-header.tex}}{}
 
 % The Time row's displayed text: \cnHdrTime plus \cnHdrLocation, joined by
@@ -226,6 +235,8 @@
 
 \setlength{\cnPad}{0.12in}                   % inner padding for text
 \setlength{\cnBorderInset}{2pt}
+\newlength{\cnPlainMargin}                   % page margin for the plain layout
+\setlength{\cnPlainMargin}{1in}
 
 % ------------------------------------------------------------------
 % Page geometry, header/cue-column/summary-band fractions, and spacing
@@ -235,6 +246,12 @@
 % that hasn't been done yet.
 % ------------------------------------------------------------------
 \IfFileExists{\cnBuildDir/cornell-page-settings.tex}{\input{\cnBuildDir/cornell-page-settings.tex}}{}
+
+% The plain layout has no boxes to keep inside a narrow margin, so it
+% swaps page.yaml's margin for its own, wider one (plain_margin).
+\ifcnplainlayout
+  \geometry{margin=\cnPlainMargin}
+\fi
 
 % \textwidth/\textheight are only finalized by geometry at
 % \begin{document}, so the fractional lengths above must be computed
@@ -493,6 +510,67 @@
     \cnFlowLoop
   \fi
 }
+
+% ------------------------------------------------------------------
+% Plain layout ("layout: plain" in notes.yaml)
+%
+% No header box, cue column, or summary band: cornellFlow just typesets
+% its content straight onto the page at the document's normal size,
+% letting LaTeX's own page breaking spread it over as many pages as it
+% needs. The header fields become a title block at the top of page 1,
+% and "^<page>"/"^^<page>" entries, having nowhere to go, are left out.
+% ------------------------------------------------------------------
+
+% Separates the title block's details line: " · " before every item but
+% the first one actually printed.
+\newif\ifcnPlainMetaSep
+\newcommand{\cnPlainMetaItem}[2]{% label, value
+  \ifcnPlainMetaSep\quad\textperiodcentered\quad\fi
+  \global\cnPlainMetaSeptrue
+  \textbf{#1} #2%
+}
+
+\newcommand{\cnPlainTitle}{%
+  \ifx\cnHdrTopic\cnEmptyMarker\else
+    {\LARGE\bfseries\raggedright\cnHdrTopic\par}%
+    \vspace{0.5\baselineskip}%
+  \fi
+  \global\cnPlainMetaSepfalse
+  {\small\raggedright
+    \ifx\cnHdrDate\cnEmptyMarker\else\cnPlainMetaItem{Date:}{\cnHdrDate}\fi
+    \ifx\cnHdrTime\cnEmptyMarker
+      \ifx\cnHdrLocation\cnEmptyMarker\else\cnPlainMetaItem{Time:}{\cnHdrTimeLine}\fi
+    \else
+      \cnPlainMetaItem{Time:}{\cnHdrTimeLine}%
+    \fi
+    \ifcnPlainMetaSep\par\fi
+    \ifx\cnHdrAttendees\cnEmptyMarker\else
+      \textbf{Attendees:} \cnHdrAttendees\par
+      \global\cnPlainMetaSeptrue
+    \fi
+  }%
+  % A rule under the title block, unless the header was blank throughout.
+  \ifcnPlainMetaSep\else\ifx\cnHdrTopic\cnEmptyMarker\else\global\cnPlainMetaSeptrue\fi\fi
+  \ifcnPlainMetaSep
+    \vspace{0.25\baselineskip}%
+    \noindent\rule{\linewidth}{0.4pt}\par
+    \vspace{\baselineskip}%
+  \fi
+}
+
+\ifcnplainlayout
+  \pagestyle{plain}
+  \setlength{\parskip}{0.5\baselineskip plus 2pt}
+  \renewenvironment{cornellFlow}{%
+    % Same first-page bookkeeping as \cornellpage: the title block opens
+    % the first section, and each later one (from a "<!-- pagebreak -->")
+    % starts a new page.
+    \ifcnfirstpage\global\cnfirstpagefalse\cnPlainTitle\else\newpage\fi
+    \noindent
+  }{%
+    \par
+  }
+\fi
 
 \begin{document}
 

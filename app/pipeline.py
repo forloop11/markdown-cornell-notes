@@ -23,7 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from simple_yaml import parse_yaml  # noqa: E402  (needs scripts/ on sys.path first)
 
-HEADER_FIELDS = ["topic", "date", "attendees", "time", "timezone", "location"]
+HEADER_FIELDS = ["topic", "date", "attendees", "time", "timezone", "location", "layout"]
 
 HEADER_COMMENT = (
     "# Header details for the first \\cornellpage in settings/template.tex.\n"

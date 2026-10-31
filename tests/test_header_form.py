@@ -7,7 +7,16 @@ import header_form as hf
 
 
 def blank_fields(**overrides):
-    return {"topic": "", "date": "", "attendees": "", "time": "", "timezone": "", "location": "", **overrides}
+    return {
+        "topic": "",
+        "date": "",
+        "attendees": "",
+        "time": "",
+        "timezone": "",
+        "location": "",
+        "layout": "cornell",
+        **overrides,
+    }
 
 
 def test_legacy_time_field_is_split_back_apart():
@@ -74,6 +83,13 @@ def test_loading_a_saved_header_into_the_form_and_saving_it_back_is_lossless():
         location="Zoom",
     )
     assert hf.header_from_form(hf.form_from_header(fields)) == fields
+
+
+def test_a_plain_layout_round_trips_and_anything_else_means_cornell():
+    assert hf.header_from_form(hf.form_from_header(blank_fields(layout="plain")))["layout"] == "plain"
+    assert hf.form_from_header(blank_fields(layout="Plain"))["layout"] == "plain"
+    assert hf.form_from_header(blank_fields(layout=""))["layout"] == "cornell"
+    assert hf.form_from_header(blank_fields(layout="tabloid"))["layout"] == "cornell"
 
 
 def test_malformed_form_input_degrades_to_blank_rather_than_raising():

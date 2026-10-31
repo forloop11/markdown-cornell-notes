@@ -123,13 +123,16 @@ the app show up in the tree on their own.
 To the right of the explorer, below the app bar, is a collapsible **Details** section holding the header
 fields: Topic, Date, and start/end times on the first row; Location,
 a searchable IANA timezone field (type any part of a zone's name to filter,
-then pick one), and Attendees on the second. Start and End each have a
+then pick one), Attendees, and Layout on the second. Layout is
+**Cornell notes** or **Plain document** — the `layout` field (see
+[Plain documents](editing-notes.md#plain-documents)); render again to
+see the change. Start and End each have a
 time picker: the clock button at the field's right edge (or the Down key)
 opens a panel with a column of hours and a column of minutes in steps of
 five, plus **Now** and **Clear**. A time can also be typed as `HH:MM` —
 any minute, not just the fives — or left blank; text that isn't a time
 (or, for Timezone, isn't a zone) snaps back to the last valid value. Collapsed, it shows a one-line recap (topic, date,
-time, location) next to its title. `date` is a calendar date picker
+time, location, and "Plain document" for a plain one) next to its title. `date` is a calendar date picker
 (defaulting to today for an entry that doesn't have one yet), still stored in
 `yaml/<stem>.yaml` as a plain `YYYY-MM-DD` string, same as editing it by
 hand. The start/end/timezone group composes into the `time` field's usual

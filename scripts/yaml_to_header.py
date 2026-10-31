@@ -6,6 +6,10 @@ header fields (topic, date, attendees, time) -- no nesting, lists, or
 multi-line values. Avoids a PyYAML dependency since the header data is
 always this simple.
 
+An optional "layout" field picks the page layout: "cornell" (the
+default, also used when it's blank or missing) or "plain" (see
+settings/template.tex's \\ifcnplainlayout).
+
 Usage (from the repo root): python3 scripts/yaml_to_header.py [input.yaml] [output.tex]
 """
 import sys
@@ -19,6 +23,14 @@ FIELD_MACROS = {
     "time": "cnHdrTime",
     "timezone": "cnHdrTimezone",
     "location": "cnHdrLocation",
+}
+
+# "layout" values, and the \if switch each one sets in the template ("" for
+# none -- the template's default, the Cornell page).
+LAYOUTS = {
+    "": "",
+    "cornell": "",
+    "plain": "\\cnplainlayouttrue",
 }
 
 LATEX_SPECIALS = {
@@ -52,9 +64,12 @@ def main():
 
     fields = parse_yaml(in_path)
 
-    unknown = set(fields) - set(FIELD_MACROS)
+    unknown = set(fields) - set(FIELD_MACROS) - {"layout"}
     if unknown:
         raise ValueError(f"{in_path}: unrecognized field(s): {', '.join(sorted(unknown))}")
+    layout = fields.get("layout", "").lower()
+    if layout not in LAYOUTS:
+        raise ValueError(f"{in_path}: layout must be cornell or plain, got: {fields['layout']!r}")
 
     lines = [
         f"% Generated from {in_path} by scripts/yaml_to_header.py -- do not edit by hand.",
@@ -62,6 +77,8 @@ def main():
     for key, macro in FIELD_MACROS.items():
         value = escape_latex(fields.get(key, ""))
         lines.append(f"\\renewcommand{{\\{macro}}}{{{value}}}")
+    if LAYOUTS[layout]:
+        lines.append(LAYOUTS[layout])
 
     write_generated(out_path, lines)
 

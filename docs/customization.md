@@ -13,6 +13,8 @@ summary_height: 0.18
 
 padding: 0.12in
 border_inset: 2pt
+
+plain_margin: 1in
 ```
 
 - **`paper`, `margin`** — passed straight to the LaTeX `geometry` package,
@@ -24,6 +26,10 @@ border_inset: 2pt
 - **`padding`, `border_inset`** — inner text padding and the safety
   margin that keeps thick strokes inside the printable area, each a
   LaTeX length.
+- **`plain_margin`** — the page margin for notes built as
+  [plain documents](editing-notes.md#plain-documents) (`layout: plain`),
+  used in place of `margin`. Any LaTeX length. `paper` applies to them
+  too; the header, cue-column, summary-band, and spacing settings don't.
 
 Edit the file and run `make build` again; every page picks up the change
 automatically. Under the hood this generates

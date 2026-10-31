@@ -391,6 +391,11 @@ class MainWindow(QMainWindow):
         self.end.changed.connect(lambda value: self._header_edited("end", value))
         self.timezone = ChoiceField(header_form.TZ_OPTIONS, "(none)")
         self.timezone.changed.connect(lambda value: self._header_edited("timezone", value))
+        self.layout_choice = QComboBox()
+        for value, name in header_form.LAYOUTS:
+            self.layout_choice.addItem(name, value)
+        self.layout_choice.setToolTip("Cornell notes, or a plain document with a title block")
+        self.layout_choice.activated.connect(lambda _: self._header_edited("layout", self.layout_choice.currentData()))
 
         grid.addWidget(field("Topic", self.topic), 0, 0, 1, 3)
         grid.addWidget(field("Date", self.date), 0, 3)
@@ -398,7 +403,8 @@ class MainWindow(QMainWindow):
         grid.addWidget(field("End", self.end), 0, 5)
         grid.addWidget(field("Location", self.location), 1, 0, 1, 2)
         grid.addWidget(field("Timezone", self.timezone), 1, 2)
-        grid.addWidget(field("Attendees", self.attendees), 1, 3, 1, 3)
+        grid.addWidget(field("Attendees", self.attendees), 1, 3, 1, 2)
+        grid.addWidget(field("Layout", self.layout_choice), 1, 5)
         return form
 
     def _pane(self, icon, tag, body, controls=()):
@@ -878,6 +884,7 @@ class MainWindow(QMainWindow):
             self.start.set_value(self.header["start"])
             self.end.set_value(self.header["end"])
             self.timezone.set_value(self.header["timezone"])
+            self.layout_choice.setCurrentIndex(max(self.layout_choice.findData(self.header["layout"]), 0))
         finally:
             self._filling = False
         self._update_header_summary()
@@ -893,7 +900,8 @@ class MainWindow(QMainWindow):
         """The one-line recap shown beside "Details" while that card is folded."""
         header = self.header or {}
         time = "–".join(filter(None, [header.get("start"), header.get("end")]))
-        parts = [header.get("topic"), header.get("date"), time, header.get("location")]
+        layout = "Plain document" if header.get("layout") == "plain" else ""
+        parts = [header.get("topic"), header.get("date"), time, header.get("location"), layout]
         self.details_card.set_hint("  ·  ".join(filter(None, parts)))
 
     def _current_snapshot(self):
